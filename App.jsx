@@ -151,7 +151,7 @@ function ControlView() {
   const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
-  const [lastKey, setLastKey] = useState('NONE'); // BLUETOOTH SNIFFER STATE
+  const [lastKey, setLastKey] = useState('NONE'); 
 
   const localTimerRef = useRef(null);
   const localPressTimer = useRef(null);
@@ -178,21 +178,30 @@ function ControlView() {
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
       
-      // Sniff the key and display it
-      setLastKey(e.key);
+      const k = e.key;
+      setLastKey(k);
       
-      // Added common alternate Bluetooth codes like PageUp and VolumeUp
-      if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'VolumeUp') handleLocalDown(); 
-      else if (e.key === 'ArrowRight') startLocalHeartbeat(); 
-      else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'VolumeDown') handleAudienceDown(); 
-      else if (e.key === 'ArrowLeft') startAudienceHeartbeat(); 
+      // CONTINUOUS COMMANDS (Touch screen / Standard Arrow Keys holding)
+      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalDown(); 
+      else if (k === 'ArrowRight') startLocalHeartbeat(); 
+      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceDown(); 
+      else if (k === 'ArrowLeft') startAudienceHeartbeat(); 
+
+      // FLIC BUTTON DISCRETE COMMANDS (Toggles instantly upon receiving the single Flic letter)
+      else if (k === 'u' || k === 'U') toggleLocalTorch();
+      else if (k === 'r' || k === 'R') toggleLocalHeartbeat();
+      else if (k === 'd' || k === 'D') toggleAudienceTorch();
+      else if (k === 'l' || k === 'L') toggleAudienceHeartbeat();
     };
 
     const handleKeyUp = (e) => {
-      if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'VolumeUp') handleLocalUp();
-      else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'VolumeDown') handleAudienceUp();
-      else if (e.key === 'ArrowRight') stopLocalHeartbeat(); 
-      else if (e.key === 'ArrowLeft') stopAudienceHeartbeat(); 
+      const k = e.key;
+      
+      // Only fire key-ups for continuous commands (Flic discrete letters ignore this)
+      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalUp();
+      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceUp();
+      else if (k === 'ArrowRight') stopLocalHeartbeat(); 
+      else if (k === 'ArrowLeft') stopAudienceHeartbeat(); 
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -262,6 +271,11 @@ function ControlView() {
     turnLocalOff();
   };
 
+  const toggleLocalHeartbeat = () => {
+    if (localMode === 'BLINK') stopLocalHeartbeat();
+    else startLocalHeartbeat();
+  };
+
   const handleLocalDown = () => {
     if (isLocalPressing.current) return;
     isLocalPressing.current = true;
@@ -308,6 +322,11 @@ function ControlView() {
 
   const stopAudienceHeartbeat = () => {
     turnAudienceOff();
+  };
+
+  const toggleAudienceHeartbeat = () => {
+    if (audienceMode === 'BLINK') stopAudienceHeartbeat();
+    else startAudienceHeartbeat();
   };
 
   const handleAudienceDown = () => {
@@ -459,7 +478,7 @@ function ControlView() {
           
           {/* THE BLUETOOTH SNIFFER */}
           <div className="absolute -bottom-8 text-zinc-600 font-mono text-[10px] uppercase tracking-widest">
-            Last Bluetooth Key: [{lastKey}]
+            Last Flic Key: [{lastKey}]
           </div>
         </div>
 
