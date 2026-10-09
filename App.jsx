@@ -7,10 +7,7 @@ import { db } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 
 export default function App() {
-  // If the URL contains "?master", load the secret control deck.
-  // Otherwise, default to the Audience view.
   const isMaster = window.location.search.includes('master');
-
   return isMaster ? <ControlView /> : <AudienceView />;
 }
 
@@ -18,9 +15,10 @@ export default function App() {
 // AUDIENCE VIEW (Spectator's Phone)
 // ==========================================
 function AudienceView() {
-  const [isConnected, setIsConnected] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [error, setError] = useState('');
   const [isFlashing, setIsFlashing] = useState(false); 
+  const [dbStatus, setDbStatus] = useState('waiting'); // 'waiting', 'live', 'error'
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
@@ -38,10 +36,11 @@ function AudienceView() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-      
-      setIsConnected(true);
     } catch (err) {
-      setError('Camera access denied. Please ensure you are on HTTPS.');
+      setError('Camera denied. Screen flash active instead.');
+    } finally {
+      // ALWAYS advance to the red heart screen so the visual effect works
+      setCameraReady(true); 
     }
   };
 
@@ -59,25 +58,29 @@ function AudienceView() {
   };
 
   useEffect(() => {
-    if (!isConnected) return;
-
+    // Connects to Firebase immediately, regardless of camera status
     const commandRef = ref(db, 'audienceCommand');
     const unsubscribe = onValue(commandRef, (snapshot) => {
+      setDbStatus('live');
       const command = snapshot.val();
       if (command) handleCommand(command);
+    }, (err) => {
+      setDbStatus('error');
+      console.error("Firebase Connection Error:", err);
     });
     
     return () => {
       unsubscribe();
       clearTimeout(timerRef.current);
     };
-  }, [isConnected]);
+  }, []);
 
   const handleCommand = (command) => {
     clearTimeout(timerRef.current);
     
-    // Commands now look like "ON|171090123" or "REDIRECT|171090123|https://..."
-    const parts = command.split('|');
+    // Safety check to prevent old Firebase data from crashing the app
+    const safeCommand = String(command);
+    const parts = safeCommand.split('|');
     const baseCmd = parts[0];
     
     if (baseCmd === 'ON') {
@@ -108,20 +111,23 @@ function AudienceView() {
   };
 
   return (
-    <div className={`min-h-screen relative flex flex-col items-center justify-center p-6 transition-colors duration-75 ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
+    <div className={`min-h-screen relative flex flex-col items-center justify-center p-6 transition-colors duration-75 ${isFlashing ? 'bg-white text-black' : 'bg-black text-white'}`}>
       
-      {/* Must remain slightly visible in the background to prevent iOS from sleeping the flashlight */}
-      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-[0.01] pointer-events-none -z-10" />
+      {/* Firebase Live Status Indicator (Top Left) */}
+      <div className="absolute top-4 left-4 z-50">
+        <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
+      </div>
 
-      {!isConnected ? (
+      <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
+
+      {!cameraReady ? (
         <div className="flex flex-col items-center w-full max-w-md">
           <button 
             onClick={startCamera}
-            className="w-full py-5 bg-black text-white font-bold rounded-lg text-xl tracking-wide shadow-lg"
+            className="w-full py-5 bg-white text-black font-bold rounded-lg text-xl tracking-wide shadow-lg mb-4"
           >
             Enter Experience
           </button>
-          {error && <p className="text-red-500 mt-4 font-bold text-center">{error}</p>}
         </div>
       ) : (
         <div className="flex flex-col items-center text-center">
@@ -129,6 +135,7 @@ function AudienceView() {
           <h1 className="text-4xl font-black uppercase tracking-widest leading-tight">
             Hold your<br/>phone up
           </h1>
+          {error && <p className="text-zinc-600 mt-8 text-xs">{error}</p>}
         </div>
       )}
     </div>
@@ -151,10 +158,10 @@ function ControlView() {
   const localTimerRef = useRef(null);
   const localPressTimer = useRef(null);
   const localStepRef = useRef(0);
-  const isLocalPressing = useRef(false); // Touch-lock to prevent ghost taps
+  const isLocalPressing = useRef(false);
   
   const audiencePressTimer = useRef(null);
-  const isAudiencePressing = useRef(false); // Touch-lock to prevent ghost taps
+  const isAudiencePressing = useRef(false);
 
   const redirectPressTimer = useRef(null);
   const isRedirectPressing = useRef(false);
@@ -170,16 +177,21 @@ function ControlView() {
         setIsReady(true);
       });
 
-    // Unified Bluetooth Remote Mapping
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
-      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') handleLocalDown(); 
-      else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') handleAudienceDown(); 
+      
+      if (e.key === 'ArrowUp') handleLocalDown(); 
+      else if (e.key === 'ArrowRight') startLocalHeartbeat(); 
+      
+      else if (e.key === 'ArrowDown') handleAudienceDown(); 
+      else if (e.key === 'ArrowLeft') startAudienceHeartbeat(); 
     };
 
     const handleKeyUp = (e) => {
-      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') handleLocalUp();
-      else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') handleAudienceUp();
+      if (e.key === 'ArrowUp') handleLocalUp();
+      else if (e.key === 'ArrowDown') handleAudienceUp();
+      else if (e.key === 'ArrowRight') stopLocalHeartbeat(); 
+      else if (e.key === 'ArrowLeft') stopAudienceHeartbeat(); 
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -189,7 +201,7 @@ function ControlView() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [localMode, audienceMode]);
 
   const applyLocalTorch = (active) => {
     if (trackRef.current) {
@@ -198,15 +210,36 @@ function ControlView() {
   };
 
   const fireAudienceCommand = (cmd) => {
-    // Append a timestamp so Firebase ALWAYS triggers an update, even if it's the exact same command/URL
     let payload = `${cmd}|${Date.now()}`;
     if (cmd === 'REDIRECT') {
       payload = `REDIRECT|${Date.now()}|${redirectUrl}`;
     }
-    set(ref(db, 'audienceCommand'), payload);
+    
+    set(ref(db, 'audienceCommand'), payload)
+      .catch(err => {
+        // THIS WILL ALERT YOU IF YOUR FIREBASE RULES HAVE EXPIRED
+        alert(`🔥 FIREBASE SYNC BLOCKED: ${err.message}`);
+      });
   };
 
   // --- 1. LOCAL DEVICE LOGIC ---
+  const turnLocalOn = () => {
+    clearTimeout(localTimerRef.current);
+    setLocalMode('ON');
+    applyLocalTorch(true);
+  };
+
+  const turnLocalOff = () => {
+    clearTimeout(localTimerRef.current);
+    setLocalMode('OFF');
+    applyLocalTorch(false);
+  };
+
+  const toggleLocalTorch = () => {
+    if (localMode === 'OFF') turnLocalOn();
+    else turnLocalOff();
+  };
+
   const startLocalHeartbeat = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('BLINK');
@@ -226,9 +259,7 @@ function ControlView() {
   };
 
   const stopLocalHeartbeat = () => {
-    clearTimeout(localTimerRef.current);
-    setLocalMode('OFF');
-    applyLocalTorch(false);
+    turnLocalOff();
   };
 
   const handleLocalDown = () => {
@@ -238,7 +269,7 @@ function ControlView() {
     localPressTimer.current = setTimeout(() => {
       localPressTimer.current = null;
       startLocalHeartbeat();
-    }, 400); // 400ms distinguishes a deliberate hold from a tap
+    }, 400); 
   };
 
   const handleLocalUp = () => {
@@ -246,30 +277,37 @@ function ControlView() {
     isLocalPressing.current = false;
 
     if (localPressTimer.current) {
-      // The timer didn't finish, so it was a quick TAP
       clearTimeout(localPressTimer.current);
       localPressTimer.current = null;
-      
-      setLocalMode(prev => {
-        const next = prev === 'OFF' ? 'ON' : 'OFF';
-        applyLocalTorch(next === 'ON');
-        return next;
-      });
+      toggleLocalTorch();
     } else {
-      // The timer finished, it was a HOLD. Letting go turns it off.
       stopLocalHeartbeat();
     }
   };
 
   // --- 2. AUDIENCE SYNC LOGIC ---
+  const turnAudienceOn = () => {
+    setAudienceMode('ON');
+    fireAudienceCommand('ON');
+  };
+
+  const turnAudienceOff = () => {
+    setAudienceMode('OFF');
+    fireAudienceCommand('OFF');
+  };
+
+  const toggleAudienceTorch = () => {
+    if (audienceMode === 'OFF') turnAudienceOn();
+    else turnAudienceOff();
+  };
+
   const startAudienceHeartbeat = () => {
     setAudienceMode('BLINK');
     fireAudienceCommand('BLINK');
   };
 
   const stopAudienceHeartbeat = () => {
-    setAudienceMode('OFF');
-    fireAudienceCommand('OFF');
+    turnAudienceOff();
   };
 
   const handleAudienceDown = () => {
@@ -287,17 +325,10 @@ function ControlView() {
     isAudiencePressing.current = false;
 
     if (audiencePressTimer.current) {
-      // Quick TAP
       clearTimeout(audiencePressTimer.current);
       audiencePressTimer.current = null;
-      
-      setAudienceMode(prev => {
-        const next = prev === 'OFF' ? 'ON' : 'OFF';
-        fireAudienceCommand(next);
-        return next;
-      });
+      toggleAudienceTorch();
     } else {
-      // Release from HOLD
       stopAudienceHeartbeat();
     }
   };
