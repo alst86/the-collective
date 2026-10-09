@@ -5,8 +5,8 @@ import React, { useState, useEffect, useRef } from 'react';
 // When you are ready for the live GoDaddy/Vercel version, 
 // uncomment the two lines below to connect your database!
 // ==========================================
-// import { db } from './firebase'; 
-// import { ref, onValue, set } from 'firebase/database';
+import { db } from './firebase'; 
+import { ref, onValue, set } from 'firebase/database';
 
 export default function App() {
 const [view, setView] = useState(null); 
