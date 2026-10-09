@@ -18,7 +18,7 @@ function AudienceView() {
   const [cameraReady, setCameraReady] = useState(false);
   const [error, setError] = useState('');
   const [isFlashing, setIsFlashing] = useState(false); 
-  const [dbStatus, setDbStatus] = useState('waiting'); // 'waiting', 'live', 'error'
+  const [dbStatus, setDbStatus] = useState('waiting'); 
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
@@ -39,7 +39,6 @@ function AudienceView() {
     } catch (err) {
       setError('Camera denied. Screen flash active instead.');
     } finally {
-      // ALWAYS advance to the red heart screen so the visual effect works
       setCameraReady(true); 
     }
   };
@@ -58,7 +57,6 @@ function AudienceView() {
   };
 
   useEffect(() => {
-    // Connects to Firebase immediately, regardless of camera status
     const commandRef = ref(db, 'audienceCommand');
     const unsubscribe = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
@@ -78,7 +76,6 @@ function AudienceView() {
   const handleCommand = (command) => {
     clearTimeout(timerRef.current);
     
-    // Safety check to prevent old Firebase data from crashing the app
     const safeCommand = String(command);
     const parts = safeCommand.split('|');
     const baseCmd = parts[0];
@@ -113,7 +110,6 @@ function AudienceView() {
   return (
     <div className={`min-h-screen relative flex flex-col items-center justify-center p-6 transition-colors duration-75 ${isFlashing ? 'bg-white text-black' : 'bg-black text-white'}`}>
       
-      {/* Firebase Live Status Indicator (Top Left) */}
       <div className="absolute top-4 left-4 z-50">
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
@@ -155,6 +151,8 @@ function ControlView() {
   const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
+  const [lastKey, setLastKey] = useState('NONE'); // BLUETOOTH SNIFFER STATE
+
   const localTimerRef = useRef(null);
   const localPressTimer = useRef(null);
   const localStepRef = useRef(0);
@@ -180,16 +178,19 @@ function ControlView() {
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
       
-      if (e.key === 'ArrowUp') handleLocalDown(); 
-      else if (e.key === 'ArrowRight') startLocalHeartbeat(); 
+      // Sniff the key and display it
+      setLastKey(e.key);
       
-      else if (e.key === 'ArrowDown') handleAudienceDown(); 
+      // Added common alternate Bluetooth codes like PageUp and VolumeUp
+      if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'VolumeUp') handleLocalDown(); 
+      else if (e.key === 'ArrowRight') startLocalHeartbeat(); 
+      else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'VolumeDown') handleAudienceDown(); 
       else if (e.key === 'ArrowLeft') startAudienceHeartbeat(); 
     };
 
     const handleKeyUp = (e) => {
-      if (e.key === 'ArrowUp') handleLocalUp();
-      else if (e.key === 'ArrowDown') handleAudienceUp();
+      if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'VolumeUp') handleLocalUp();
+      else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'VolumeDown') handleAudienceUp();
       else if (e.key === 'ArrowRight') stopLocalHeartbeat(); 
       else if (e.key === 'ArrowLeft') stopAudienceHeartbeat(); 
     };
@@ -217,7 +218,6 @@ function ControlView() {
     
     set(ref(db, 'audienceCommand'), payload)
       .catch(err => {
-        // THIS WILL ALERT YOU IF YOUR FIREBASE RULES HAVE EXPIRED
         alert(`🔥 FIREBASE SYNC BLOCKED: ${err.message}`);
       });
   };
@@ -428,7 +428,7 @@ function ControlView() {
         <div className="w-full h-px bg-zinc-900 my-2"></div>
 
         {/* ZONE 2: Audience Sync */}
-        <div className="flex flex-col items-center w-full">
+        <div className="flex flex-col items-center w-full relative">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
           <div className="text-lg mb-4">
             <span className="text-zinc-400">State: </span>
@@ -456,6 +456,11 @@ function ControlView() {
               {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : 'PULSING'}
             </span>
           </button>
+          
+          {/* THE BLUETOOTH SNIFFER */}
+          <div className="absolute -bottom-8 text-zinc-600 font-mono text-[10px] uppercase tracking-widest">
+            Last Bluetooth Key: [{lastKey}]
+          </div>
         </div>
 
       </div>
