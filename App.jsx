@@ -20,6 +20,9 @@ function AudienceView() {
   
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
+  
+  // PERFOMER'S SAFETY NET STATE
+  const [redirectTarget, setRedirectTarget] = useState(null);
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
@@ -53,7 +56,6 @@ function AudienceView() {
     }
   };
 
-  // Only handles hardware light now. Does not change screen color.
   const applyTorch = async (active) => {
     if (!trackRef.current) return;
     try {
@@ -102,10 +104,10 @@ function AudienceView() {
     
     if (baseCmd === 'ON') {
       applyTorch(true);
-      setIsFlashing(false); // Keep screen white
+      setIsFlashing(false); 
     } else if (baseCmd === 'OFF') {
       applyTorch(false);
-      setIsFlashing(false); // Keep screen white
+      setIsFlashing(false); 
     } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
@@ -115,7 +117,7 @@ function AudienceView() {
         const isOn = (step === 0 || step === 2); 
         
         applyTorch(isOn);
-        setIsFlashing(isOn); // Screen visually strobes ONLY during heartbeat
+        setIsFlashing(isOn); 
         
         if (step === 0 && navigator.vibrate) {
           navigator.vibrate([100, 150, 100]); 
@@ -133,20 +135,28 @@ function AudienceView() {
           finalUrl = `https://${url}`;
         }
         
-        // VIRTUAL ANCHOR TRAP: Forces the browser to accept the redirect
-        const a = document.createElement('a');
-        a.href = finalUrl;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        // 1. Attempt automatic browser redirect
+        window.location.assign(finalUrl);
         
-        // Backup method if the virtual click is still blocked
-        setTimeout(() => {
-          window.location.href = finalUrl;
-        }, 150);
+        // 2. Safety Net: In case Apple blocks the auto-redirect, morph the screen into a massive interactive button
+        setRedirectTarget(finalUrl);
       }
     }
   };
+
+  // SAFETY NET UI: If redirect is blocked, the whole screen becomes a button to bypass Apple's security
+  if (redirectTarget) {
+    return (
+      <div 
+        onClick={() => window.location.assign(redirectTarget)}
+        className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 cursor-pointer select-none"
+      >
+        <h1 className="text-5xl font-black uppercase tracking-widest text-center animate-pulse drop-shadow-2xl">
+          TAP TO<br/>REVEAL
+        </h1>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
@@ -201,7 +211,6 @@ function ControlView() {
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
   
-  // Set back to standard https for iOS Universal Links support
   const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
@@ -297,7 +306,6 @@ function ControlView() {
     if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
 
-  // --- 1. LOCAL DEVICE LOGIC ---
   const turnLocalOn = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('ON');
@@ -366,7 +374,6 @@ function ControlView() {
     }
   };
 
-  // --- 2. AUDIENCE SYNC LOGIC ---
   const turnAudienceOn = () => {
     setAudienceMode('ON');
     fireAudienceCommand('ON');
@@ -420,7 +427,6 @@ function ControlView() {
     }
   };
 
-  // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isRedirectPressing.current) return;
@@ -476,7 +482,7 @@ function ControlView() {
         <div className="flex-1 flex flex-col justify-center">
           <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
           <input 
-            type="url" 
+            type="text" 
             value={redirectUrl}
             onChange={(e) => setRedirectUrl(e.target.value)}
             className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
