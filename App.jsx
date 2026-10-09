@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 
 // ==========================================
 // FIREBASE SETUP
-// When you are ready for the live GoDaddy/Vercel version, 
-// uncomment the two lines below to connect your database!
 // ==========================================
 import { db } from './firebase'; 
 import { ref, onValue, set } from 'firebase/database';
@@ -85,8 +83,6 @@ useEffect(() => {
 if (!isConnected) return;
 
 // --- FIREBASE LISTENER ---
-// Uncomment this block when using real Firebase
-/*
 const commandRef = ref(db, 'audienceCommand');
 const unsubscribe = onValue(commandRef, (snapshot) => {
 const command = snapshot.val();
@@ -96,11 +92,7 @@ return () => {
 unsubscribe();
 clearTimeout(timerRef.current);
 };
-*/
 
-// Test hook for local development without Firebase
-window.testSyncCommand = handleCommand;
-return () => clearTimeout(timerRef.current);
 }, [isConnected]);
 
 const handleCommand = (command) => {
@@ -222,8 +214,7 @@ trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => 
 
 const fireAudienceCommand = (command) => {
 // --- FIREBASE SENDER ---
-// Uncomment this line to push commands to the live database
-// set(ref(db, 'audienceCommand'), command);
+set(ref(db, 'audienceCommand'), command);
 
 console.log("Firebase Broadcast:", command);
 if (window.testSyncCommand) window.testSyncCommand(command);
@@ -349,3 +340,11 @@ className={`flex-1 flex flex-col items-center justify-center transition-colors $
 </div>
 );
 }
+
+
+Andrew Lee
+
+Ph: +60127263739
+
+magic@andrewleemagic.com
+
