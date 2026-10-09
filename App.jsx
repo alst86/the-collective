@@ -105,10 +105,10 @@ function AudienceView() {
     
     if (baseCmd === 'ON') {
       applyTorch(true);
-      setIsFlashing(false); 
+      setIsFlashing(true); // Restored the black background effect when ON
     } else if (baseCmd === 'OFF') {
       applyTorch(false);
-      setIsFlashing(false); 
+      setIsFlashing(false); // Restored to white background when OFF
     } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
@@ -319,7 +319,6 @@ function ControlView() {
     if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
 
-  // --- 1. LOCAL DEVICE LOGIC ---
   const turnLocalOn = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('ON');
@@ -388,7 +387,6 @@ function ControlView() {
     }
   };
 
-  // --- 2. AUDIENCE SYNC LOGIC ---
   const turnAudienceOn = () => {
     setAudienceMode('ON');
     fireAudienceCommand('ON');
@@ -442,7 +440,6 @@ function ControlView() {
     }
   };
 
-  // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isRedirectPressing.current) return;
