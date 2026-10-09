@@ -26,7 +26,9 @@ function AudienceView() {
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
   
-  const secretPressTimer = useRef(null); 
+  // TRIPLE TAP SECRET GATEWAY
+  const secretClickCount = useRef(0);
+  const secretLastClickTime = useRef(0);
 
   const startCamera = async () => {
     try {
@@ -91,7 +93,6 @@ function AudienceView() {
     return () => {
       unsubscribe();
       clearTimeout(timerRef.current);
-      clearTimeout(secretPressTimer.current);
     };
   }, []);
 
@@ -140,17 +141,25 @@ function AudienceView() {
     }
   };
 
-  // --- SECRET GATEWAY LOGIC ---
-  const handleSecretDown = () => {
-    secretPressTimer.current = setTimeout(() => {
-      window.location.href = window.location.pathname + '?master';
-    }, 2500); 
-  };
+  // --- TRIPLE TAP LOGIC ---
+  const handleSecretClick = () => {
+    const currentTime = new Date().getTime();
+    const timeSinceLastClick = currentTime - secretLastClickTime.current;
 
-  const handleSecretUp = () => {
-    if (secretPressTimer.current) {
-      clearTimeout(secretPressTimer.current);
-      secretPressTimer.current = null;
+    // Increased to 500ms so you don't have to tap quite as frantically
+    if (timeSinceLastClick < 500) {
+      secretClickCount.current += 1;
+    } else {
+      secretClickCount.current = 1;
+    }
+
+    secretLastClickTime.current = currentTime;
+
+    // If triple tapped, launch Master Deck
+    if (secretClickCount.current === 3) {
+      secretClickCount.current = 0;
+      // Navigate directly to the master parameter
+      window.location.href = window.location.pathname + '?master';
     }
   };
 
@@ -165,14 +174,10 @@ function AudienceView() {
 
       {!cameraReady ? (
         <>
-          {/* HIDDEN MASTER DECK TRIGGER (Only mounted on Enter Experience screen) */}
+          {/* HIDDEN TRIPLE-TAP TRIGGER */}
           <div 
-            onPointerDown={handleSecretDown}
-            onPointerUp={handleSecretUp}
-            onPointerLeave={handleSecretUp}
-            onPointerCancel={handleSecretUp}
-            onContextMenu={(e) => e.preventDefault()}
-            className="absolute bottom-0 right-0 w-24 h-24 z-[100] cursor-default"
+            onPointerDown={handleSecretClick}
+            className="absolute bottom-16 right-0 w-40 h-40 z-[100] bg-black/0 touch-none"
           />
 
           <div className="flex flex-col items-center w-full max-w-md px-6 z-10">
@@ -314,7 +319,6 @@ function ControlView() {
     if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
 
-  // --- 1. LOCAL DEVICE LOGIC ---
   const turnLocalOn = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('ON');
@@ -383,7 +387,6 @@ function ControlView() {
     }
   };
 
-  // --- 2. AUDIENCE SYNC LOGIC ---
   const turnAudienceOn = () => {
     setAudienceMode('ON');
     fireAudienceCommand('ON');
@@ -437,7 +440,6 @@ function ControlView() {
     }
   };
 
-  // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isRedirectPressing.current) return;
