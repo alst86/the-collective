@@ -12,8 +12,8 @@ const firebaseConfig = {
   projectId: "the-collective-97b6e",
   storageBucket: "the-collective-97b6e.firebasestorage.app",
   messagingSenderId: "396059061138",
-  appId: "1:396059061138:web:528a5eb8d3be1b2570af4b",
-  measurementId: "G-TPVBM49WGF"
+  appId: "1:396059061138:web:67888e52f80727c570af4b",
+  measurementId: "G-35ZBLZHZWG"
 };
 
 // Initialize Firebase
