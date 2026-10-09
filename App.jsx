@@ -30,8 +30,8 @@ function AudienceView() {
   // IDLE AUTO-REDIRECT SETTINGS
   // ==========================================
   const idleTimerRef = useRef(null);
-  const IDLE_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute of inactivity (in milliseconds)
-  const IDLE_FALLBACK_URL = "https://instagram.com/andrewleemagic"; // Where they go if idle
+  const IDLE_TIMEOUT_MS = 40 * 1000; // 40 seconds of inactivity (in milliseconds)
+  const IDLE_FALLBACK_URL = "https://www.google.com"; // Where they go if idle
 
   const resetIdleTimer = () => {
     clearTimeout(idleTimerRef.current);
