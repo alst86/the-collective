@@ -203,6 +203,7 @@ function ControlView() {
       else if (k === 'r' || k === 'R') toggleLocalHeartbeat();
       else if (k === 'd' || k === 'D') toggleAudienceTorch();
       else if (k === 'l' || k === 'L') toggleAudienceHeartbeat();
+      else if (k === 'i' || k === 'I') fireInstantRedirect(); // NEW: Instantly fire redirect
     };
 
     const handleKeyUp = (e) => {
@@ -223,7 +224,7 @@ function ControlView() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [localMode, audienceMode]);
+  }, [localMode, audienceMode, redirectUrl]); // Added redirectUrl to dependencies so the keydown event has the latest URL
 
   const applyLocalTorch = (active) => {
     if (trackRef.current) {
@@ -372,6 +373,8 @@ function ControlView() {
   };
 
   // --- 3. REDIRECT LOGIC ---
+  
+  // Touch screen logic (requires 800ms hold to prevent accidental presses)
   const handleRedirectDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); // Keep remote armed
     if (isRedirectPressing.current) return;
@@ -396,6 +399,13 @@ function ControlView() {
       redirectPressTimer.current = null;
       setRedirectStatus('HOLD TO REDIRECT');
     }
+  };
+
+  // Flic button logic (Instantly fires on the 'i' keystroke without holding)
+  const fireInstantRedirect = () => {
+    fireAudienceCommand('REDIRECT');
+    setRedirectStatus('FIRED!');
+    setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); 
   };
 
   if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Master Deck...</div>;
@@ -513,16 +523,4 @@ function ControlView() {
           
           {/* THE BLUETOOTH SNIFFER & STATUS */}
           <div className="absolute -bottom-10 flex flex-col items-center space-y-1">
-            <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
-              {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
-            </div>
-            <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest">
-              Last Flic Key: [{lastKey}]
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  );
-}
+            <div
