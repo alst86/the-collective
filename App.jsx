@@ -7,29 +7,11 @@ import { db } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 
 export default function App() {
-  const [view, setView] = useState(null); 
+  // If the URL contains "?master", load the secret control deck.
+  // Otherwise, default to the Audience view.
+  const isMaster = window.location.search.includes('master');
 
-  if (!view) {
-    return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 space-y-6">
-        <h1 className="text-3xl font-bold tracking-widest text-center">THE COLLECTIVE</h1>
-        <button 
-          onClick={() => setView('audience')}
-          className="w-full max-w-sm py-4 bg-white text-black font-bold rounded-lg text-lg"
-        >
-          Join The Collective Experience
-        </button>
-        <button 
-          onClick={() => setView('control')}
-          className="w-full max-w-sm py-4 bg-zinc-900 text-zinc-400 font-bold rounded-lg border border-zinc-800"
-        >
-          Show Control
-        </button>
-      </div>
-    );
-  }
-
-  return view === 'audience' ? <AudienceView /> : <ControlView />;
+  return isMaster ? <ControlView /> : <AudienceView />;
 }
 
 // ==========================================
