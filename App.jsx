@@ -340,11 +340,3 @@ className={`flex-1 flex flex-col items-center justify-center transition-colors $
 </div>
 );
 }
-
-
-Andrew Lee
-
-Ph: +60127263739
-
-magic@andrewleemagic.com
-
