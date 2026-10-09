@@ -76,11 +76,15 @@ function AudienceView() {
   const handleCommand = (command) => {
     clearTimeout(timerRef.current);
     
-    if (command === 'ON') {
+    // Commands now look like "ON|171090123" or "REDIRECT|171090123|https://..."
+    const parts = command.split('|');
+    const baseCmd = parts[0];
+    
+    if (baseCmd === 'ON') {
       applyTorch(true);
-    } else if (command === 'OFF') {
+    } else if (baseCmd === 'OFF') {
       applyTorch(false);
-    } else if (command === 'BLINK') {
+    } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
 
@@ -94,17 +98,20 @@ function AudienceView() {
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
       playHeartbeat();
-    } else if (command.startsWith('REDIRECT_')) {
-      const url = command.split('REDIRECT_')[1];
-      window.location.href = url;
+    } else if (baseCmd === 'REDIRECT') {
+      const url = parts.slice(2).join('|'); 
+      if (url) {
+        const finalUrl = url.startsWith('http') ? url : `https://${url}`;
+        window.location.href = finalUrl;
+      }
     }
   };
 
   return (
     <div className={`min-h-screen relative flex flex-col items-center justify-center p-6 transition-colors duration-75 ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
       
-      {/* Invisible video element keeps camera stream alive for the physical flashlight */}
-      <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
+      {/* Must remain slightly visible in the background to prevent iOS from sleeping the flashlight */}
+      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-[0.01] pointer-events-none -z-10" />
 
       {!isConnected ? (
         <div className="flex flex-col items-center w-full max-w-md">
@@ -135,7 +142,6 @@ function ControlView() {
   const [isReady, setIsReady] = useState(false);
   const trackRef = useRef(null);
   
-  // Explicit Modes: 'OFF', 'ON', 'BLINK'
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
   
@@ -145,9 +151,13 @@ function ControlView() {
   const localTimerRef = useRef(null);
   const localPressTimer = useRef(null);
   const localStepRef = useRef(0);
+  const isLocalPressing = useRef(false); // Touch-lock to prevent ghost taps
   
   const audiencePressTimer = useRef(null);
+  const isAudiencePressing = useRef(false); // Touch-lock to prevent ghost taps
+
   const redirectPressTimer = useRef(null);
+  const isRedirectPressing = useRef(false);
 
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
@@ -160,21 +170,16 @@ function ControlView() {
         setIsReady(true);
       });
 
+    // Unified Bluetooth Remote Mapping
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
-      
-      if (e.key === 'ArrowUp') handleLocalDown(); 
-      else if (e.key === 'ArrowRight') startLocalHeartbeat(); 
-      
-      else if (e.key === 'ArrowDown') handleAudienceDown(); 
-      else if (e.key === 'ArrowLeft') startAudienceHeartbeat(); 
+      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') handleLocalDown(); 
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') handleAudienceDown(); 
     };
 
     const handleKeyUp = (e) => {
-      if (e.key === 'ArrowUp') handleLocalUp();
-      else if (e.key === 'ArrowDown') handleAudienceUp();
-      else if (e.key === 'ArrowRight') stopLocalHeartbeat(); 
-      else if (e.key === 'ArrowLeft') stopAudienceHeartbeat(); 
+      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') handleLocalUp();
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') handleAudienceUp();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -184,7 +189,7 @@ function ControlView() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [localMode, audienceMode]);
+  }, []);
 
   const applyLocalTorch = (active) => {
     if (trackRef.current) {
@@ -192,28 +197,16 @@ function ControlView() {
     }
   };
 
-  const fireAudienceCommand = (command) => {
-    set(ref(db, 'audienceCommand'), command);
+  const fireAudienceCommand = (cmd) => {
+    // Append a timestamp so Firebase ALWAYS triggers an update, even if it's the exact same command/URL
+    let payload = `${cmd}|${Date.now()}`;
+    if (cmd === 'REDIRECT') {
+      payload = `REDIRECT|${Date.now()}|${redirectUrl}`;
+    }
+    set(ref(db, 'audienceCommand'), payload);
   };
 
   // --- 1. LOCAL DEVICE LOGIC ---
-  const turnLocalOn = () => {
-    clearTimeout(localTimerRef.current);
-    setLocalMode('ON');
-    applyLocalTorch(true);
-  };
-
-  const turnLocalOff = () => {
-    clearTimeout(localTimerRef.current);
-    setLocalMode('OFF');
-    applyLocalTorch(false);
-  };
-
-  const toggleLocalTorch = () => {
-    if (localMode === 'OFF') turnLocalOn();
-    else turnLocalOff();
-  };
-
   const startLocalHeartbeat = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('BLINK');
@@ -233,55 +226,56 @@ function ControlView() {
   };
 
   const stopLocalHeartbeat = () => {
-    turnLocalOff();
+    clearTimeout(localTimerRef.current);
+    setLocalMode('OFF');
+    applyLocalTorch(false);
   };
 
-  // Touch logic for single button
   const handleLocalDown = () => {
+    if (isLocalPressing.current) return;
+    isLocalPressing.current = true;
+
     localPressTimer.current = setTimeout(() => {
       localPressTimer.current = null;
       startLocalHeartbeat();
-    }, 400); // 400ms determines a hold vs a tap
+    }, 400); // 400ms distinguishes a deliberate hold from a tap
   };
 
   const handleLocalUp = () => {
+    if (!isLocalPressing.current) return;
+    isLocalPressing.current = false;
+
     if (localPressTimer.current) {
-      // Timer didn't finish, so it was a quick tap
+      // The timer didn't finish, so it was a quick TAP
       clearTimeout(localPressTimer.current);
       localPressTimer.current = null;
-      toggleLocalTorch();
+      
+      setLocalMode(prev => {
+        const next = prev === 'OFF' ? 'ON' : 'OFF';
+        applyLocalTorch(next === 'ON');
+        return next;
+      });
     } else {
-      // Timer finished, it was a hold. Release turns it off.
+      // The timer finished, it was a HOLD. Letting go turns it off.
       stopLocalHeartbeat();
     }
   };
 
   // --- 2. AUDIENCE SYNC LOGIC ---
-  const turnAudienceOn = () => {
-    setAudienceMode('ON');
-    fireAudienceCommand('ON');
-  };
-
-  const turnAudienceOff = () => {
-    setAudienceMode('OFF');
-    fireAudienceCommand('OFF');
-  };
-
-  const toggleAudienceTorch = () => {
-    if (audienceMode === 'OFF') turnAudienceOn();
-    else turnAudienceOff();
-  };
-
   const startAudienceHeartbeat = () => {
     setAudienceMode('BLINK');
     fireAudienceCommand('BLINK');
   };
 
   const stopAudienceHeartbeat = () => {
-    turnAudienceOff();
+    setAudienceMode('OFF');
+    fireAudienceCommand('OFF');
   };
 
   const handleAudienceDown = () => {
+    if (isAudiencePressing.current) return;
+    isAudiencePressing.current = true;
+
     audiencePressTimer.current = setTimeout(() => {
       audiencePressTimer.current = null;
       startAudienceHeartbeat();
@@ -289,21 +283,34 @@ function ControlView() {
   };
 
   const handleAudienceUp = () => {
+    if (!isAudiencePressing.current) return;
+    isAudiencePressing.current = false;
+
     if (audiencePressTimer.current) {
+      // Quick TAP
       clearTimeout(audiencePressTimer.current);
       audiencePressTimer.current = null;
-      toggleAudienceTorch();
+      
+      setAudienceMode(prev => {
+        const next = prev === 'OFF' ? 'ON' : 'OFF';
+        fireAudienceCommand(next);
+        return next;
+      });
     } else {
+      // Release from HOLD
       stopAudienceHeartbeat();
     }
   };
 
   // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
+    if (isRedirectPressing.current) return;
+    isRedirectPressing.current = true;
+
     setRedirectStatus('HOLDING...');
     redirectPressTimer.current = setTimeout(() => {
       redirectPressTimer.current = null;
-      fireAudienceCommand(`REDIRECT_${redirectUrl}`);
+      fireAudienceCommand('REDIRECT');
       
       setRedirectStatus('FIRED!');
       setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); 
@@ -311,8 +318,12 @@ function ControlView() {
   };
 
   const handleRedirectUp = () => {
+    if (!isRedirectPressing.current) return;
+    isRedirectPressing.current = false;
+
     if (redirectPressTimer.current) {
       clearTimeout(redirectPressTimer.current);
+      redirectPressTimer.current = null;
       setRedirectStatus('HOLD TO REDIRECT');
     }
   };
@@ -341,7 +352,7 @@ function ControlView() {
           onPointerCancel={handleRedirectUp}
           onContextMenu={(e) => e.preventDefault()}
           className={`w-24 h-12 rounded flex flex-col items-center justify-center font-bold text-[9px] tracking-widest transition-colors border text-center px-1 ${
-            redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white' 
+            redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
             : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
             : 'bg-zinc-950 border-zinc-800 text-zinc-400'
           }`}
@@ -375,7 +386,7 @@ function ControlView() {
             }`}
           >
             <svg className="w-10 h-10 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636a9 9 0 11-12.728 0M12 3v9" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             <span className="font-bold tracking-widest text-xs uppercase">
               {localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : 'PULSING'}
@@ -408,7 +419,7 @@ function ControlView() {
             }`}
           >
             <svg className="w-10 h-10 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636a9 9 0 11-12.728 0M12 3v9" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             <span className="font-bold tracking-widest text-xs uppercase">
               {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : 'PULSING'}
