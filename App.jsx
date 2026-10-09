@@ -152,6 +152,10 @@ function ControlView() {
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
   const [lastKey, setLastKey] = useState('NONE'); 
+  
+  // HIDDEN KEYBOARD TRAP
+  const hiddenInputRef = useRef(null);
+  const [isRemoteArmed, setIsRemoteArmed] = useState(false);
 
   const localTimerRef = useRef(null);
   const localPressTimer = useRef(null);
@@ -175,13 +179,20 @@ function ControlView() {
         setIsReady(true);
       });
 
+    // Auto-arm the Flic remote when the page loads
+    const armTimer = setTimeout(() => {
+      if (hiddenInputRef.current) hiddenInputRef.current.focus();
+    }, 1000);
+
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
+      
+      // Ignore keystrokes if you are typing in the URL box
+      if (e.target.type === 'url') return;
       
       const k = e.key;
       setLastKey(k);
       
-      // CONTINUOUS COMMANDS (Touch screen / Standard Arrow Keys holding)
       if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalDown(); 
       else if (k === 'ArrowRight') startLocalHeartbeat(); 
       else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceDown(); 
@@ -195,9 +206,9 @@ function ControlView() {
     };
 
     const handleKeyUp = (e) => {
+      if (e.target.type === 'url') return;
       const k = e.key;
       
-      // Only fire key-ups for continuous commands (Flic discrete letters ignore this)
       if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalUp();
       else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceUp();
       else if (k === 'ArrowRight') stopLocalHeartbeat(); 
@@ -208,6 +219,7 @@ function ControlView() {
     window.addEventListener('keyup', handleKeyUp);
 
     return () => {
+      clearTimeout(armTimer);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
@@ -225,10 +237,15 @@ function ControlView() {
       payload = `REDIRECT|${Date.now()}|${redirectUrl}`;
     }
     
-    set(ref(db, 'audienceCommand'), payload)
-      .catch(err => {
+    set(ref(db, 'audienceCommand'), payload).catch(err => {
         alert(`🔥 FIREBASE SYNC BLOCKED: ${err.message}`);
-      });
+    });
+  };
+
+  const armRemote = (e) => {
+    // Prevent stealing focus if you are actively typing a new redirect URL or pressing buttons
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
 
   // --- 1. LOCAL DEVICE LOGIC ---
@@ -277,6 +294,7 @@ function ControlView() {
   };
 
   const handleLocalDown = () => {
+    if (hiddenInputRef.current) hiddenInputRef.current.focus(); // Keep remote armed
     if (isLocalPressing.current) return;
     isLocalPressing.current = true;
 
@@ -330,6 +348,7 @@ function ControlView() {
   };
 
   const handleAudienceDown = () => {
+    if (hiddenInputRef.current) hiddenInputRef.current.focus(); // Keep remote armed
     if (isAudiencePressing.current) return;
     isAudiencePressing.current = true;
 
@@ -354,6 +373,7 @@ function ControlView() {
 
   // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
+    if (hiddenInputRef.current) hiddenInputRef.current.focus(); // Keep remote armed
     if (isRedirectPressing.current) return;
     isRedirectPressing.current = true;
 
@@ -381,8 +401,23 @@ function ControlView() {
   if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Master Deck...</div>;
 
   return (
-    <div className="h-screen w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans">
-      
+    <div 
+      onClick={armRemote}
+      className="h-screen w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans"
+    >
+      {/* THE HIDDEN KEYBOARD TRAP */}
+      <input 
+        ref={hiddenInputRef}
+        type="text"
+        inputMode="none" 
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck="false"
+        onFocus={() => setIsRemoteArmed(true)}
+        onBlur={() => setIsRemoteArmed(false)}
+        className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
+      />
+
       {/* Top Utility Bar */}
       <div className="absolute top-0 left-0 w-full h-20 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 z-20 space-x-3">
         <div className="flex-1 flex flex-col justify-center">
@@ -476,9 +511,14 @@ function ControlView() {
             </span>
           </button>
           
-          {/* THE BLUETOOTH SNIFFER */}
-          <div className="absolute -bottom-8 text-zinc-600 font-mono text-[10px] uppercase tracking-widest">
-            Last Flic Key: [{lastKey}]
+          {/* THE BLUETOOTH SNIFFER & STATUS */}
+          <div className="absolute -bottom-10 flex flex-col items-center space-y-1">
+            <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
+              {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
+            </div>
+            <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest">
+              Last Flic Key: [{lastKey}]
+            </div>
           </div>
         </div>
 
