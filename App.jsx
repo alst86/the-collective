@@ -17,6 +17,8 @@ export default function App() {
 function AudienceView() {
   const [cameraReady, setCameraReady] = useState(false);
   const [error, setError] = useState('');
+  
+  // Default to false (white background). True = black background strobe
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
 
@@ -94,6 +96,11 @@ function AudienceView() {
         
         applyTorch(isOn);
         
+        // HAPTIC VIBRATION: Triggers on the very first beat of the sequence
+        if (step === 0 && navigator.vibrate) {
+          navigator.vibrate([100, 150, 100]); 
+        }
+        
         step = (step + 1) % pattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
@@ -108,7 +115,8 @@ function AudienceView() {
   };
 
   return (
-    <div className={`min-h-screen relative flex flex-col items-center justify-center p-6 transition-colors duration-75 ${isFlashing ? 'bg-white text-black' : 'bg-black text-white'}`}>
+    // By default, isFlashing is false, making the background white and text black.
+    <div className={`min-h-screen relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
       
       <div className="absolute top-4 left-4 z-50">
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
@@ -117,22 +125,39 @@ function AudienceView() {
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
       {!cameraReady ? (
-        <div className="flex flex-col items-center w-full max-w-md">
+        <div className="flex flex-col items-center w-full max-w-md px-6">
           <button 
             onClick={startCamera}
-            className="w-full py-5 bg-white text-black font-bold rounded-lg text-xl tracking-wide shadow-lg mb-4"
+            className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95"
           >
-            Enter Experience
+            ENTER EXPERIENCE
           </button>
+          <div className="text-center space-y-2">
+            <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">
+              Please allow camera access
+            </p>
+            <p className="text-zinc-400 text-xs uppercase tracking-widest">
+              Required for hardware synchronization
+            </p>
+          </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center text-center">
-          <div className="text-[150px] leading-none mb-8 animate-pulse drop-shadow-xl">❤️</div>
-          <h1 className="text-4xl font-black uppercase tracking-widest leading-tight">
-            Hold your<br/>phone up
-          </h1>
-          {error && <p className="text-zinc-600 mt-8 text-xs">{error}</p>}
-        </div>
+        <>
+          {/* THE MASSIVE HEART */}
+          <div className="flex-1 flex flex-col items-center justify-center w-full pb-20">
+            <div className="text-[45vh] leading-none animate-pulse drop-shadow-2xl select-none">
+              ❤️
+            </div>
+          </div>
+
+          {/* BOTTOM INSTRUCTIONS */}
+          <div className="absolute bottom-12 left-0 right-0 w-full text-center px-4">
+            <h1 className="text-3xl font-black uppercase tracking-widest">
+              Hold up your phone
+            </h1>
+            {error && <p className="text-red-500 mt-2 text-xs font-bold uppercase tracking-widest">{error}</p>}
+          </div>
+        </>
       )}
     </div>
   );
@@ -153,7 +178,6 @@ function ControlView() {
 
   const [lastKey, setLastKey] = useState('NONE'); 
   
-  // HIDDEN KEYBOARD TRAP
   const hiddenInputRef = useRef(null);
   const [isRemoteArmed, setIsRemoteArmed] = useState(false);
 
@@ -179,15 +203,12 @@ function ControlView() {
         setIsReady(true);
       });
 
-    // Auto-arm the Flic remote when the page loads
     const armTimer = setTimeout(() => {
       if (hiddenInputRef.current) hiddenInputRef.current.focus();
     }, 1000);
 
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
-      
-      // Ignore keystrokes if you are typing in the URL box
       if (e.target.type === 'url') return;
       
       const k = e.key;
@@ -198,7 +219,6 @@ function ControlView() {
       else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceDown(); 
       else if (k === 'ArrowLeft') startAudienceHeartbeat(); 
 
-      // FLIC BUTTON DISCRETE COMMANDS (Toggles instantly upon receiving the single Flic letter)
       else if (k === 'u' || k === 'U') toggleLocalTorch();
       else if (k === 'r' || k === 'R') toggleLocalHeartbeat();
       else if (k === 'd' || k === 'D') toggleAudienceTorch();
@@ -244,7 +264,6 @@ function ControlView() {
   };
 
   const armRemote = (e) => {
-    // Prevent stealing focus if you are actively typing a new redirect URL or pressing buttons
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
     if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
@@ -412,7 +431,6 @@ function ControlView() {
       onClick={armRemote}
       className="h-screen w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans"
     >
-      {/* THE HIDDEN KEYBOARD TRAP */}
       <input 
         ref={hiddenInputRef}
         type="text"
@@ -425,7 +443,6 @@ function ControlView() {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
-      {/* Top Utility Bar */}
       <div className="absolute top-0 left-0 w-full h-20 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 z-20 space-x-3">
         <div className="flex-1 flex flex-col justify-center">
           <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
@@ -455,7 +472,6 @@ function ControlView() {
 
       <div className="flex-1 flex flex-col justify-evenly items-center pt-20 pb-4">
         
-        {/* ZONE 1: Local Device (MY PHONE) */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
           <div className="text-lg mb-4">
@@ -488,7 +504,6 @@ function ControlView() {
 
         <div className="w-full h-px bg-zinc-900 my-2"></div>
 
-        {/* ZONE 2: Audience Sync */}
         <div className="flex flex-col items-center w-full relative">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
           <div className="text-lg mb-4">
@@ -518,7 +533,6 @@ function ControlView() {
             </span>
           </button>
           
-          {/* THE BLUETOOTH SNIFFER & STATUS */}
           <div className="absolute -bottom-10 flex flex-col items-center space-y-1">
             <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
               {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
