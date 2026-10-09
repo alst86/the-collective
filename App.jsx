@@ -25,6 +25,7 @@ function AudienceView() {
   const trackRef = useRef(null);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
+  const initialLoadRef = useRef(true); // Tracks if this is the very first time the app connects to Firebase
 
   const startCamera = async () => {
     try {
@@ -63,7 +64,19 @@ function AudienceView() {
     const unsubscribe = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
       const command = snapshot.val();
-      if (command) handleCommand(command);
+      
+      if (command) {
+        const safeCommand = String(command);
+        const baseCmd = safeCommand.split('|')[0];
+        
+        // STALE COMMAND FILTER: Prevent auto-redirecting if the command is left over from a previous show
+        if (initialLoadRef.current) {
+          initialLoadRef.current = false;
+          if (baseCmd === 'REDIRECT') return; // Ignore old redirect commands on initial page load
+        }
+        
+        handleCommand(command);
+      }
     }, (err) => {
       setDbStatus('error');
       console.error("Firebase Connection Error:", err);
@@ -115,7 +128,6 @@ function AudienceView() {
   };
 
   return (
-    // By default, isFlashing is false, making the background white and text black.
     <div className={`min-h-screen relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
       
       <div className="absolute top-4 left-4 z-50">
@@ -133,11 +145,8 @@ function AudienceView() {
             ENTER EXPERIENCE
           </button>
           <div className="text-center space-y-2">
-            <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">
-              Please allow camera access
-            </p>
-            <p className="text-zinc-400 text-xs uppercase tracking-widest">
-              Required for hardware synchronization
+            <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest px-4">
+              Please allow camera access when prompted
             </p>
           </div>
         </div>
