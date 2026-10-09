@@ -27,10 +27,9 @@ function AudienceView() {
   const initialLoadRef = useRef(true); 
 
   const startCamera = async () => {
-    // Attempt to hide the browser UI completely (Works universally on Android)
     try {
       if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen denied by device"));
+        document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen denied"));
       }
     } catch (err) {
       console.log("Fullscreen API not supported");
@@ -54,10 +53,9 @@ function AudienceView() {
     }
   };
 
+  // Only handles hardware light now. Does not change screen color.
   const applyTorch = async (active) => {
-    setIsFlashing(active); 
     if (!trackRef.current) return;
-    
     try {
       await trackRef.current.applyConstraints({
         advanced: [{ torch: active }]
@@ -104,8 +102,10 @@ function AudienceView() {
     
     if (baseCmd === 'ON') {
       applyTorch(true);
+      setIsFlashing(false); // Keep screen white
     } else if (baseCmd === 'OFF') {
       applyTorch(false);
+      setIsFlashing(false); // Keep screen white
     } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
@@ -115,6 +115,7 @@ function AudienceView() {
         const isOn = (step === 0 || step === 2); 
         
         applyTorch(isOn);
+        setIsFlashing(isOn); // Screen visually strobes ONLY during heartbeat
         
         if (step === 0 && navigator.vibrate) {
           navigator.vibrate([100, 150, 100]); 
@@ -128,11 +129,21 @@ function AudienceView() {
       const url = parts.slice(2).join('|'); 
       if (url) {
         let finalUrl = url;
-        // DEEP LINK UPGRADE: Only force https:// if it doesn't contain a custom app protocol
         if (!url.startsWith('http') && !url.includes('://')) {
           finalUrl = `https://${url}`;
         }
-        window.location.href = finalUrl;
+        
+        // VIRTUAL ANCHOR TRAP: Forces the browser to accept the redirect
+        const a = document.createElement('a');
+        a.href = finalUrl;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        // Backup method if the virtual click is still blocked
+        setTimeout(() => {
+          window.location.href = finalUrl;
+        }, 150);
       }
     }
   };
@@ -190,8 +201,8 @@ function ControlView() {
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
   
-  // Set the default to your new Deep Link
-  const [redirectUrl, setRedirectUrl] = useState('instagram://user?username=andrewleemagic');
+  // Set back to standard https for iOS Universal Links support
+  const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
   const [lastKey, setLastKey] = useState('NONE'); 
@@ -227,7 +238,7 @@ function ControlView() {
 
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
-      if (e.target.type === 'url') return;
+      if (e.target.type === 'url' || e.target.type === 'text') return;
       
       const k = e.key;
       setLastKey(k);
@@ -245,7 +256,7 @@ function ControlView() {
     };
 
     const handleKeyUp = (e) => {
-      if (e.target.type === 'url') return;
+      if (e.target.type === 'url' || e.target.type === 'text') return;
       const k = e.key;
       
       if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalUp();
@@ -286,6 +297,7 @@ function ControlView() {
     if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
 
+  // --- 1. LOCAL DEVICE LOGIC ---
   const turnLocalOn = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('ON');
@@ -354,6 +366,7 @@ function ControlView() {
     }
   };
 
+  // --- 2. AUDIENCE SYNC LOGIC ---
   const turnAudienceOn = () => {
     setAudienceMode('ON');
     fireAudienceCommand('ON');
@@ -407,6 +420,7 @@ function ControlView() {
     }
   };
 
+  // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isRedirectPressing.current) return;
@@ -462,11 +476,11 @@ function ControlView() {
         <div className="flex-1 flex flex-col justify-center">
           <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
           <input 
-            type="text" 
+            type="url" 
             value={redirectUrl}
             onChange={(e) => setRedirectUrl(e.target.value)}
             className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-            placeholder="instagram://..."
+            placeholder="https://..."
           />
         </div>
         <button 
