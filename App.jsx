@@ -18,16 +18,24 @@ function AudienceView() {
   const [cameraReady, setCameraReady] = useState(false);
   const [error, setError] = useState('');
   
-  // Default to false (white background). True = black background strobe
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
-  const initialLoadRef = useRef(true); // Tracks if this is the very first time the app connects to Firebase
+  const initialLoadRef = useRef(true); 
 
   const startCamera = async () => {
+    // Attempt to hide the browser UI completely (Works universally on Android)
+    try {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen denied by device"));
+      }
+    } catch (err) {
+      console.log("Fullscreen API not supported");
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' }
@@ -69,10 +77,9 @@ function AudienceView() {
         const safeCommand = String(command);
         const baseCmd = safeCommand.split('|')[0];
         
-        // STALE COMMAND FILTER: Prevent auto-redirecting if the command is left over from a previous show
         if (initialLoadRef.current) {
           initialLoadRef.current = false;
-          if (baseCmd === 'REDIRECT') return; // Ignore old redirect commands on initial page load
+          if (baseCmd === 'REDIRECT') return; 
         }
         
         handleCommand(command);
@@ -109,7 +116,6 @@ function AudienceView() {
         
         applyTorch(isOn);
         
-        // HAPTIC VIBRATION: Triggers on the very first beat of the sequence
         if (step === 0 && navigator.vibrate) {
           navigator.vibrate([100, 150, 100]); 
         }
@@ -121,7 +127,11 @@ function AudienceView() {
     } else if (baseCmd === 'REDIRECT') {
       const url = parts.slice(2).join('|'); 
       if (url) {
-        const finalUrl = url.startsWith('http') ? url : `https://${url}`;
+        let finalUrl = url;
+        // DEEP LINK UPGRADE: Only force https:// if it doesn't contain a custom app protocol
+        if (!url.startsWith('http') && !url.includes('://')) {
+          finalUrl = `https://${url}`;
+        }
         window.location.href = finalUrl;
       }
     }
@@ -152,14 +162,12 @@ function AudienceView() {
         </div>
       ) : (
         <>
-          {/* THE MASSIVE HEART */}
           <div className="flex-1 flex flex-col items-center justify-center w-full pb-20">
             <div className="text-[45vh] leading-none animate-pulse drop-shadow-2xl select-none">
               ❤️
             </div>
           </div>
 
-          {/* BOTTOM INSTRUCTIONS */}
           <div className="absolute bottom-12 left-0 right-0 w-full text-center px-4">
             <h1 className="text-3xl font-black uppercase tracking-widest">
               Hold up your phone
@@ -182,7 +190,8 @@ function ControlView() {
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
   
-  const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
+  // Set the default to your new Deep Link
+  const [redirectUrl, setRedirectUrl] = useState('instagram://user?username=andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
   const [lastKey, setLastKey] = useState('NONE'); 
@@ -277,7 +286,6 @@ function ControlView() {
     if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
 
-  // --- 1. LOCAL DEVICE LOGIC ---
   const turnLocalOn = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('ON');
@@ -346,7 +354,6 @@ function ControlView() {
     }
   };
 
-  // --- 2. AUDIENCE SYNC LOGIC ---
   const turnAudienceOn = () => {
     setAudienceMode('ON');
     fireAudienceCommand('ON');
@@ -400,7 +407,6 @@ function ControlView() {
     }
   };
 
-  // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isRedirectPressing.current) return;
@@ -456,11 +462,11 @@ function ControlView() {
         <div className="flex-1 flex flex-col justify-center">
           <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
           <input 
-            type="url" 
+            type="text" 
             value={redirectUrl}
             onChange={(e) => setRedirectUrl(e.target.value)}
             className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-            placeholder="https://..."
+            placeholder="instagram://..."
           />
         </div>
         <button 
