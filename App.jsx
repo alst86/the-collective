@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// ==========================================
+// FIREBASE SETUP
+// When you are ready for the live GoDaddy/Vercel version, 
+// uncomment the two lines below to connect your database!
+// ==========================================
+// import { db } from './firebase'; 
+// import { ref, onValue, set } from 'firebase/database';
+
 export default function App() {
 const [view, setView] = useState(null); 
 
@@ -11,7 +19,7 @@ return (
 onClick={() => setView('audience')}
 className="w-full max-w-sm py-4 bg-white text-black font-bold rounded-lg text-lg"
 >
-Join as Spectator
+Join The Collective Experience
 </button>
 <button 
 onClick={() => setView('control')}
@@ -26,10 +34,14 @@ Show Control
 return view === 'audience' ? <AudienceView /> : <ControlView />;
 }
 
+// ==========================================
+// AUDIENCE VIEW (Spectator's Phone)
+// ==========================================
 function AudienceView() {
 const [isConnected, setIsConnected] = useState(false);
 const [error, setError] = useState('');
 const [isFlashing, setIsFlashing] = useState(false);
+
 const trackRef = useRef(null);
 const videoRef = useRef(null);
 const timerRef = useRef(null);
@@ -39,11 +51,14 @@ try {
 const stream = await navigator.mediaDevices.getUserMedia({
 video: { facingMode: 'environment' }
 });
+
 const track = stream.getVideoTracks()[0];
 trackRef.current = track;
+
 if (videoRef.current) {
 videoRef.current.srcObject = stream;
 }
+
 setIsConnected(true);
 } catch (err) {
 setError('Camera access denied or unavailable.');
@@ -59,16 +74,31 @@ await trackRef.current.applyConstraints({
 advanced: [{ torch: active }]
 });
 } else {
-setIsFlashing(active);
+setIsFlashing(active); // iOS Safari Fallback
 }
 } catch (err) {
-console.error("Torch error:", err);
 setIsFlashing(active);
 }
 };
 
 useEffect(() => {
 if (!isConnected) return;
+
+// --- FIREBASE LISTENER ---
+// Uncomment this block when using real Firebase
+/*
+const commandRef = ref(db, 'audienceCommand');
+const unsubscribe = onValue(commandRef, (snapshot) => {
+const command = snapshot.val();
+if (command) handleCommand(command);
+});
+return () => {
+unsubscribe();
+clearTimeout(timerRef.current);
+};
+*/
+
+// Test hook for local development without Firebase
 window.testSyncCommand = handleCommand;
 return () => clearTimeout(timerRef.current);
 }, [isConnected]);
@@ -76,27 +106,29 @@ return () => clearTimeout(timerRef.current);
 const handleCommand = (command) => {
 clearTimeout(timerRef.current);
 
-if (command.startsWith('REDIRECT_')) {
-const url = command.replace('REDIRECT_', '');
-window.location.href = url;
-return;
-}
-
 if (command === 'ON') {
 applyTorch(true);
 } else if (command === 'OFF') {
 applyTorch(false);
 } else if (command === 'BLINK') {
+// The Heartbeat Rhythm (100ms ON, 150ms OFF, 100ms ON, 650ms OFF)
 const pattern = [100, 150, 100, 650]; 
 let step = 0;
+
 const playHeartbeat = () => {
 const duration = pattern[step];
-const isOn = (step === 0 || step === 2);
+const isOn = (step === 0 || step === 2); 
+
 applyTorch(isOn);
+
 step = (step + 1) % pattern.length;
 timerRef.current = setTimeout(playHeartbeat, duration);
 };
 playHeartbeat();
+} else if (command.startsWith('REDIRECT_')) {
+// Redirect to Instagram Socials
+const url = command.split('REDIRECT_')[1];
+window.location.href = url;
 }
 };
 
@@ -109,6 +141,7 @@ playsInline
 muted 
 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${isConnected && !isFlashing ? 'opacity-100' : 'opacity-0'}`}
 />
+
 {!isConnected ? (
 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 z-10 bg-black">
 <p className="text-zinc-400 text-center mb-4 text-sm">
@@ -133,19 +166,26 @@ Join The Collective Experience
 );
 }
 
+// ==========================================
+// SHOW CONTROL VIEW (Your Master Deck)
+// ==========================================
 function ControlView() {
+const [isReady, setIsReady] = useState(false);
 const trackRef = useRef(null);
-const localTimerRef = useRef(null);
+
+// UI State purely for visual feedback on your screen
 const [localActive, setLocalActive] = useState(false);
 const [audienceActive, setAudienceActive] = useState(false);
 const [socialActive, setSocialActive] = useState(false);
-const [isReady, setIsReady] = useState(false);
 
+// Timers
+const localTimerRef = useRef(null);
 const localPressTimer = useRef(null);
 const audiencePressTimer = useRef(null);
 const socialPressTimer = useRef(null);
 
 useEffect(() => {
+// Request admin camera so your local flashlight works
 navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
 .then(stream => {
 trackRef.current = stream.getVideoTracks()[0];
@@ -153,6 +193,7 @@ setIsReady(true);
 })
 .catch(err => console.error("Admin camera denied", err));
 
+// Bluetooth Remote Key Mapping
 const handleKeyDown = (e) => {
 if (e.repeat) return; 
 if (e.key === 'ArrowUp' || e.key === 'PageUp') handleLocalDown();
@@ -180,15 +221,22 @@ trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => 
 };
 
 const fireAudienceCommand = (command) => {
+// --- FIREBASE SENDER ---
+// Uncomment this line to push commands to the live database
+// set(ref(db, 'audienceCommand'), command);
+
 console.log("Firebase Broadcast:", command);
 if (window.testSyncCommand) window.testSyncCommand(command);
 };
 
+// --- 1. LOCAL DEVICE ZONE (Top) ---
 const handleLocalDown = () => {
 localPressTimer.current = setTimeout(() => {
 localPressTimer.current = null;
+
 const pattern = [100, 150, 100, 650]; 
 let step = 0;
+
 const playLocalHeartbeat = () => {
 const duration = pattern[step];
 const isOn = (step === 0 || step === 2);
@@ -197,11 +245,13 @@ step = (step + 1) % pattern.length;
 localTimerRef.current = setTimeout(playLocalHeartbeat, duration);
 };
 playLocalHeartbeat();
+setLocalActive(true);
 }, 300); 
 };
 
 const handleLocalUp = () => {
 if (localPressTimer.current) {
+// It was a quick tap
 clearTimeout(localPressTimer.current);
 setLocalActive(prev => {
 const next = !prev;
@@ -209,36 +259,42 @@ applyLocalTorch(next);
 return next;
 });
 } else {
+// It was released from a long hold
 clearTimeout(localTimerRef.current);
 applyLocalTorch(false);
 setLocalActive(false);
 }
 };
 
+// --- 2. SOCIAL CONNECT ZONE (Middle) ---
 const handleSocialDown = () => {
 socialPressTimer.current = setTimeout(() => {
 socialPressTimer.current = null;
 setSocialActive(true);
+// Fires the redirect to your Instagram profile
 fireAudienceCommand('REDIRECT_https://instagram.com/andrewleemagic');
-}, 500);
+}, 500); // Requires a deliberate 500ms hold to prevent accidents
 };
 
 const handleSocialUp = () => {
 if (socialPressTimer.current) {
 clearTimeout(socialPressTimer.current);
 }
-setSocialActive(false);
+setTimeout(() => setSocialActive(false), 300); // Visual reset
 };
 
+// --- 3. AUDIENCE SYNC ZONE (Bottom) ---
 const handleAudienceDown = () => {
 audiencePressTimer.current = setTimeout(() => {
 audiencePressTimer.current = null;
-fireAudienceCommand('BLINK');
+setAudienceActive(true);
+fireAudienceCommand('BLINK'); // Starts audience heartbeat
 }, 300);
 };
 
 const handleAudienceUp = () => {
 if (audiencePressTimer.current) {
+// Quick tap
 clearTimeout(audiencePressTimer.current);
 setAudienceActive(prev => {
 const next = !prev;
@@ -246,35 +302,40 @@ fireAudienceCommand(next ? 'ON' : 'OFF');
 return next;
 });
 } else {
+// Released from hold
 fireAudienceCommand('OFF');
 setAudienceActive(false);
 }
 };
 
-if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center">Initializing Hardware...</div>;
+if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Hardware...</div>;
 
 return (
-<div className="h-screen w-full flex flex-col touch-none select-none overflow-hidden">
+<div className="h-screen w-full flex flex-col touch-none select-none overflow-hidden text-center">
+
+{/* ZONE 1: Local Device */}
 <div 
 onPointerDown={handleLocalDown}
 onPointerUp={handleLocalUp}
 onPointerLeave={handleLocalUp} 
-className={`flex-1 flex flex-col items-center justify-center border-b-2 border-zinc-900 transition-colors ${localActive ? 'bg-zinc-800' : 'bg-black'}`}
+className={`flex-1 flex flex-col items-center justify-center border-b border-zinc-900 transition-colors ${localActive ? 'bg-zinc-800' : 'bg-black'}`}
 >
-<span className="text-zinc-600 font-mono text-sm uppercase tracking-widest mb-2">Top Zone / Up Arrow</span>
+<span className="text-zinc-600 font-mono text-sm uppercase tracking-widest mb-1">Top Zone / Up Arrow</span>
 <h2 className="text-white text-3xl font-bold">MY PHONE</h2>
 </div>
 
+{/* ZONE 2: Instagram Redirect */}
 <div 
 onPointerDown={handleSocialDown}
 onPointerUp={handleSocialUp}
-onPointerLeave={handleSocialUp} 
-className={`flex-1 flex flex-col items-center justify-center border-b-2 border-black transition-colors ${socialActive ? 'bg-indigo-900' : 'bg-zinc-900'}`}
+onPointerLeave={handleSocialUp}
+className={`flex-none h-32 flex flex-col items-center justify-center border-b border-zinc-900 transition-colors ${socialActive ? 'bg-zinc-700' : 'bg-zinc-900'}`}
 >
-<span className="text-zinc-500 font-mono text-sm uppercase tracking-widest mb-2">Middle Zone (Hold 500ms)</span>
-<h2 className="text-white text-2xl font-bold">SOCIAL REDIRECT</h2>
+<h2 className="text-white text-xl font-bold tracking-widest">SOCIAL CONNECT</h2>
+<span className="text-zinc-500 font-mono text-xs uppercase tracking-widest mt-1">Hold 500ms to Redirect</span>
 </div>
 
+{/* ZONE 3: Audience Sync */}
 <div 
 onPointerDown={handleAudienceDown}
 onPointerUp={handleAudienceUp}
@@ -282,8 +343,9 @@ onPointerLeave={handleAudienceUp}
 className={`flex-1 flex flex-col items-center justify-center transition-colors ${audienceActive ? 'bg-zinc-800' : 'bg-black'}`}
 >
 <h2 className="text-white text-3xl font-bold">AUDIENCE SYNC</h2>
-<span className="text-zinc-600 font-mono text-sm uppercase tracking-widest mt-2">Bottom Zone / Down Arrow</span>
+<span className="text-zinc-600 font-mono text-sm uppercase tracking-widest mt-1">Bottom Zone / Down Arrow</span>
 </div>
+
 </div>
 );
 }
