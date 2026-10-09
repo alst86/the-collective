@@ -316,4 +316,82 @@ function ControlView() {
 
   // --- 3. REDIRECT ZONE (Top Right Corner) ---
   const handleRedirectDown = () => {
-    setRedirectStatus('HOLD
+    setRedirectStatus('HOLDING...');
+    redirectPressTimer.current = setTimeout(() => {
+      redirectPressTimer.current = null;
+      fireAudienceCommand(`REDIRECT_${redirectUrl}`);
+      
+      setRedirectStatus('FIRED!');
+      setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); // Visual reset
+    }, 800); // Requires an 800ms hold to prevent accidental triggers
+  };
+
+  const handleRedirectUp = () => {
+    if (redirectPressTimer.current) {
+      clearTimeout(redirectPressTimer.current);
+      setRedirectStatus('HOLD TO REDIRECT');
+    }
+  };
+
+  if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Master Deck...</div>;
+
+  return (
+    <div className="h-screen w-full flex flex-col touch-none select-none overflow-hidden bg-black text-white relative">
+      
+      {/* Top Utility Bar (URL Input + Redirect Button) */}
+      <div className="absolute top-0 left-0 w-full h-24 bg-zinc-900 border-b border-zinc-700 flex items-center px-4 z-20 space-x-3">
+        <div className="flex-1 flex flex-col justify-center">
+          <label className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest mb-1">Custom Redirect URL</label>
+          <input 
+            type="url" 
+            value={redirectUrl}
+            onChange={(e) => setRedirectUrl(e.target.value)}
+            className="w-full bg-black border border-zinc-700 text-white rounded px-3 py-3 text-sm outline-none focus:border-white transition-colors"
+            placeholder="https://..."
+          />
+        </div>
+        <div 
+          onPointerDown={handleRedirectDown}
+          onPointerUp={handleRedirectUp}
+          onPointerLeave={handleRedirectUp}
+          className={`w-28 h-16 rounded flex flex-col items-center justify-center font-bold text-[10px] tracking-wide transition-colors border text-center px-1 ${
+            redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white' 
+            : redirectStatus === 'HOLDING...' ? 'bg-yellow-600 border-yellow-500 text-white' 
+            : 'bg-zinc-800 border-zinc-600 text-zinc-300'
+          }`}
+        >
+          {redirectStatus}
+        </div>
+      </div>
+
+      {/* ZONE 1: Local Device */}
+      <div 
+        onPointerDown={handleLocalDown}
+        onPointerUp={handleLocalUp}
+        onPointerLeave={handleLocalUp} 
+        className={`flex-1 flex flex-col items-center justify-end pb-12 border-b border-zinc-900 transition-colors pt-24 ${localActive ? 'bg-zinc-800' : 'bg-black'}`}
+      >
+        <h2 className="text-white text-4xl font-bold tracking-widest mb-4">MY PHONE</h2>
+        <div className="flex flex-col space-y-2 text-zinc-500 font-mono text-xs uppercase tracking-widest">
+          <span>Tap / ↑ Arrow = ON/OFF</span>
+          <span>Hold / → Arrow = HEARTBEAT</span>
+        </div>
+      </div>
+
+      {/* ZONE 2: Audience Sync */}
+      <div 
+        onPointerDown={handleAudienceDown}
+        onPointerUp={handleAudienceUp}
+        onPointerLeave={handleAudienceUp}
+        className={`flex-1 flex flex-col items-center justify-start pt-12 transition-colors ${audienceActive ? 'bg-zinc-800' : 'bg-black'}`}
+      >
+        <h2 className="text-white text-4xl font-bold tracking-widest mb-4">AUDIENCE SYNC</h2>
+        <div className="flex flex-col space-y-2 text-zinc-500 font-mono text-xs uppercase tracking-widest">
+          <span>Tap / ↓ Arrow = ON/OFF</span>
+          <span>Hold / ← Arrow = HEARTBEAT</span>
+        </div>
+      </div>
+
+    </div>
+  );
+}
