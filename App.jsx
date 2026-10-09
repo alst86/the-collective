@@ -30,13 +30,13 @@ function AudienceView() {
   // IDLE AUTO-REDIRECT SETTINGS
   // ==========================================
   const idleTimerRef = useRef(null);
-  const IDLE_TIMEOUT_MS = 40 * 1000; // 40 seconds of inactivity (in milliseconds)
-  const IDLE_FALLBACK_URL = "https://www.google.com"; // Where they go if idle
+  const IDLE_TIMEOUT_MS = 30 * 1000; // 30 seconds of inactivity
+  const IDLE_FALLBACK_URL = "https://www.google.com"; // Fallback URL
 
   const resetIdleTimer = () => {
     clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
-      window.location.assign(IDLE_FALLBACK_URL);
+      window.location.replace(IDLE_FALLBACK_URL);
     }, IDLE_TIMEOUT_MS);
   };
   
@@ -86,7 +86,7 @@ function AudienceView() {
     const commandRef = ref(db, 'audienceCommand');
     const unsubscribe = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
-      resetIdleTimer(); // Starts/Resets the auto-redirect countdown whenever the database syncs
+      resetIdleTimer(); // Starts/Resets the auto-redirect countdown
 
       const command = snapshot.val();
       
@@ -153,8 +153,9 @@ function AudienceView() {
         if (!url.startsWith('http') && !url.includes('://')) {
           finalUrl = `https://${url}`;
         }
-        
-        window.location.assign(finalUrl);
+        // Immediately trigger redirect. If this fails to pull them away from the browser,
+        // the 30-second Google fallback timer we just started above will catch them.
+        window.location.replace(finalUrl);
       }
     }
   };
@@ -509,7 +510,7 @@ function ControlView() {
       if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
         finalUrl = `https://${finalUrl}`;
       }
-      window.location.assign(finalUrl);
+      window.location.replace(finalUrl);
     }
   };
 
