@@ -48,7 +48,6 @@ function AudienceView() {
 
   const startCamera = async () => {
     try {
-      // We must still request the camera behind the scenes to access the physical flashlight
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' }
       });
@@ -67,20 +66,19 @@ function AudienceView() {
   };
 
   const applyTorch = async (active) => {
-    // If no flashlight hardware (like on iOS Safari), this ensures the screen still strobes
+    // Triggers the visual screen flash fallback
     setIsFlashing(active); 
     
     if (!trackRef.current) return;
     
     try {
-      const capabilities = trackRef.current.getCapabilities();
-      if (capabilities.torch) {
-        await trackRef.current.applyConstraints({
-          advanced: [{ torch: active }]
-        });
-      }
+      // Force constraints without checking capabilities first (better Android compatibility)
+      await trackRef.current.applyConstraints({
+        advanced: [{ torch: active }]
+      });
     } catch (err) {
-      console.log("Torch constraint failed", err);
+      // Normal for iOS or devices without physical torches; the screen flash will handle it
+      console.log("Torch constraint not applied", err);
     }
   };
 
@@ -108,7 +106,6 @@ function AudienceView() {
     } else if (command === 'OFF') {
       applyTorch(false);
     } else if (command === 'BLINK') {
-      // The Heartbeat Rhythm (100ms ON, 150ms OFF, 100ms ON, 650ms OFF)
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
 
@@ -129,11 +126,13 @@ function AudienceView() {
   };
 
   return (
-    // Reverses colors rapidly to simulate a strobe if the physical flashlight fails
     <div className={`min-h-screen relative flex flex-col items-center justify-center p-6 transition-colors duration-75 ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
       
-      {/* Hidden video element required to keep the camera track alive */}
-      <video ref={videoRef} autoPlay playsInline muted className="hidden" />
+      {/* 
+        CRITICAL FIX: Video cannot be "hidden" or display:none, otherwise the browser 
+        pauses the camera stream and disables the flashlight. We make it 1x1 pixel and transparent instead. 
+      */}
+      <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
       {!isConnected ? (
         <div className="flex flex-col items-center w-full max-w-md">
@@ -168,7 +167,7 @@ function ControlView() {
   const [localActive, setLocalActive] = useState(false);
   const [audienceActive, setAudienceActive] = useState(false);
   
-  // Custom URL State with your default
+  // Custom URL State
   const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
@@ -189,23 +188,23 @@ function ControlView() {
       })
       .catch(err => {
         console.error("Admin camera denied", err);
-        setIsReady(true); // Allow UI to load even if Master Deck denies camera
+        setIsReady(true);
       });
 
     // BLUETOOTH REMOTE KEY MAPPING
     const handleKeyDown = (e) => {
-      if (e.repeat) return; // Prevent repeated triggers if a key is held down natively
+      if (e.repeat) return; 
       
-      if (e.key === 'ArrowUp') toggleLocalTorch(); // Tap Up Arrow
-      else if (e.key === 'ArrowRight') startLocalHeartbeat(); // Hold Right Arrow
+      if (e.key === 'ArrowUp') toggleLocalTorch(); // Tap
+      else if (e.key === 'ArrowRight') startLocalHeartbeat(); // Hold
       
-      else if (e.key === 'ArrowDown') toggleAudienceTorch(); // Tap Down Arrow
-      else if (e.key === 'ArrowLeft') startAudienceHeartbeat(); // Hold Left Arrow
+      else if (e.key === 'ArrowDown') toggleAudienceTorch(); // Tap
+      else if (e.key === 'ArrowLeft') startAudienceHeartbeat(); // Hold
     };
 
     const handleKeyUp = (e) => {
-      if (e.key === 'ArrowRight') stopLocalHeartbeat(); // Release Right Arrow
-      else if (e.key === 'ArrowLeft') stopAudienceHeartbeat(); // Release Left Arrow
+      if (e.key === 'ArrowRight') stopLocalHeartbeat(); // Release
+      else if (e.key === 'ArrowLeft') stopAudienceHeartbeat(); // Release
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -218,14 +217,13 @@ function ControlView() {
   }, []);
 
   const applyLocalTorch = (active) => {
-    if (trackRef.current && trackRef.current.getCapabilities && trackRef.current.getCapabilities().torch) {
-      trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => console.error(e));
+    if (trackRef.current) {
+      trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => console.log(e));
     }
   };
 
   const fireAudienceCommand = (command) => {
     set(ref(db, 'audienceCommand'), command);
-    console.log("Firebase Broadcast:", command);
   };
 
   // --- 1. LOCAL DEVICE ZONE (Top Zone / Up & Right Arrows) ---
@@ -266,12 +264,13 @@ function ControlView() {
     localPressTimer.current = setTimeout(() => {
       localPressTimer.current = null;
       startLocalHeartbeat();
-    }, 300); 
+    }, 400); // 400ms distinguishes a deliberate hold from a tap
   };
 
   const handleLocalUp = () => {
     if (localPressTimer.current) {
       clearTimeout(localPressTimer.current);
+      localPressTimer.current = null;
       toggleLocalTorch();
     } else {
       stopLocalHeartbeat();
@@ -302,12 +301,13 @@ function ControlView() {
     audiencePressTimer.current = setTimeout(() => {
       audiencePressTimer.current = null;
       startAudienceHeartbeat();
-    }, 300);
+    }, 400);
   };
 
   const handleAudienceUp = () => {
     if (audiencePressTimer.current) {
       clearTimeout(audiencePressTimer.current);
+      audiencePressTimer.current = null;
       toggleAudienceTorch();
     } else {
       stopAudienceHeartbeat();
@@ -322,8 +322,8 @@ function ControlView() {
       fireAudienceCommand(`REDIRECT_${redirectUrl}`);
       
       setRedirectStatus('FIRED!');
-      setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); // Visual reset
-    }, 800); // Requires an 800ms hold to prevent accidental triggers
+      setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); 
+    }, 800); 
   };
 
   const handleRedirectUp = () => {
@@ -354,6 +354,7 @@ function ControlView() {
           onPointerDown={handleRedirectDown}
           onPointerUp={handleRedirectUp}
           onPointerLeave={handleRedirectUp}
+          onPointerCancel={handleRedirectUp}
           className={`w-28 h-16 rounded flex flex-col items-center justify-center font-bold text-[10px] tracking-wide transition-colors border text-center px-1 ${
             redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white' 
             : redirectStatus === 'HOLDING...' ? 'bg-yellow-600 border-yellow-500 text-white' 
@@ -369,12 +370,13 @@ function ControlView() {
         onPointerDown={handleLocalDown}
         onPointerUp={handleLocalUp}
         onPointerLeave={handleLocalUp} 
+        onPointerCancel={handleLocalUp}
         className={`flex-1 flex flex-col items-center justify-end pb-12 border-b border-zinc-900 transition-colors pt-24 ${localActive ? 'bg-zinc-800' : 'bg-black'}`}
       >
         <h2 className="text-white text-4xl font-bold tracking-widest mb-4">MY PHONE</h2>
-        <div className="flex flex-col space-y-2 text-zinc-500 font-mono text-xs uppercase tracking-widest">
-          <span>Tap / ↑ Arrow = ON/OFF</span>
-          <span>Hold / → Arrow = HEARTBEAT</span>
+        <div className="flex flex-col space-y-2 text-zinc-500 font-mono text-xs uppercase tracking-widest text-center">
+          <span>Tap (↑) = ON/OFF</span>
+          <span>Hold (→) = HEARTBEAT</span>
         </div>
       </div>
 
@@ -383,12 +385,13 @@ function ControlView() {
         onPointerDown={handleAudienceDown}
         onPointerUp={handleAudienceUp}
         onPointerLeave={handleAudienceUp}
+        onPointerCancel={handleAudienceUp}
         className={`flex-1 flex flex-col items-center justify-start pt-12 transition-colors ${audienceActive ? 'bg-zinc-800' : 'bg-black'}`}
       >
         <h2 className="text-white text-4xl font-bold tracking-widest mb-4">AUDIENCE SYNC</h2>
-        <div className="flex flex-col space-y-2 text-zinc-500 font-mono text-xs uppercase tracking-widest">
-          <span>Tap / ↓ Arrow = ON/OFF</span>
-          <span>Hold / ← Arrow = HEARTBEAT</span>
+        <div className="flex flex-col space-y-2 text-zinc-500 font-mono text-xs uppercase tracking-widest text-center">
+          <span>Tap (↓) = ON/OFF</span>
+          <span>Hold (←) = HEARTBEAT</span>
         </div>
       </div>
 
