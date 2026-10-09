@@ -141,12 +141,10 @@ function AudienceView() {
     }
   };
 
-  // --- TRIPLE TAP LOGIC ---
   const handleSecretClick = () => {
     const currentTime = new Date().getTime();
     const timeSinceLastClick = currentTime - secretLastClickTime.current;
 
-    // Increased to 500ms so you don't have to tap quite as frantically
     if (timeSinceLastClick < 500) {
       secretClickCount.current += 1;
     } else {
@@ -155,10 +153,8 @@ function AudienceView() {
 
     secretLastClickTime.current = currentTime;
 
-    // If triple tapped, launch Master Deck
     if (secretClickCount.current === 3) {
       secretClickCount.current = 0;
-      // Navigate directly to the master parameter
       window.location.href = window.location.pathname + '?master';
     }
   };
@@ -174,9 +170,8 @@ function AudienceView() {
 
       {!cameraReady ? (
         <>
-          {/* HIDDEN TRIPLE-TAP TRIGGER */}
           <div 
-            onPointerDown={handleSecretClick}
+            onClick={handleSecretClick}
             className="absolute bottom-16 right-0 w-40 h-40 z-[100] bg-black/0 touch-none"
           />
 
@@ -260,7 +255,9 @@ function ControlView() {
 
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
-      if (e.target.type === 'url' || e.target.type === 'text') return;
+      
+      // FIXED: Specifically check if we are typing in the URL box versus the hidden Flic Trap
+      if (e.target.tagName === 'INPUT' && e.target !== hiddenInputRef.current) return;
       
       const k = e.key;
       setLastKey(k);
@@ -278,7 +275,7 @@ function ControlView() {
     };
 
     const handleKeyUp = (e) => {
-      if (e.target.type === 'url' || e.target.type === 'text') return;
+      if (e.target.tagName === 'INPUT' && e.target !== hiddenInputRef.current) return;
       const k = e.key;
       
       if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalUp();
