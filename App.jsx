@@ -20,8 +20,6 @@ export default function App() {
 function AudienceView() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState('');
-  
-  // Controls the screen color for the visual strobe effect
   const [isFlashing, setIsFlashing] = useState(false); 
 
   const trackRef = useRef(null);
@@ -48,18 +46,14 @@ function AudienceView() {
   };
 
   const applyTorch = async (active) => {
-    // Triggers the visual screen flash fallback
     setIsFlashing(active); 
-    
     if (!trackRef.current) return;
     
     try {
-      // Force constraints without checking capabilities first (better Android compatibility)
       await trackRef.current.applyConstraints({
         advanced: [{ torch: active }]
       });
     } catch (err) {
-      // Normal for iOS or devices without physical torches; the screen flash will handle it
       console.log("Torch constraint not applied", err);
     }
   };
@@ -67,7 +61,6 @@ function AudienceView() {
   useEffect(() => {
     if (!isConnected) return;
 
-    // --- FIREBASE LISTENER ---
     const commandRef = ref(db, 'audienceCommand');
     const unsubscribe = onValue(commandRef, (snapshot) => {
       const command = snapshot.val();
@@ -110,10 +103,7 @@ function AudienceView() {
   return (
     <div className={`min-h-screen relative flex flex-col items-center justify-center p-6 transition-colors duration-75 ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
       
-      {/* 
-        CRITICAL FIX: Video cannot be "hidden" or display:none, otherwise the browser 
-        pauses the camera stream and disables the flashlight. We make it 1x1 pixel and transparent instead. 
-      */}
+      {/* Invisible video element keeps camera stream alive for the physical flashlight */}
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
       {!isConnected ? (
@@ -145,24 +135,19 @@ function ControlView() {
   const [isReady, setIsReady] = useState(false);
   const trackRef = useRef(null);
   
-  // UI States
-  const [localActive, setLocalActive] = useState(false);
-  const [audienceActive, setAudienceActive] = useState(false);
+  // Explicit Modes: 'OFF', 'ON', 'BLINK'
+  const [localMode, setLocalMode] = useState('OFF');
+  const [audienceMode, setAudienceMode] = useState('OFF');
   
-  // Custom URL State
   const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
-  // Timers and Refs
   const localTimerRef = useRef(null);
-  const localPressTimer = useRef(null);
   const localStepRef = useRef(0);
   
-  const audiencePressTimer = useRef(null);
   const redirectPressTimer = useRef(null);
 
   useEffect(() => {
-    // Request admin camera so your local flashlight works
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => {
         trackRef.current = stream.getVideoTracks()[0];
@@ -173,20 +158,19 @@ function ControlView() {
         setIsReady(true);
       });
 
-    // BLUETOOTH REMOTE KEY MAPPING
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
       
-      if (e.key === 'ArrowUp') toggleLocalTorch(); // Tap
-      else if (e.key === 'ArrowRight') startLocalHeartbeat(); // Hold
+      if (e.key === 'ArrowUp') toggleLocalTorch(); 
+      else if (e.key === 'ArrowRight') startLocalHeartbeat(); 
       
-      else if (e.key === 'ArrowDown') toggleAudienceTorch(); // Tap
-      else if (e.key === 'ArrowLeft') startAudienceHeartbeat(); // Hold
+      else if (e.key === 'ArrowDown') toggleAudienceTorch(); 
+      else if (e.key === 'ArrowLeft') startAudienceHeartbeat(); 
     };
 
     const handleKeyUp = (e) => {
-      if (e.key === 'ArrowRight') stopLocalHeartbeat(); // Release
-      else if (e.key === 'ArrowLeft') stopAudienceHeartbeat(); // Release
+      if (e.key === 'ArrowRight') stopLocalHeartbeat(); 
+      else if (e.key === 'ArrowLeft') stopAudienceHeartbeat(); 
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -196,7 +180,7 @@ function ControlView() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [localMode, audienceMode]);
 
   const applyLocalTorch = (active) => {
     if (trackRef.current) {
@@ -208,21 +192,30 @@ function ControlView() {
     set(ref(db, 'audienceCommand'), command);
   };
 
-  // --- 1. LOCAL DEVICE ZONE (Top Zone / Up & Right Arrows) ---
+  // --- 1. LOCAL DEVICE LOGIC ---
+  const turnLocalOn = () => {
+    clearTimeout(localTimerRef.current);
+    setLocalMode('ON');
+    applyLocalTorch(true);
+  };
+
+  const turnLocalOff = () => {
+    clearTimeout(localTimerRef.current);
+    setLocalMode('OFF');
+    applyLocalTorch(false);
+  };
+
   const toggleLocalTorch = () => {
-    setLocalActive(prev => {
-      const next = !prev;
-      applyLocalTorch(next);
-      return next;
-    });
+    if (localMode === 'OFF') turnLocalOn();
+    else turnLocalOff();
   };
 
   const startLocalHeartbeat = () => {
-    setLocalActive(true);
+    clearTimeout(localTimerRef.current);
+    setLocalMode('BLINK');
     localStepRef.current = 0;
     
     const pattern = [100, 150, 100, 650]; 
-    
     const playLocalHeartbeat = () => {
       const duration = pattern[localStepRef.current];
       const isOn = (localStepRef.current === 0 || localStepRef.current === 2);
@@ -236,67 +229,35 @@ function ControlView() {
   };
 
   const stopLocalHeartbeat = () => {
-    clearTimeout(localTimerRef.current);
-    applyLocalTorch(false);
-    setLocalActive(false);
+    turnLocalOff();
   };
 
-  // Touch screen support for Local Zone
-  const handleLocalDown = () => {
-    localPressTimer.current = setTimeout(() => {
-      localPressTimer.current = null;
-      startLocalHeartbeat();
-    }, 400); // 400ms distinguishes a deliberate hold from a tap
+  // --- 2. AUDIENCE SYNC LOGIC ---
+  const turnAudienceOn = () => {
+    setAudienceMode('ON');
+    fireAudienceCommand('ON');
   };
 
-  const handleLocalUp = () => {
-    if (localPressTimer.current) {
-      clearTimeout(localPressTimer.current);
-      localPressTimer.current = null;
-      toggleLocalTorch();
-    } else {
-      stopLocalHeartbeat();
-    }
+  const turnAudienceOff = () => {
+    setAudienceMode('OFF');
+    fireAudienceCommand('OFF');
   };
 
-  // --- 2. AUDIENCE SYNC ZONE (Bottom Zone / Down & Left Arrows) ---
   const toggleAudienceTorch = () => {
-    setAudienceActive(prev => {
-      const next = !prev;
-      fireAudienceCommand(next ? 'ON' : 'OFF');
-      return next;
-    });
+    if (audienceMode === 'OFF') turnAudienceOn();
+    else turnAudienceOff();
   };
 
   const startAudienceHeartbeat = () => {
-    setAudienceActive(true);
+    setAudienceMode('BLINK');
     fireAudienceCommand('BLINK');
   };
 
   const stopAudienceHeartbeat = () => {
-    setAudienceActive(false);
-    fireAudienceCommand('OFF');
+    turnAudienceOff();
   };
 
-  // Touch screen support for Audience Zone
-  const handleAudienceDown = () => {
-    audiencePressTimer.current = setTimeout(() => {
-      audiencePressTimer.current = null;
-      startAudienceHeartbeat();
-    }, 400);
-  };
-
-  const handleAudienceUp = () => {
-    if (audiencePressTimer.current) {
-      clearTimeout(audiencePressTimer.current);
-      audiencePressTimer.current = null;
-      toggleAudienceTorch();
-    } else {
-      stopAudienceHeartbeat();
-    }
-  };
-
-  // --- 3. REDIRECT ZONE (Top Right Corner) ---
+  // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
     setRedirectStatus('HOLDING...');
     redirectPressTimer.current = setTimeout(() => {
@@ -320,7 +281,7 @@ function ControlView() {
   return (
     <div className="h-screen w-full flex flex-col touch-none select-none overflow-hidden bg-black text-white relative">
       
-      {/* Top Utility Bar (URL Input + Redirect Button) */}
+      {/* Top Utility Bar */}
       <div className="absolute top-0 left-0 w-full h-24 bg-zinc-900 border-b border-zinc-700 flex items-center px-4 z-20 space-x-3">
         <div className="flex-1 flex flex-col justify-center">
           <label className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest mb-1">Custom Redirect URL</label>
@@ -348,33 +309,75 @@ function ControlView() {
       </div>
 
       {/* ZONE 1: Local Device */}
-      <div 
-        onPointerDown={handleLocalDown}
-        onPointerUp={handleLocalUp}
-        onPointerLeave={handleLocalUp} 
-        onPointerCancel={handleLocalUp}
-        className={`flex-1 flex flex-col items-center justify-end pb-12 border-b border-zinc-900 transition-colors pt-24 ${localActive ? 'bg-zinc-800' : 'bg-black'}`}
-      >
-        <h2 className="text-white text-4xl font-bold tracking-widest mb-4">MY PHONE</h2>
-        <div className="flex flex-col space-y-2 text-zinc-500 font-mono text-xs uppercase tracking-widest text-center">
-          <span>Tap (↑) = ON/OFF</span>
-          <span>Hold (→) = HEARTBEAT</span>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pt-24 pb-6 border-b border-zinc-900">
+        <h2 className="text-white text-3xl font-bold tracking-widest mb-4">MY PHONE</h2>
+        
+        {/* Toggle Buttons */}
+        <div className="flex w-full space-x-3 mb-3">
+          <button 
+            onClick={turnLocalOn} 
+            className={`flex-1 py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${localMode === 'ON' ? 'bg-white text-black shadow-lg shadow-white/20' : 'bg-zinc-900 text-zinc-500'}`}
+          >
+            ON
+          </button>
+          <button 
+            onClick={turnLocalOff} 
+            className={`flex-1 py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${localMode === 'OFF' ? 'bg-zinc-700 text-white shadow-lg' : 'bg-zinc-900 text-zinc-500'}`}
+          >
+            OFF
+          </button>
         </div>
+
+        {/* Heartbeat Hold Button */}
+        <button 
+          onPointerDown={startLocalHeartbeat}
+          onPointerUp={stopLocalHeartbeat}
+          onPointerLeave={stopLocalHeartbeat}
+          onPointerCancel={stopLocalHeartbeat}
+          className={`w-full py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${localMode === 'BLINK' ? 'bg-red-600 text-white shadow-lg shadow-red-500/50' : 'bg-zinc-900 text-zinc-500'}`}
+        >
+          HOLD: HEARTBEAT
+        </button>
+        
+        <span className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest mt-4">
+          Remote: Tap (↑) Toggle | Hold (→) Strobe
+        </span>
       </div>
 
       {/* ZONE 2: Audience Sync */}
-      <div 
-        onPointerDown={handleAudienceDown}
-        onPointerUp={handleAudienceUp}
-        onPointerLeave={handleAudienceUp}
-        onPointerCancel={handleAudienceUp}
-        className={`flex-1 flex flex-col items-center justify-start pt-12 transition-colors ${audienceActive ? 'bg-zinc-800' : 'bg-black'}`}
-      >
-        <h2 className="text-white text-4xl font-bold tracking-widest mb-4">AUDIENCE SYNC</h2>
-        <div className="flex flex-col space-y-2 text-zinc-500 font-mono text-xs uppercase tracking-widest text-center">
-          <span>Tap (↓) = ON/OFF</span>
-          <span>Hold (←) = HEARTBEAT</span>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-6">
+        <h2 className="text-white text-3xl font-bold tracking-widest mb-4">AUDIENCE SYNC</h2>
+        
+        {/* Toggle Buttons */}
+        <div className="flex w-full space-x-3 mb-3">
+          <button 
+            onClick={turnAudienceOn} 
+            className={`flex-1 py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${audienceMode === 'ON' ? 'bg-white text-black shadow-lg shadow-white/20' : 'bg-zinc-900 text-zinc-500'}`}
+          >
+            ON
+          </button>
+          <button 
+            onClick={turnAudienceOff} 
+            className={`flex-1 py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${audienceMode === 'OFF' ? 'bg-zinc-700 text-white shadow-lg' : 'bg-zinc-900 text-zinc-500'}`}
+          >
+            OFF
+          </button>
         </div>
+
+        {/* Heartbeat Hold Button */}
+        <button 
+          onPointerDown={startAudienceHeartbeat}
+          onPointerUp={stopAudienceHeartbeat}
+          onPointerLeave={stopAudienceHeartbeat}
+          onPointerCancel={stopAudienceHeartbeat}
+          className={`w-full py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${audienceMode === 'BLINK' ? 'bg-red-600 text-white shadow-lg shadow-red-500/50' : 'bg-zinc-900 text-zinc-500'}`}
+        >
+          HOLD: HEARTBEAT
+        </button>
+
+        <span className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest mt-4">
+          Remote: Tap (↓) Toggle | Hold (←) Strobe
+        </span>
       </div>
 
     </div>
