@@ -25,6 +25,20 @@ function AudienceView() {
   const videoRef = useRef(null);
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
+
+  // ==========================================
+  // IDLE AUTO-REDIRECT SETTINGS
+  // ==========================================
+  const idleTimerRef = useRef(null);
+  const IDLE_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute of inactivity (in milliseconds)
+  const IDLE_FALLBACK_URL = "https://instagram.com/andrewleemagic"; // Where they go if idle
+
+  const resetIdleTimer = () => {
+    clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      window.location.assign(IDLE_FALLBACK_URL);
+    }, IDLE_TIMEOUT_MS);
+  };
   
   // TRIPLE TAP SECRET GATEWAY
   const secretClickCount = useRef(0);
@@ -72,6 +86,8 @@ function AudienceView() {
     const commandRef = ref(db, 'audienceCommand');
     const unsubscribe = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
+      resetIdleTimer(); // Starts/Resets the auto-redirect countdown whenever the database syncs
+
       const command = snapshot.val();
       
       if (command) {
@@ -93,11 +109,13 @@ function AudienceView() {
     return () => {
       unsubscribe();
       clearTimeout(timerRef.current);
+      clearTimeout(idleTimerRef.current);
     };
   }, []);
 
   const handleCommand = (command) => {
     clearTimeout(timerRef.current);
+    resetIdleTimer(); // Extra safety reset on explicit commands
     
     const safeCommand = String(command);
     const parts = safeCommand.split('|');
@@ -105,10 +123,10 @@ function AudienceView() {
     
     if (baseCmd === 'ON') {
       applyTorch(true);
-      setIsFlashing(true); // Restored the black background effect when ON
+      setIsFlashing(true); 
     } else if (baseCmd === 'OFF') {
       applyTorch(false);
-      setIsFlashing(false); // Restored to white background when OFF
+      setIsFlashing(false); 
     } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
