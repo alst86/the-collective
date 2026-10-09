@@ -143,8 +143,10 @@ function ControlView() {
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
   const localTimerRef = useRef(null);
+  const localPressTimer = useRef(null);
   const localStepRef = useRef(0);
   
+  const audiencePressTimer = useRef(null);
   const redirectPressTimer = useRef(null);
 
   useEffect(() => {
@@ -161,15 +163,17 @@ function ControlView() {
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
       
-      if (e.key === 'ArrowUp') toggleLocalTorch(); 
+      if (e.key === 'ArrowUp') handleLocalDown(); 
       else if (e.key === 'ArrowRight') startLocalHeartbeat(); 
       
-      else if (e.key === 'ArrowDown') toggleAudienceTorch(); 
+      else if (e.key === 'ArrowDown') handleAudienceDown(); 
       else if (e.key === 'ArrowLeft') startAudienceHeartbeat(); 
     };
 
     const handleKeyUp = (e) => {
-      if (e.key === 'ArrowRight') stopLocalHeartbeat(); 
+      if (e.key === 'ArrowUp') handleLocalUp();
+      else if (e.key === 'ArrowDown') handleAudienceUp();
+      else if (e.key === 'ArrowRight') stopLocalHeartbeat(); 
       else if (e.key === 'ArrowLeft') stopAudienceHeartbeat(); 
     };
 
@@ -232,6 +236,26 @@ function ControlView() {
     turnLocalOff();
   };
 
+  // Touch logic for single button
+  const handleLocalDown = () => {
+    localPressTimer.current = setTimeout(() => {
+      localPressTimer.current = null;
+      startLocalHeartbeat();
+    }, 400); // 400ms determines a hold vs a tap
+  };
+
+  const handleLocalUp = () => {
+    if (localPressTimer.current) {
+      // Timer didn't finish, so it was a quick tap
+      clearTimeout(localPressTimer.current);
+      localPressTimer.current = null;
+      toggleLocalTorch();
+    } else {
+      // Timer finished, it was a hold. Release turns it off.
+      stopLocalHeartbeat();
+    }
+  };
+
   // --- 2. AUDIENCE SYNC LOGIC ---
   const turnAudienceOn = () => {
     setAudienceMode('ON');
@@ -257,6 +281,23 @@ function ControlView() {
     turnAudienceOff();
   };
 
+  const handleAudienceDown = () => {
+    audiencePressTimer.current = setTimeout(() => {
+      audiencePressTimer.current = null;
+      startAudienceHeartbeat();
+    }, 400);
+  };
+
+  const handleAudienceUp = () => {
+    if (audiencePressTimer.current) {
+      clearTimeout(audiencePressTimer.current);
+      audiencePressTimer.current = null;
+      toggleAudienceTorch();
+    } else {
+      stopAudienceHeartbeat();
+    }
+  };
+
   // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
     setRedirectStatus('HOLDING...');
@@ -279,107 +320,103 @@ function ControlView() {
   if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Master Deck...</div>;
 
   return (
-    <div className="h-screen w-full flex flex-col touch-none select-none overflow-hidden bg-black text-white relative">
+    <div className="h-screen w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans">
       
       {/* Top Utility Bar */}
-      <div className="absolute top-0 left-0 w-full h-24 bg-zinc-900 border-b border-zinc-700 flex items-center px-4 z-20 space-x-3">
+      <div className="absolute top-0 left-0 w-full h-20 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 z-20 space-x-3">
         <div className="flex-1 flex flex-col justify-center">
-          <label className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest mb-1">Custom Redirect URL</label>
+          <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
           <input 
             type="url" 
             value={redirectUrl}
             onChange={(e) => setRedirectUrl(e.target.value)}
-            className="w-full bg-black border border-zinc-700 text-white rounded px-3 py-3 text-sm outline-none focus:border-white transition-colors"
+            className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
             placeholder="https://..."
           />
         </div>
-        <div 
+        <button 
           onPointerDown={handleRedirectDown}
           onPointerUp={handleRedirectUp}
           onPointerLeave={handleRedirectUp}
           onPointerCancel={handleRedirectUp}
-          className={`w-28 h-16 rounded flex flex-col items-center justify-center font-bold text-[10px] tracking-wide transition-colors border text-center px-1 ${
+          onContextMenu={(e) => e.preventDefault()}
+          className={`w-24 h-12 rounded flex flex-col items-center justify-center font-bold text-[9px] tracking-widest transition-colors border text-center px-1 ${
             redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white' 
-            : redirectStatus === 'HOLDING...' ? 'bg-yellow-600 border-yellow-500 text-white' 
-            : 'bg-zinc-800 border-zinc-600 text-zinc-300'
+            : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
+            : 'bg-zinc-950 border-zinc-800 text-zinc-400'
           }`}
         >
           {redirectStatus}
-        </div>
-      </div>
-
-      {/* ZONE 1: Local Device */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pt-24 pb-6 border-b border-zinc-900">
-        <h2 className="text-white text-3xl font-bold tracking-widest mb-4">MY PHONE</h2>
-        
-        {/* Toggle Buttons */}
-        <div className="flex w-full space-x-3 mb-3">
-          <button 
-            onClick={turnLocalOn} 
-            className={`flex-1 py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${localMode === 'ON' ? 'bg-white text-black shadow-lg shadow-white/20' : 'bg-zinc-900 text-zinc-500'}`}
-          >
-            ON
-          </button>
-          <button 
-            onClick={turnLocalOff} 
-            className={`flex-1 py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${localMode === 'OFF' ? 'bg-zinc-700 text-white shadow-lg' : 'bg-zinc-900 text-zinc-500'}`}
-          >
-            OFF
-          </button>
-        </div>
-
-        {/* Heartbeat Hold Button */}
-        <button 
-          onPointerDown={startLocalHeartbeat}
-          onPointerUp={stopLocalHeartbeat}
-          onPointerLeave={stopLocalHeartbeat}
-          onPointerCancel={stopLocalHeartbeat}
-          className={`w-full py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${localMode === 'BLINK' ? 'bg-red-600 text-white shadow-lg shadow-red-500/50' : 'bg-zinc-900 text-zinc-500'}`}
-        >
-          HOLD: HEARTBEAT
         </button>
-        
-        <span className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest mt-4">
-          Remote: Tap (↑) Toggle | Hold (→) Strobe
-        </span>
       </div>
 
-      {/* ZONE 2: Audience Sync */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-6">
-        <h2 className="text-white text-3xl font-bold tracking-widest mb-4">AUDIENCE SYNC</h2>
+      <div className="flex-1 flex flex-col justify-evenly items-center pt-20 pb-4">
         
-        {/* Toggle Buttons */}
-        <div className="flex w-full space-x-3 mb-3">
-          <button 
-            onClick={turnAudienceOn} 
-            className={`flex-1 py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${audienceMode === 'ON' ? 'bg-white text-black shadow-lg shadow-white/20' : 'bg-zinc-900 text-zinc-500'}`}
+        {/* ZONE 1: Local Device (MY PHONE) */}
+        <div className="flex flex-col items-center w-full">
+          <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
+          <div className="text-lg mb-4">
+            <span className="text-zinc-400">State: </span>
+            <span className={localMode === 'OFF' ? 'text-red-500 font-bold' : localMode === 'ON' ? 'text-white font-bold' : 'text-red-500 font-bold animate-pulse'}>
+              {localMode === 'OFF' ? 'BLACKOUT' : localMode === 'ON' ? 'ILLUMINATED' : 'HEARTBEAT'}
+            </span>
+          </div>
+
+          <button
+            onPointerDown={handleLocalDown}
+            onPointerUp={handleLocalUp}
+            onPointerLeave={handleLocalUp}
+            onPointerCancel={handleLocalUp}
+            onContextMenu={(e) => e.preventDefault()}
+            className={`w-40 h-40 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+              localMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
+              localMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.2)]' :
+              'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_30px_rgba(220,38,38,0.3)]'
+            }`}
           >
-            ON
-          </button>
-          <button 
-            onClick={turnAudienceOff} 
-            className={`flex-1 py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${audienceMode === 'OFF' ? 'bg-zinc-700 text-white shadow-lg' : 'bg-zinc-900 text-zinc-500'}`}
-          >
-            OFF
+            <svg className="w-10 h-10 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636a9 9 0 11-12.728 0M12 3v9" />
+            </svg>
+            <span className="font-bold tracking-widest text-xs uppercase">
+              {localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : 'PULSING'}
+            </span>
           </button>
         </div>
 
-        {/* Heartbeat Hold Button */}
-        <button 
-          onPointerDown={startAudienceHeartbeat}
-          onPointerUp={stopAudienceHeartbeat}
-          onPointerLeave={stopAudienceHeartbeat}
-          onPointerCancel={stopAudienceHeartbeat}
-          className={`w-full py-5 font-bold rounded-lg text-xl tracking-wider transition-colors ${audienceMode === 'BLINK' ? 'bg-red-600 text-white shadow-lg shadow-red-500/50' : 'bg-zinc-900 text-zinc-500'}`}
-        >
-          HOLD: HEARTBEAT
-        </button>
+        <div className="w-full h-px bg-zinc-900 my-2"></div>
 
-        <span className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest mt-4">
-          Remote: Tap (↓) Toggle | Hold (←) Strobe
-        </span>
+        {/* ZONE 2: Audience Sync */}
+        <div className="flex flex-col items-center w-full">
+          <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
+          <div className="text-lg mb-4">
+            <span className="text-zinc-400">State: </span>
+            <span className={audienceMode === 'OFF' ? 'text-red-500 font-bold' : audienceMode === 'ON' ? 'text-white font-bold' : 'text-red-500 font-bold animate-pulse'}>
+              {audienceMode === 'OFF' ? 'BLACKOUT' : audienceMode === 'ON' ? 'ILLUMINATED' : 'HEARTBEAT'}
+            </span>
+          </div>
+
+          <button
+            onPointerDown={handleAudienceDown}
+            onPointerUp={handleAudienceUp}
+            onPointerLeave={handleAudienceUp}
+            onPointerCancel={handleAudienceUp}
+            onContextMenu={(e) => e.preventDefault()}
+            className={`w-40 h-40 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+              audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
+              audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.2)]' :
+              'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_30px_rgba(220,38,38,0.3)]'
+            }`}
+          >
+            <svg className="w-10 h-10 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636a9 9 0 11-12.728 0M12 3v9" />
+            </svg>
+            <span className="font-bold tracking-widest text-xs uppercase">
+              {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : 'PULSING'}
+            </span>
+          </button>
+        </div>
+
       </div>
-
     </div>
   );
 }
