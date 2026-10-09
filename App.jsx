@@ -171,7 +171,7 @@ function AudienceView() {
       {!cameraReady ? (
         <>
           <div 
-            onClick={handleSecretClick}
+            onPointerDown={handleSecretClick}
             className="absolute bottom-16 right-0 w-40 h-40 z-[100] bg-black/0 touch-none"
           />
 
@@ -238,6 +238,10 @@ function ControlView() {
   const redirectPressTimer = useRef(null);
   const isRedirectPressing = useRef(false);
 
+  // TRIPLE TAP MASTER REDIRECT GATEWAY
+  const masterSecretClickCount = useRef(0);
+  const masterSecretLastClickTime = useRef(0);
+
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => {
@@ -256,7 +260,6 @@ function ControlView() {
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
       
-      // FIXED: Specifically check if we are typing in the URL box versus the hidden Flic Trap
       if (e.target.tagName === 'INPUT' && e.target !== hiddenInputRef.current) return;
       
       const k = e.key;
@@ -316,6 +319,7 @@ function ControlView() {
     if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
 
+  // --- 1. LOCAL DEVICE LOGIC ---
   const turnLocalOn = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('ON');
@@ -384,6 +388,7 @@ function ControlView() {
     }
   };
 
+  // --- 2. AUDIENCE SYNC LOGIC ---
   const turnAudienceOn = () => {
     setAudienceMode('ON');
     fireAudienceCommand('ON');
@@ -437,6 +442,7 @@ function ControlView() {
     }
   };
 
+  // --- 3. REDIRECT LOGIC ---
   const handleRedirectDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isRedirectPressing.current) return;
@@ -469,6 +475,29 @@ function ControlView() {
     setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); 
   };
 
+  const handleMasterSecretClick = (e) => {
+    e.stopPropagation(); 
+    const currentTime = new Date().getTime();
+    const timeSinceLastClick = currentTime - masterSecretLastClickTime.current;
+
+    if (timeSinceLastClick < 500) {
+      masterSecretClickCount.current += 1;
+    } else {
+      masterSecretClickCount.current = 1;
+    }
+
+    masterSecretLastClickTime.current = currentTime;
+
+    if (masterSecretClickCount.current === 3) {
+      masterSecretClickCount.current = 0;
+      let finalUrl = redirectUrl;
+      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
+        finalUrl = `https://${finalUrl}`;
+      }
+      window.location.assign(finalUrl);
+    }
+  };
+
   if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Master Deck...</div>;
 
   return (
@@ -486,6 +515,12 @@ function ControlView() {
         onFocus={() => setIsRemoteArmed(true)}
         onBlur={() => setIsRemoteArmed(false)}
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
+      />
+
+      {/* HIDDEN TRIPLE-TAP TRIGGER FOR MASTER REDIRECT */}
+      <div 
+        onPointerDown={handleMasterSecretClick}
+        className="absolute bottom-16 right-0 w-40 h-40 z-[100] bg-black/0 touch-none"
       />
 
       <div className="absolute top-0 left-0 w-full h-20 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 z-20 space-x-3">
@@ -515,7 +550,7 @@ function ControlView() {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col justify-evenly items-center pt-20 pb-4">
+      <div className="flex-1 flex flex-col justify-evenly items-center pt-20 pb-4 z-10">
         
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
