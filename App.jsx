@@ -200,9 +200,10 @@ function AudienceView() {
 
       {!cameraReady ? (
         <>
+          {/* Secret gateway moved to top-left to avoid bottom overlap */}
           <div 
             onPointerDown={handleSecretClick}
-            className="absolute bottom-16 right-0 w-40 h-40 z-[100] bg-black/0 touch-none"
+            className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none"
           />
 
           <div className="flex flex-col items-center w-full max-w-md px-6 z-10">
@@ -625,7 +626,6 @@ function ControlView() {
   return (
     <div 
       onClick={armRemote}
-      // Switch to standard flexbox layout to completely eliminate UI overlap
       className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans"
     >
       <input 
@@ -640,14 +640,12 @@ function ControlView() {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
+      {/* Secret gateway moved to the top-left, just beneath the URL bar (top-24) to avoid blocking the input or bottom buttons */}
       <div 
         onPointerDown={handleMasterSecretClick}
-        className="absolute bottom-16 right-0 w-40 h-40 z-[100] bg-black/0 touch-none"
+        className="absolute top-24 left-0 w-32 h-32 z-[100] bg-black/0 touch-none"
       />
 
-      {/* ================================== */}
-      {/* TOP HEADER                         */}
-      {/* ================================== */}
       <div className="w-full h-20 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 shrink-0 z-20 space-x-3">
         <div className="flex-1 flex flex-col justify-center">
           <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
@@ -675,12 +673,8 @@ function ControlView() {
         </button>
       </div>
 
-      {/* ================================== */}
-      {/* MAIN CONTENT AREA                  */}
-      {/* ================================== */}
       <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10">
         
-        {/* LOCAL CUE UI */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
           <div className="text-lg mb-4">
@@ -726,7 +720,6 @@ function ControlView() {
 
         <div className="w-full h-px bg-zinc-900 shrink-0 my-2"></div>
 
-        {/* MASTER CUE UI */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
           <div className="text-lg mb-4">
@@ -772,12 +765,8 @@ function ControlView() {
 
       </div>
 
-      {/* ================================== */}
-      {/* BOTTOM CONTROL BAR                 */}
-      {/* ================================== */}
       <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col px-4 pt-3 pb-8 z-20">
         
-        {/* Choreography Row */}
         <div className="flex items-center justify-between w-full mb-3">
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography</span>
@@ -812,7 +801,6 @@ function ControlView() {
           </div>
         </div>
 
-        {/* Remote Status Row (Pushed to bottom, opacity slightly lowered so it acts as background info) */}
         <div className="flex flex-col items-center space-y-1 w-full opacity-75">
           <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
             {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
