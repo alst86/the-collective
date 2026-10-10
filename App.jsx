@@ -115,7 +115,7 @@ function AudienceView() {
 
   const handleCommand = (command) => {
     clearTimeout(timerRef.current);
-    resetIdleTimer(); // Extra safety reset on explicit commands
+    resetIdleTimer(); 
     
     const safeCommand = String(command);
     const parts = safeCommand.split('|');
@@ -146,6 +146,18 @@ function AudienceView() {
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
       playHeartbeat();
+    } else if (baseCmd === 'STROBE') {
+      // PAPARAZZI CHAOS STROBE (Locally randomized per phone)
+      const playStrobe = () => {
+        const isOn = Math.random() > 0.5; // Randomly snap ON or OFF
+        applyTorch(isOn);
+        setIsFlashing(isOn); 
+        
+        // Random strobe speed between 60ms and 150ms
+        const randomDelay = Math.floor(Math.random() * 90) + 60;
+        timerRef.current = setTimeout(playStrobe, randomDelay);
+      };
+      playStrobe();
     } else if (baseCmd === 'REDIRECT') {
       const url = parts.slice(2).join('|'); 
       if (url) {
@@ -249,18 +261,13 @@ function ControlView() {
   const hiddenInputRef = useRef(null);
   const [isRemoteArmed, setIsRemoteArmed] = useState(false);
 
-  // ==========================================
-  // BULLETPROOF RECORDER & PLAYBACK STATES
-  // ==========================================
   const [isRecording, setIsRecording] = useState(false);
   const isRecordingRef = useRef(false);
-  
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlayingRef = useRef(false);
   
   const [recordedSequence, setRecordedSequence] = useState([]);
   const recordedSequenceRef = useRef([]);
-  
   const recordingStartRef = useRef(0);
   const playbackTimeoutsRef = useRef([]);
 
@@ -278,7 +285,6 @@ function ControlView() {
   const masterSecretClickCount = useRef(0);
   const masterSecretLastClickTime = useRef(0);
 
-  // LOAD SAVED SEQUENCE ON MOUNT
   useEffect(() => {
     try {
       const saved = localStorage.getItem('magicSequence');
@@ -292,7 +298,6 @@ function ControlView() {
     }
   }, []);
 
-  // SAVE SEQUENCE TO LOCAL BROWSER STORAGE
   useEffect(() => {
     if (!isRecording) {
       localStorage.setItem('magicSequence', JSON.stringify(recordedSequence));
@@ -321,23 +326,16 @@ function ControlView() {
       const k = e.key;
       setLastKey(k);
 
-      // ==========================================
       // ULTIMATE PANIC STOP
-      // ==========================================
       if (isPlayingRef.current) {
         handleStopPlayback();
         return; 
       }
 
-      // ==========================================
-      // BLUETOOTH PLAY COMMAND ('p')
-      // ==========================================
-      if (k === 'p' || k === 'P') {
-        handlePlayToggle();
-        return;
-      }
+      // BLUETOOTH CUES
+      if (k === 'p' || k === 'P') { handlePlayToggle(); return; }
       
-      // STANDARD CUE COMMANDS
+      // STANDARD & STROBE CUES
       if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalDown(); 
       else if (k === 'ArrowRight') startLocalHeartbeat(); 
       else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceDown(); 
@@ -345,8 +343,12 @@ function ControlView() {
 
       else if (k === 'u' || k === 'U') toggleLocalTorch();
       else if (k === 'r' || k === 'R') toggleLocalHeartbeat();
+      else if (k === 'e' || k === 'E') toggleLocalStrobe(); // LOCAL STROBE
+      
       else if (k === 'd' || k === 'D') toggleAudienceTorch();
       else if (k === 'l' || k === 'L') toggleAudienceHeartbeat();
+      else if (k === 's' || k === 'S') toggleAudienceStrobe(); // AUDIENCE STROBE
+      
       else if (k === 'i' || k === 'I') fireInstantRedirect(); 
     };
 
@@ -392,6 +394,7 @@ function ControlView() {
       if (cmd === 'ON') setAudienceMode('ON');
       else if (cmd === 'OFF') setAudienceMode('OFF');
       else if (cmd === 'BLINK') setAudienceMode('BLINK');
+      else if (cmd === 'STROBE') setAudienceMode('STROBE');
     }
     
     let payload = `${cmd}|${Date.now()}`;
@@ -441,7 +444,6 @@ function ControlView() {
       let maxOffset = 0;
       recordedSequenceRef.current.forEach(({ target, cmd, offset }) => {
         const actualTarget = target || 'AUDIENCE';
-        
         if (offset > maxOffset) maxOffset = offset;
         
         const tid = setTimeout(() => {
@@ -451,6 +453,7 @@ function ControlView() {
             if (cmd === 'ON') turnLocalOn(true);
             else if (cmd === 'OFF') turnLocalOff(true);
             else if (cmd === 'BLINK') startLocalHeartbeat(true);
+            else if (cmd === 'STROBE') startLocalStrobe(true);
           }
         }, offset);
         
@@ -488,11 +491,6 @@ function ControlView() {
     }
   };
 
-  const armRemote = (e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-    if (hiddenInputRef.current) hiddenInputRef.current.focus();
-  };
-
   const turnLocalOn = (isPlayback = false) => {
     if (!isPlayback) recordCue('LOCAL', 'ON');
     clearTimeout(localTimerRef.current);
@@ -523,9 +521,24 @@ function ControlView() {
     };
     playLocalHeartbeat();
   };
-
   const stopLocalHeartbeat = () => turnLocalOff();
   const toggleLocalHeartbeat = () => localMode === 'BLINK' ? stopLocalHeartbeat() : startLocalHeartbeat();
+
+  // LOCAL CHAOS STROBE
+  const startLocalStrobe = (isPlayback = false) => {
+    if (!isPlayback) recordCue('LOCAL', 'STROBE');
+    clearTimeout(localTimerRef.current);
+    setLocalMode('STROBE');
+    
+    const playLocalStrobe = () => {
+      const isOn = Math.random() > 0.5;
+      applyLocalTorch(isOn);
+      const delay = Math.floor(Math.random() * 90) + 60;
+      localTimerRef.current = setTimeout(playLocalStrobe, delay);
+    };
+    playLocalStrobe();
+  };
+  const toggleLocalStrobe = () => localMode === 'STROBE' ? turnLocalOff() : startLocalStrobe();
 
   const handleLocalDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
@@ -547,7 +560,9 @@ function ControlView() {
     } else stopLocalHeartbeat();
   };
 
-  // Audience Deck Toggle Functions
+  // ==========================================
+  // AUDIENCE CONTROLS
+  // ==========================================
   const turnAudienceOn = () => { setAudienceMode('ON'); fireAudienceCommand('ON'); };
   const turnAudienceOff = () => { setAudienceMode('OFF'); fireAudienceCommand('OFF'); };
   const toggleAudienceTorch = () => audienceMode === 'OFF' ? turnAudienceOn() : turnAudienceOff();
@@ -555,6 +570,10 @@ function ControlView() {
   const startAudienceHeartbeat = () => { setAudienceMode('BLINK'); fireAudienceCommand('BLINK'); };
   const stopAudienceHeartbeat = () => turnAudienceOff();
   const toggleAudienceHeartbeat = () => audienceMode === 'BLINK' ? stopAudienceHeartbeat() : startAudienceHeartbeat();
+
+  // AUDIENCE CHAOS STROBE
+  const startAudienceStrobe = () => { setAudienceMode('STROBE'); fireAudienceCommand('STROBE'); };
+  const toggleAudienceStrobe = () => audienceMode === 'STROBE' ? turnAudienceOff() : startAudienceStrobe();
 
   const handleAudienceDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
@@ -605,6 +624,11 @@ function ControlView() {
     setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); 
   };
 
+  const armRemote = (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    if (hiddenInputRef.current) hiddenInputRef.current.focus();
+  };
+
   const handleMasterSecretClick = (e) => {
     e.stopPropagation(); 
     const currentTime = new Date().getTime();
@@ -626,7 +650,6 @@ function ControlView() {
   return (
     <div 
       onClick={armRemote}
-      // Upgraded to h-[100dvh] so it reacts to Safari's UI 
       className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans"
     >
       <input 
@@ -673,15 +696,22 @@ function ControlView() {
         </button>
       </div>
 
-      {/* Increased pb-28 to allow visual clearance above the taller control bar */}
       <div className="flex-1 flex flex-col justify-center items-center pt-24 pb-28 z-10 space-y-6">
         
+        {/* ================================== */}
+        {/* LOCAL DECK UI                      */}
+        {/* ================================== */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
           <div className="text-lg mb-4">
             <span className="text-zinc-400">State: </span>
-            <span className={localMode === 'OFF' ? 'text-red-500 font-bold' : localMode === 'ON' ? 'text-white font-bold' : 'text-red-500 font-bold animate-pulse'}>
-              {localMode === 'OFF' ? 'BLACKOUT' : localMode === 'ON' ? 'ILLUMINATED' : 'HEARTBEAT'}
+            <span className={
+              localMode === 'OFF' ? 'text-red-500 font-bold' : 
+              localMode === 'ON' ? 'text-white font-bold' : 
+              localMode === 'STROBE' ? 'text-yellow-400 font-bold animate-pulse' : 
+              'text-red-500 font-bold animate-pulse'
+            }>
+              {localMode === 'OFF' ? 'BLACKOUT' : localMode === 'ON' ? 'ILLUMINATED' : localMode === 'STROBE' ? 'STROBING' : 'HEARTBEAT'}
             </span>
           </div>
           <button
@@ -693,23 +723,43 @@ function ControlView() {
             className={`w-32 h-32 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
               localMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
               localMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.2)]' :
+              localMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_30px_rgba(250,204,21,0.3)]' :
               'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_30px_rgba(220,38,38,0.3)]'
             }`}
           >
             <span className="font-bold tracking-widest text-xs uppercase">
-              {localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : 'PULSING'}
+              {localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : localMode === 'STROBE' ? 'STROBING' : 'PULSING'}
             </span>
           </button>
+          
+          <div className="mt-3 flex space-x-3">
+            <button 
+              onPointerDown={(e) => { e.preventDefault(); toggleLocalStrobe(); }}
+              className={`px-4 py-2 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${
+                localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+              }`}
+            >
+              ⚡ STROBE (e)
+            </button>
+          </div>
         </div>
 
         <div className="w-full h-px bg-zinc-900"></div>
 
+        {/* ================================== */}
+        {/* AUDIENCE DECK UI                   */}
+        {/* ================================== */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
           <div className="text-lg mb-4">
             <span className="text-zinc-400">State: </span>
-            <span className={audienceMode === 'OFF' ? 'text-red-500 font-bold' : audienceMode === 'ON' ? 'text-white font-bold' : 'text-red-500 font-bold animate-pulse'}>
-              {audienceMode === 'OFF' ? 'BLACKOUT' : audienceMode === 'ON' ? 'ILLUMINATED' : 'HEARTBEAT'}
+            <span className={
+              audienceMode === 'OFF' ? 'text-red-500 font-bold' : 
+              audienceMode === 'ON' ? 'text-white font-bold' : 
+              audienceMode === 'STROBE' ? 'text-yellow-400 font-bold animate-pulse' : 
+              'text-red-500 font-bold animate-pulse'
+            }>
+              {audienceMode === 'OFF' ? 'BLACKOUT' : audienceMode === 'ON' ? 'ILLUMINATED' : audienceMode === 'STROBE' ? 'STROBING' : 'HEARTBEAT'}
             </span>
           </div>
           <button
@@ -721,15 +771,27 @@ function ControlView() {
             className={`w-40 h-40 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
               audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
               audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.2)]' :
+              audienceMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_30px_rgba(250,204,21,0.3)]' :
               'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_30px_rgba(220,38,38,0.3)]'
             }`}
           >
             <span className="font-bold tracking-widest text-xs uppercase">
-              {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : 'PULSING'}
+              {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : audienceMode === 'STROBE' ? 'STROBING' : 'PULSING'}
             </span>
           </button>
+          
+          <div className="mt-3 flex space-x-3">
+            <button 
+              onPointerDown={(e) => { e.preventDefault(); toggleAudienceStrobe(); }}
+              className={`px-4 py-2 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${
+                audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+              }`}
+            >
+              ⚡ STROBE (s)
+            </button>
+          </div>
 
-          <div className="mt-4 flex flex-col items-center space-y-1">
+          <div className="mt-2 flex flex-col items-center space-y-1">
             <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
               {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
             </div>
@@ -741,7 +803,6 @@ function ControlView() {
 
       </div>
 
-      {/* SEQUENCE CONTROLS - Adjusted padding to lift off bottom tab bar */}
       <div className="absolute bottom-0 left-0 w-full bg-zinc-950 border-t border-zinc-800 flex items-center justify-between px-4 pt-3 pb-8 z-20">
         <div className="flex flex-col">
           <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography</span>
