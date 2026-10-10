@@ -26,9 +26,9 @@ function AudienceView() {
   const [pollText, setPollText] = useState('');
   const [injectConfig, setInjectConfig] = useState(null);
 
-  // DATA-LOCK STATES (Prevents "ENTER EXPERIENCE" flashing)
-  const [firebaseConfigReady, setFirebaseConfigReady] = useState(false);
-  const [injectPollReady, setInjectPollReady] = useState(false);
+  // DATA-LOCK BOOTLOADER (Prevents text flashing)
+  const [uiReady, setUiReady] = useState(false);
+  const bootDoneRef = useRef(false);
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
@@ -92,6 +92,9 @@ function AudienceView() {
 
   // 1. LISTEN TO FIREBASE COMMANDS & CONFIG
   useEffect(() => {
+    // Failsafe: Force UI to appear after 1.5 seconds maximum, even on terrible internet
+    const failsafe = setTimeout(() => setUiReady(true), 1500);
+
     const commandRef = ref(db, 'audienceCommand');
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
@@ -122,10 +125,10 @@ function AudienceView() {
     const configRef = ref(db, 'injectConfig');
     const unsubConfig = onValue(configRef, (snapshot) => {
       setInjectConfig(snapshot.val());
-      setFirebaseConfigReady(true); // Unlock Stage 1: Firebase is connected
     });
     
     return () => {
+      clearTimeout(failsafe);
       unsubCommand();
       unsubText();
       unsubConfig();
@@ -134,40 +137,64 @@ function AudienceView() {
     };
   }, []);
 
-  // 2. AUDIENCE-SIDE AUTONOMOUS POLLING
+  // 2. AUDIENCE-SIDE AUTONOMOUS POLLING WITH CORS PROXY
   useEffect(() => {
     let timer;
-    if (firebaseConfigReady) {
-      if (injectConfig && injectConfig.active && injectConfig.url) {
-        const fetchInject = async () => {
-          try {
-            const res = await fetch(`${injectConfig.url}?t=${Date.now()}`);
-            const text = await res.text();
-            let word = "";
-            try {
-               const json = JSON.parse(text);
-               const keyToPoll = injectConfig.key?.trim() || 'peek';
-               if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
-                  word = String(json[keyToPoll]).trim();
-               }
-            } catch(e) {} 
-            setPollText(word);
-          } catch (e) {
-            // Ignore network errors silently for spectators
-          } finally {
-            setInjectPollReady(true); // Unlock Stage 2: Inject API responded
-          }
-        };
-        
-        fetchInject(); 
-        timer = setInterval(fetchInject, 2000); 
-      } else {
-        setPollText(''); 
-        setInjectPollReady(true); // Bypass Stage 2 if Sync is off
+
+    const executePoll = async () => {
+      // If Auto-Sync is turned off by the Master, clear text and unlock UI instantly
+      if (!injectConfig || !injectConfig.active || !injectConfig.url) {
+        setPollText('');
+        if (!bootDoneRef.current) { bootDoneRef.current = true; setUiReady(true); }
+        return;
       }
+
+      try {
+        let text = "";
+        try {
+          // Attempt 1: Direct Fetch
+          const res = await fetch(`${injectConfig.url}?t=${Date.now()}`);
+          if (!res.ok) throw new Error("CORS Blocked");
+          text = await res.text();
+        } catch (e) {
+          // Attempt 2: Bypassing iOS Safari CORS using a raw Proxy
+          const targetUrl = encodeURIComponent(`${injectConfig.url}?t=${Date.now()}`);
+          const proxyUrl = `https://api.allorigins.win/raw?url=${targetUrl}`;
+          const res2 = await fetch(proxyUrl);
+          text = await res2.text();
+        }
+
+        // Extract specific JSON Key
+        let word = "";
+        try {
+          const json = JSON.parse(text);
+          const keyToPoll = injectConfig.key?.trim() || 'peek';
+          if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
+            word = String(json[keyToPoll]).trim();
+          }
+        } catch(e) {} 
+
+        if (word) setPollText(word);
+
+      } catch (e) {
+        console.log("Polling failed entirely.");
+      } finally {
+        // The exact moment the fetch finishes (success or fail), fade the button in.
+        if (!bootDoneRef.current) { 
+          bootDoneRef.current = true; 
+          setUiReady(true); 
+        }
+      }
+    };
+
+    // Fire instantly when config arrives, then loop every 2 seconds
+    executePoll();
+    if (injectConfig?.active && injectConfig?.url) {
+      timer = setInterval(executePoll, 2000); 
     }
+
     return () => clearInterval(timer);
-  }, [injectConfig, firebaseConfigReady]);
+  }, [injectConfig]);
 
   const handleCommand = (command) => {
     clearTimeout(timerRef.current);
@@ -186,12 +213,18 @@ function AudienceView() {
     } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
+
       const playHeartbeat = () => {
         const duration = pattern[step];
         const isOn = (step === 0 || step === 2); 
+        
         applyTorch(isOn);
         setIsFlashing(isOn); 
-        if (step === 0 && navigator.vibrate) navigator.vibrate([100, 150, 100]); 
+        
+        if (step === 0 && navigator.vibrate) {
+          navigator.vibrate([100, 150, 100]); 
+        }
+        
         step = (step + 1) % pattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
@@ -223,15 +256,15 @@ function AudienceView() {
     if (currentTime - secretLastClickTime.current < 500) secretClickCount.current += 1;
     else secretClickCount.current = 1;
     secretLastClickTime.current = currentTime;
+
     if (secretClickCount.current === 3) {
       secretClickCount.current = 0;
       window.location.href = window.location.pathname + '?master';
     }
   };
 
-  // UI Display Logic
+  // Logic: Autonomous poll takes absolute priority. Fallback to Firebase manual text.
   const finalBtnText = pollText || fbText || 'ENTER EXPERIENCE';
-  const isUIReady = firebaseConfigReady && injectPollReady;
 
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
@@ -249,8 +282,8 @@ function AudienceView() {
             className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none"
           />
 
-          {/* This container stays invisible until the app secures the final word */}
-          <div className={`flex flex-col items-center w-full max-w-md px-6 z-10 transition-opacity duration-700 ease-in-out ${isUIReady ? 'opacity-100' : 'opacity-0'}`}>
+          {/* This wrapper stays perfectly invisible (opacity-0) until the network fetch is fully secured */}
+          <div className={`flex flex-col items-center w-full max-w-md px-6 z-10 transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}>
             <button 
               onClick={startCamera}
               className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
@@ -302,9 +335,7 @@ function ControlView() {
 
   const [customText, setCustomText] = useState('');
   
-  // ==========================================
   // INJECT API STATES WITH LOCAL MEMORY
-  // ==========================================
   const [injectUrl, setInjectUrl] = useState(() => localStorage.getItem('magicInjectUrl') || '');
   const [injectKey, setInjectKey] = useState(() => localStorage.getItem('magicInjectKey') || 'peek');
   const [isInjectSyncing, setIsInjectSyncing] = useState(() => {
@@ -368,6 +399,7 @@ function ControlView() {
     localStorage.setItem('magicInjectKey', injectKey);
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
 
+    // This broadcast allows Audience phones to poll autonomously!
     set(ref(db, 'injectConfig'), {
       url: injectUrl,
       key: injectKey,
@@ -376,31 +408,46 @@ function ControlView() {
 
   }, [injectUrl, injectKey, isInjectSyncing]);
 
-  // MASTER DECK AUTO-POLLING LOGIC
+  // MASTER DECK AUTO-POLLING LOGIC (For your own UI feedback)
   useEffect(() => {
     let timer;
-    if (isInjectSyncing && injectUrl) {
-      timer = setInterval(async () => {
+
+    const executeMasterPoll = async () => {
+      if (!isInjectSyncing || !injectUrl) return;
+      try {
+        let text = "";
         try {
           const res = await fetch(`${injectUrl}?t=${Date.now()}`);
-          const text = await res.text();
-          let word = "";
-          try {
-             const json = JSON.parse(text);
-             const keyToPoll = injectKey.trim() || 'peek';
-             if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
-                word = String(json[keyToPoll]).trim();
-             }
-          } catch(e) {}
-
-          if (word && word !== lastInjectRef.current) {
-            lastInjectRef.current = word;
-            setCustomText(word); 
-            set(ref(db, 'buttonText'), word); 
-          }
+          if (!res.ok) throw new Error();
+          text = await res.text();
         } catch (e) {
+          const targetUrl = encodeURIComponent(`${injectUrl}?t=${Date.now()}`);
+          const proxyUrl = `https://api.allorigins.win/raw?url=${targetUrl}`;
+          const res2 = await fetch(proxyUrl);
+          text = await res2.text();
         }
-      }, 2000); 
+
+        let word = "";
+        try {
+          const json = JSON.parse(text);
+          const keyToPoll = injectKey.trim() || 'peek';
+          if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
+            word = String(json[keyToPoll]).trim();
+          }
+        } catch(e) {}
+
+        if (word && word !== lastInjectRef.current) {
+          lastInjectRef.current = word;
+          setCustomText(word); 
+          set(ref(db, 'buttonText'), word); 
+        }
+      } catch (e) {
+      }
+    };
+
+    if (isInjectSyncing && injectUrl) {
+      executeMasterPoll();
+      timer = setInterval(executeMasterPoll, 2000); 
     }
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl, injectKey]);
@@ -471,6 +518,7 @@ function ControlView() {
     };
   }, [localMode, audienceMode, redirectUrl]); 
 
+  // MANUAL TEXT CONTROLS
   const handleSetCustomText = () => {
     lastInjectRef.current = customText; 
     set(ref(db, 'buttonText'), customText);
