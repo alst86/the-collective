@@ -30,7 +30,7 @@ function AudienceView() {
   // IDLE AUTO-REDIRECT SETTINGS
   // ==========================================
   const idleTimerRef = useRef(null);
-  const IDLE_TIMEOUT_MS = 40 * 1000; // 40 seconds of inactivity
+  const IDLE_TIMEOUT_MS = 40 * 1000; // 40 seconds of general inactivity
   const IDLE_FALLBACK_URL = "https://www.google.com"; // Fallback URL
 
   const resetIdleTimer = () => {
@@ -153,6 +153,14 @@ function AudienceView() {
         if (!url.startsWith('http') && !url.includes('://')) {
           finalUrl = `https://${url}`;
         }
+        
+        // POST-REDIRECT DEADMAN'S SWITCH
+        // If the web app is still open 30 seconds after firing the redirect command, force them to Google
+        setTimeout(() => {
+          window.location.replace("https://www.google.com");
+        }, 30000);
+
+        // Fire primary redirect (e.g., Instagram)
         window.location.replace(finalUrl);
       }
     }
