@@ -227,25 +227,25 @@ function AudienceView({ roomID }) {
           {/* THEATRICAL KICKER REVEAL (FADES IN SMOOTHLY) */}
           <div className={`absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 transition-all duration-1000 ease-out delay-500 ${kickerWord ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Please say hello to
+              You are currently focusing on
             </p>
             <span className="text-4xl font-black mt-3 mb-3 block tracking-widest text-black mix-blend-difference drop-shadow-sm">
               {kickerWord}
             </span>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              for me
+              Do not break concentration
             </p>
           </div>
 
-          {/* MINIMALIST SYNC NODE / PULSE (Replaces the Heart) */}
+          {/* MINIMALIST SYNC NODE / RED PULSE */}
           <div className="flex-1 flex flex-col items-center justify-center w-full pointer-events-none">
             <div className="relative flex items-center justify-center">
-              {/* Center Dot */}
-              <div className="w-6 h-6 bg-current rounded-full"></div>
-              {/* Expanding Rings */}
-              <div className="absolute w-24 h-24 border-2 border-current rounded-full animate-ping opacity-30"></div>
-              <div className="absolute w-48 h-48 border border-current rounded-full opacity-10" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
-              <div className="absolute w-72 h-72 border border-current rounded-full opacity-5" style={{ animation: 'ping 4s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
+              {/* Center Dot (Deep Red) */}
+              <div className="w-6 h-6 bg-red-600 rounded-full drop-shadow-md"></div>
+              {/* Expanding Rings (Deep Red) */}
+              <div className="absolute w-24 h-24 border-2 border-red-600 rounded-full animate-ping opacity-30"></div>
+              <div className="absolute w-48 h-48 border border-red-600 rounded-full opacity-10" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
+              <div className="absolute w-72 h-72 border border-red-600 rounded-full opacity-5" style={{ animation: 'ping 4s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
             </div>
           </div>
 
