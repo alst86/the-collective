@@ -224,8 +224,8 @@ function AudienceView({ roomID }) {
         </>
       ) : (
         <>
-          {/* THEATRICAL KICKER REVEAL (FADES IN SMOOTHLY) */}
-          <div className={`absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 transition-all duration-1000 ease-out delay-500 ${kickerWord ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+          {/* THEATRICAL KICKER REVEAL (STATIONARY FADE) */}
+          <div className={`absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 transition-opacity duration-500 ${kickerWord ? 'opacity-100' : 'opacity-0'}`}>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
               You are currently focusing on
             </p>
