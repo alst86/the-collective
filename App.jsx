@@ -325,10 +325,10 @@ function ControlView() {
       // ULTIMATE PANIC STOP
       // ==========================================
       // If the show is currently playing automatically, ANY button press acts as a kill switch.
-      // It will instantly abort playback, clear all upcoming cues, and blackout the room.
+      // It will instantly abort playback, clear all upcoming cues, and blackout the room AND your phone.
       if (isPlayingRef.current) {
         handleStopPlayback();
-        return; // Prevent the accidental button push from firing any other cues
+        return; 
       }
 
       // ==========================================
@@ -373,25 +373,29 @@ function ControlView() {
   }, [localMode, audienceMode, redirectUrl]); 
 
   // ==========================================
-  // CORE FIREBASE DISPATCHER WITH RECORDER
+  // UNIVERSAL RECORDER HELPER
   // ==========================================
-  const fireAudienceCommand = (cmd, isPlayback = false) => {
-    // 1. If we are recording, capture the exact millisecond timing
-    if (isRecordingRef.current && !isPlayback) {
+  const recordCue = (target, cmd) => {
+    if (isRecordingRef.current) {
       const offset = Date.now() - recordingStartRef.current;
-      const newCue = { cmd, offset };
+      const newCue = { target, cmd, offset };
       setRecordedSequence(prev => [...prev, newCue]);
       recordedSequenceRef.current.push(newCue);
     }
+  };
 
-    // 2. If the app is playing the sequence, visibly update the UI for you
+  // ==========================================
+  // CORE FIREBASE DISPATCHER (AUDIENCE)
+  // ==========================================
+  const fireAudienceCommand = (cmd, isPlayback = false) => {
+    if (!isPlayback) recordCue('AUDIENCE', cmd);
+
     if (isPlayback) {
       if (cmd === 'ON') setAudienceMode('ON');
       else if (cmd === 'OFF') setAudienceMode('OFF');
       else if (cmd === 'BLINK') setAudienceMode('BLINK');
     }
     
-    // 3. Fire to Firebase
     let payload = `${cmd}|${Date.now()}`;
     if (cmd === 'REDIRECT') {
       payload = `REDIRECT|${Date.now()}|${redirectUrl}`;
@@ -425,7 +429,6 @@ function ControlView() {
     if (isPlayingRef.current) {
       handleStopPlayback();
     } else {
-      // Disarm recording if it was somehow left on
       if (isRecordingRef.current) {
         setIsRecording(false);
         isRecordingRef.current = false;
@@ -438,11 +441,23 @@ function ControlView() {
       playbackTimeoutsRef.current = [];
 
       let maxOffset = 0;
-      recordedSequenceRef.current.forEach(({ cmd, offset }) => {
+      recordedSequenceRef.current.forEach(({ target, cmd, offset }) => {
+        // Fallback for sequences saved prior to this dual-channel update
+        const actualTarget = target || 'AUDIENCE';
+        
         if (offset > maxOffset) maxOffset = offset;
+        
         const tid = setTimeout(() => {
-          fireAudienceCommand(cmd, true);
+          if (actualTarget === 'AUDIENCE') {
+            fireAudienceCommand(cmd, true);
+          } else if (actualTarget === 'LOCAL') {
+            // Puppeteer the magician's phone locally
+            if (cmd === 'ON') turnLocalOn(true);
+            else if (cmd === 'OFF') turnLocalOff(true);
+            else if (cmd === 'BLINK') startLocalHeartbeat(true);
+          }
         }, offset);
+        
         playbackTimeoutsRef.current.push(tid);
       });
 
@@ -462,14 +477,16 @@ function ControlView() {
     setIsPlaying(false);
     isPlayingRef.current = false;
     
-    // Safely emergency blackout the room
+    // Safely emergency blackout BOTH the audience room and your local phone
     setAudienceMode('OFF');
     let payload = `OFF|${Date.now()}`;
     set(ref(db, 'audienceCommand'), payload);
+    
+    turnLocalOff(true); 
   };
 
   // ==========================================
-  // STANDARD CONTROLS
+  // STANDARD CONTROLS (LOCAL)
   // ==========================================
   const applyLocalTorch = (active) => {
     if (trackRef.current) {
@@ -482,20 +499,24 @@ function ControlView() {
     if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
 
-  // Local Deck Functions
-  const turnLocalOn = () => {
+  const turnLocalOn = (isPlayback = false) => {
+    if (!isPlayback) recordCue('LOCAL', 'ON');
     clearTimeout(localTimerRef.current);
     setLocalMode('ON');
     applyLocalTorch(true);
   };
-  const turnLocalOff = () => {
+
+  const turnLocalOff = (isPlayback = false) => {
+    if (!isPlayback) recordCue('LOCAL', 'OFF');
     clearTimeout(localTimerRef.current);
     setLocalMode('OFF');
     applyLocalTorch(false);
   };
+
   const toggleLocalTorch = () => localMode === 'OFF' ? turnLocalOn() : turnLocalOff();
   
-  const startLocalHeartbeat = () => {
+  const startLocalHeartbeat = (isPlayback = false) => {
+    if (!isPlayback) recordCue('LOCAL', 'BLINK');
     clearTimeout(localTimerRef.current);
     setLocalMode('BLINK');
     localStepRef.current = 0;
@@ -508,6 +529,7 @@ function ControlView() {
     };
     playLocalHeartbeat();
   };
+
   const stopLocalHeartbeat = () => turnLocalOff();
   const toggleLocalHeartbeat = () => localMode === 'BLINK' ? stopLocalHeartbeat() : startLocalHeartbeat();
 
@@ -520,6 +542,7 @@ function ControlView() {
       startLocalHeartbeat();
     }, 400); 
   };
+  
   const handleLocalUp = () => {
     if (!isLocalPressing.current) return;
     isLocalPressing.current = false;
@@ -530,7 +553,7 @@ function ControlView() {
     } else stopLocalHeartbeat();
   };
 
-  // Audience Deck Functions
+  // Audience Deck Toggle Functions
   const turnAudienceOn = () => { setAudienceMode('ON'); fireAudienceCommand('ON'); };
   const turnAudienceOff = () => { setAudienceMode('OFF'); fireAudienceCommand('OFF'); };
   const toggleAudienceTorch = () => audienceMode === 'OFF' ? turnAudienceOn() : turnAudienceOff();
@@ -548,6 +571,7 @@ function ControlView() {
       startAudienceHeartbeat();
     }, 400);
   };
+  
   const handleAudienceUp = () => {
     if (!isAudiencePressing.current) return;
     isAudiencePressing.current = false;
@@ -570,6 +594,7 @@ function ControlView() {
       setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); 
     }, 800); 
   };
+  
   const handleRedirectUp = () => {
     if (!isRedirectPressing.current) return;
     isRedirectPressing.current = false;
