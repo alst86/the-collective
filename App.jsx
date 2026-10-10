@@ -198,7 +198,8 @@ function AudienceView({ roomID }) {
   const finalBtnText = fbText || 'ENTER EXPERIENCE';
 
   return (
-    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-white text-black' : 'bg-black text-white'}`}>
+    // Default to bg-white text-black, flash to bg-black text-white
+    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
       
       <div className="absolute top-4 left-4 z-50">
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
@@ -208,12 +209,12 @@ function AudienceView({ roomID }) {
 
       {!cameraReady ? (
         <>
-          <div onPointerDown={handleSecretClick} className="absolute top-0 left-0 w-32 h-32 z-[100] bg-white/0 touch-none" />
+          <div onPointerDown={handleSecretClick} className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none" />
 
           <div className={`flex flex-col items-center w-full max-w-md px-6 z-10 transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}>
             <button 
               onClick={startCamera}
-              className="w-full py-6 bg-white text-black font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
+              className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
             >
               {finalBtnText}
             </button>
@@ -233,7 +234,7 @@ function AudienceView({ roomID }) {
           </div>
 
           <div className="absolute bottom-12 left-0 right-0 w-full text-center px-4 pointer-events-none">
-            <h1 className="text-3xl font-black uppercase tracking-widest mix-blend-difference text-white">
+            <h1 className="text-3xl font-black uppercase tracking-widest">
               Hold up your phone
             </h1>
             {error && <p className="text-red-500 mt-2 text-xs font-bold uppercase tracking-widest">{error}</p>}
