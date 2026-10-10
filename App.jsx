@@ -183,7 +183,7 @@ function AudienceView() {
   };
 
   return (
-    <div className={`min-h-screen relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
+    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
       
       <div className="absolute top-4 left-4 z-50">
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
@@ -324,8 +324,6 @@ function ControlView() {
       // ==========================================
       // ULTIMATE PANIC STOP
       // ==========================================
-      // If the show is currently playing automatically, ANY button press acts as a kill switch.
-      // It will instantly abort playback, clear all upcoming cues, and blackout the room AND your phone.
       if (isPlayingRef.current) {
         handleStopPlayback();
         return; 
@@ -442,7 +440,6 @@ function ControlView() {
 
       let maxOffset = 0;
       recordedSequenceRef.current.forEach(({ target, cmd, offset }) => {
-        // Fallback for sequences saved prior to this dual-channel update
         const actualTarget = target || 'AUDIENCE';
         
         if (offset > maxOffset) maxOffset = offset;
@@ -451,7 +448,6 @@ function ControlView() {
           if (actualTarget === 'AUDIENCE') {
             fireAudienceCommand(cmd, true);
           } else if (actualTarget === 'LOCAL') {
-            // Puppeteer the magician's phone locally
             if (cmd === 'ON') turnLocalOn(true);
             else if (cmd === 'OFF') turnLocalOff(true);
             else if (cmd === 'BLINK') startLocalHeartbeat(true);
@@ -461,7 +457,6 @@ function ControlView() {
         playbackTimeoutsRef.current.push(tid);
       });
 
-      // Stop playing smoothly when the final cue fires
       const endTid = setTimeout(() => {
         setIsPlaying(false);
         isPlayingRef.current = false;
@@ -477,7 +472,6 @@ function ControlView() {
     setIsPlaying(false);
     isPlayingRef.current = false;
     
-    // Safely emergency blackout BOTH the audience room and your local phone
     setAudienceMode('OFF');
     let payload = `OFF|${Date.now()}`;
     set(ref(db, 'audienceCommand'), payload);
@@ -632,7 +626,8 @@ function ControlView() {
   return (
     <div 
       onClick={armRemote}
-      className="h-screen w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans"
+      // Upgraded to h-[100dvh] so it reacts to Safari's UI 
+      className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans"
     >
       <input 
         ref={hiddenInputRef}
@@ -678,7 +673,8 @@ function ControlView() {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center items-center pt-24 pb-20 z-10 space-y-6">
+      {/* Increased pb-28 to allow visual clearance above the taller control bar */}
+      <div className="flex-1 flex flex-col justify-center items-center pt-24 pb-28 z-10 space-y-6">
         
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
@@ -745,8 +741,8 @@ function ControlView() {
 
       </div>
 
-      {/* SEQUENCE CONTROLS - FIXED TO BOTTOM */}
-      <div className="absolute bottom-0 left-0 w-full h-16 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between px-4 z-20">
+      {/* SEQUENCE CONTROLS - Adjusted padding to lift off bottom tab bar */}
+      <div className="absolute bottom-0 left-0 w-full bg-zinc-950 border-t border-zinc-800 flex items-center justify-between px-4 pt-3 pb-8 z-20">
         <div className="flex flex-col">
           <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography</span>
           <span className="text-xs font-mono text-zinc-300">{recordedSequence.length} Cues Saved</span>
