@@ -272,7 +272,7 @@ function ControlView() {
   const [injectKey, setInjectKey] = useState(() => localStorage.getItem('magicInjectKey') || 'peek');
   const [isInjectSyncing, setIsInjectSyncing] = useState(() => {
     const saved = localStorage.getItem('magicInjectSyncing');
-    return saved !== null ? JSON.parse(saved) : true; // Defaults to TRUE automatically
+    return saved !== null ? JSON.parse(saved) : true; 
   });
   const lastInjectRef = useRef('');
 
@@ -332,7 +332,7 @@ function ControlView() {
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
   }, [injectUrl, injectKey, isInjectSyncing]);
 
-  // INJECT API AUTO-POLLING LOGIC (DYNAMIC JSON KEY EXTRACTOR)
+  // INJECT API AUTO-POLLING LOGIC
   useEffect(() => {
     let timer;
     if (isInjectSyncing && injectUrl) {
@@ -718,16 +718,34 @@ function ControlView() {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
-      {/* Secret Gateway (Top Left) */}
+      {/* Secret Gateway moved to Top-Center to stay out of the way of both buttons */}
       <div 
         onPointerDown={handleMasterSecretClick}
-        className="absolute top-0 left-0 w-32 h-20 z-[100] bg-black/0 touch-none"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-14 z-[100] bg-black/0 touch-none"
       />
 
       {/* ================================== */}
-      {/* MINIMAL TOP HEADER WITH SETTINGS   */}
+      {/* BALANCED TOP HEADER                */}
       {/* ================================== */}
-      <div className="w-full h-14 flex items-center justify-end px-4 shrink-0 z-40 border-b border-zinc-900">
+      <div className="w-full h-14 flex items-center justify-between px-4 shrink-0 z-40 border-b border-zinc-900">
+        
+        {/* TOP LEFT: REDIRECT BUTTON */}
+        <button 
+          onPointerDown={handleRedirectDown}
+          onPointerUp={handleRedirectUp}
+          onPointerLeave={handleRedirectUp}
+          onPointerCancel={handleRedirectUp}
+          onContextMenu={(e) => e.preventDefault()}
+          className={`px-3 py-1.5 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${
+            redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
+            : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
+            : 'bg-zinc-950 border-zinc-800 text-zinc-400'
+          }`}
+        >
+          🚀 {redirectStatus}
+        </button>
+
+        {/* TOP RIGHT: SETTINGS BUTTON */}
         <button 
           onClick={() => setIsSettingsOpen(!isSettingsOpen)}
           className={`px-3 py-1.5 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${
@@ -744,32 +762,16 @@ function ControlView() {
       {isSettingsOpen && (
         <div className="absolute top-16 left-4 right-4 bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
           
-          {/* ROW 1: URL Redirect */}
-          <div className="flex space-x-3 items-end">
-            <div className="flex-1 flex flex-col">
-              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
-              <input 
-                type="text" 
-                value={redirectUrl}
-                onChange={(e) => setRedirectUrl(e.target.value)}
-                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-                placeholder="https://..."
-              />
-            </div>
-            <button 
-              onPointerDown={handleRedirectDown}
-              onPointerUp={handleRedirectUp}
-              onPointerLeave={handleRedirectUp}
-              onPointerCancel={handleRedirectUp}
-              onContextMenu={(e) => e.preventDefault()}
-              className={`w-24 h-10 rounded flex flex-col items-center justify-center font-bold text-[9px] tracking-widest transition-colors border text-center px-1 ${
-                redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
-                : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
-                : 'bg-zinc-950 border-zinc-800 text-zinc-400'
-              }`}
-            >
-              {redirectStatus}
-            </button>
+          {/* ROW 1: URL Redirect (Now takes full width) */}
+          <div className="flex flex-col w-full">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
+            <input 
+              type="text" 
+              value={redirectUrl}
+              onChange={(e) => setRedirectUrl(e.target.value)}
+              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+              placeholder="https://..."
+            />
           </div>
 
           {/* ROW 2: Reveal Text Row */}
