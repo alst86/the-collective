@@ -20,7 +20,11 @@ function AudienceView() {
   
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
-  const [btnText, setBtnText] = useState('ENTER EXPERIENCE');
+  
+  // DUAL-REDUNDANCY TEXT STATES
+  const [fbText, setFbText] = useState('');
+  const [pollText, setPollText] = useState('');
+  const [injectConfig, setInjectConfig] = useState(null);
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
@@ -82,6 +86,7 @@ function AudienceView() {
     }
   };
 
+  // 1. LISTEN TO FIREBASE COMMANDS & CONFIG
   useEffect(() => {
     const commandRef = ref(db, 'audienceCommand');
     const unsubCommand = onValue(commandRef, (snapshot) => {
@@ -89,7 +94,6 @@ function AudienceView() {
       resetIdleTimer(); 
 
       const command = snapshot.val();
-      
       if (command) {
         const safeCommand = String(command);
         const baseCmd = safeCommand.split('|')[0];
@@ -98,7 +102,6 @@ function AudienceView() {
           initialLoadRef.current = false;
           if (baseCmd === 'REDIRECT') return; 
         }
-        
         handleCommand(command);
       }
     }, (err) => {
@@ -109,16 +112,55 @@ function AudienceView() {
     const textRef = ref(db, 'buttonText');
     const unsubText = onValue(textRef, (snapshot) => {
       const val = snapshot.val();
-      setBtnText(val && val.trim() !== '' ? val : 'ENTER EXPERIENCE');
+      setFbText(val && val.trim() !== '' ? val : '');
+    });
+
+    // Grab the API polling instructions from the Master Deck
+    const configRef = ref(db, 'injectConfig');
+    const unsubConfig = onValue(configRef, (snapshot) => {
+      setInjectConfig(snapshot.val());
     });
     
     return () => {
       unsubCommand();
       unsubText();
+      unsubConfig();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
     };
   }, []);
+
+  // 2. AUDIENCE-SIDE AUTONOMOUS POLLING
+  // This runs entirely on the spectator's phone the moment it loads!
+  useEffect(() => {
+    let timer;
+    if (injectConfig && injectConfig.active && injectConfig.url) {
+      const fetchInject = async () => {
+        try {
+          const res = await fetch(`${injectConfig.url}?t=${Date.now()}`);
+          const text = await res.text();
+          let word = "";
+          try {
+             const json = JSON.parse(text);
+             const keyToPoll = injectConfig.key?.trim() || 'peek';
+             if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
+                word = String(json[keyToPoll]).trim();
+             }
+          } catch(e) {} // Fail silently so spectator sees no errors
+
+          setPollText(word);
+        } catch (e) {
+          // Network errors ignored silently on audience side
+        }
+      };
+      
+      fetchInject(); // Fetch instantly on page load
+      timer = setInterval(fetchInject, 2000); // Keep checking
+    } else {
+      setPollText(''); // Clear if Master turns sync off
+    }
+    return () => clearInterval(timer);
+  }, [injectConfig]);
 
   const handleCommand = (command) => {
     clearTimeout(timerRef.current);
@@ -137,18 +179,12 @@ function AudienceView() {
     } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
-
       const playHeartbeat = () => {
         const duration = pattern[step];
         const isOn = (step === 0 || step === 2); 
-        
         applyTorch(isOn);
         setIsFlashing(isOn); 
-        
-        if (step === 0 && navigator.vibrate) {
-          navigator.vibrate([100, 150, 100]); 
-        }
-        
+        if (step === 0 && navigator.vibrate) navigator.vibrate([100, 150, 100]); 
         step = (step + 1) % pattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
@@ -169,11 +205,7 @@ function AudienceView() {
         if (!url.startsWith('http') && !url.includes('://')) {
           finalUrl = `https://${url}`;
         }
-        
-        setTimeout(() => {
-          window.location.replace("https://www.google.com");
-        }, 30000);
-
+        setTimeout(() => window.location.replace("https://www.google.com"), 30000);
         window.location.replace(finalUrl);
       }
     }
@@ -181,21 +213,17 @@ function AudienceView() {
 
   const handleSecretClick = () => {
     const currentTime = new Date().getTime();
-    const timeSinceLastClick = currentTime - secretLastClickTime.current;
-
-    if (timeSinceLastClick < 500) {
-      secretClickCount.current += 1;
-    } else {
-      secretClickCount.current = 1;
-    }
-
+    if (currentTime - secretLastClickTime.current < 500) secretClickCount.current += 1;
+    else secretClickCount.current = 1;
     secretLastClickTime.current = currentTime;
-
     if (secretClickCount.current === 3) {
       secretClickCount.current = 0;
       window.location.href = window.location.pathname + '?master';
     }
   };
+
+  // Logic: Local Poll takes absolute priority. If it fails, fallback to Firebase manual text. If empty, show default.
+  const finalBtnText = pollText || fbText || 'ENTER EXPERIENCE';
 
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
@@ -218,7 +246,7 @@ function AudienceView() {
               onClick={startCamera}
               className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
             >
-              {btnText}
+              {finalBtnText}
             </button>
             <div className="text-center space-y-2">
               <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest px-4">
@@ -325,14 +353,22 @@ function ControlView() {
     }
   }, [recordedSequence, isRecording]);
 
-  // SAVE INJECT API SETTINGS TO LOCAL STORAGE
+  // SAVE INJECT SETTINGS TO LOCAL STORAGE & PUSH TO FIREBASE
   useEffect(() => {
     localStorage.setItem('magicInjectUrl', injectUrl);
     localStorage.setItem('magicInjectKey', injectKey);
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
+
+    // This broadcast allows Audience phones to poll autonomously!
+    set(ref(db, 'injectConfig'), {
+      url: injectUrl,
+      key: injectKey,
+      active: isInjectSyncing
+    }).catch(err => console.log("Config Sync Error:", err));
+
   }, [injectUrl, injectKey, isInjectSyncing]);
 
-  // INJECT API AUTO-POLLING LOGIC
+  // MASTER DECK AUTO-POLLING LOGIC (For your own UI feedback)
   useEffect(() => {
     let timer;
     if (isInjectSyncing && injectUrl) {
@@ -340,18 +376,14 @@ function ControlView() {
         try {
           const res = await fetch(`${injectUrl}?t=${Date.now()}`);
           const text = await res.text();
-          
           let word = "";
           try {
              const json = JSON.parse(text);
              const keyToPoll = injectKey.trim() || 'peek';
-             
              if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
                 word = String(json[keyToPoll]).trim();
              }
-          } catch(e) { 
-             console.log('Inject API Fetch Error: Data returned is not valid JSON.');
-          }
+          } catch(e) {}
 
           if (word && word !== lastInjectRef.current) {
             lastInjectRef.current = word;
@@ -359,7 +391,7 @@ function ControlView() {
             set(ref(db, 'buttonText'), word); 
           }
         } catch (e) {
-          console.log('Inject API Network Error:', e);
+          // Silent catch
         }
       }, 2000); 
     }
@@ -718,7 +750,6 @@ function ControlView() {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
-      {/* Secret Gateway moved to Top-Center to stay out of the way of both buttons */}
       <div 
         onPointerDown={handleMasterSecretClick}
         className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-14 z-[100] bg-black/0 touch-none"
@@ -762,7 +793,6 @@ function ControlView() {
       {isSettingsOpen && (
         <div className="absolute top-16 left-4 right-4 bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
           
-          {/* ROW 1: URL Redirect (Now takes full width) */}
           <div className="flex flex-col w-full">
             <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
             <input 
@@ -774,7 +804,6 @@ function ControlView() {
             />
           </div>
 
-          {/* ROW 2: Reveal Text Row */}
           <div className="flex space-x-3 items-end">
             <div className="flex-1 flex flex-col">
               <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Audience Reveal Name</label>
@@ -802,7 +831,6 @@ function ControlView() {
             </div>
           </div>
 
-          {/* ROW 3: API POLL */}
           <div className="flex space-x-2 items-end">
             <div className="flex-1 flex flex-col">
               <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">API Poll URL</label>
