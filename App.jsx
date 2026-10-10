@@ -44,9 +44,17 @@ function AudienceView() {
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
-  const startCamera = async () => {
+  // AUTO-LOAD MEMORY (Skips the Enter button if they already clicked it before)
+  useEffect(() => {
+    if (localStorage.getItem('hasEnteredCollective') === 'true') {
+      startCamera(true);
+    }
+  }, []);
+
+  const startCamera = async (isAutoLoad = false) => {
     try {
-      if (document.documentElement.requestFullscreen) {
+      // Fullscreen API requires a physical tap, so we skip it if auto-loading
+      if (!isAutoLoad && document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen denied"));
       }
     } catch (err) {
@@ -67,6 +75,7 @@ function AudienceView() {
     } catch (err) {
       setError('Camera denied. Screen flash active instead.');
     } finally {
+      localStorage.setItem('hasEnteredCollective', 'true');
       setCameraReady(true); 
     }
   };
@@ -153,8 +162,6 @@ function AudienceView() {
         if (!url.startsWith('http') && !url.includes('://')) {
           finalUrl = `https://${url}`;
         }
-        // Immediately trigger redirect. If this fails to pull them away from the browser,
-        // the 30-second Google fallback timer we just started above will catch them.
         window.location.replace(finalUrl);
       }
     }
@@ -196,7 +203,7 @@ function AudienceView() {
 
           <div className="flex flex-col items-center w-full max-w-md px-6 z-10">
             <button 
-              onClick={startCamera}
+              onClick={() => startCamera(false)}
               className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95"
             >
               ENTER EXPERIENCE
