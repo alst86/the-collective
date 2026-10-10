@@ -26,6 +26,10 @@ function AudienceView() {
   const [pollText, setPollText] = useState('');
   const [injectConfig, setInjectConfig] = useState(null);
 
+  // DATA-LOCK STATES (Prevents "ENTER EXPERIENCE" flashing)
+  const [firebaseConfigReady, setFirebaseConfigReady] = useState(false);
+  const [injectPollReady, setInjectPollReady] = useState(false);
+
   const trackRef = useRef(null);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
@@ -115,10 +119,10 @@ function AudienceView() {
       setFbText(val && val.trim() !== '' ? val : '');
     });
 
-    // Grab the API polling instructions from the Master Deck
     const configRef = ref(db, 'injectConfig');
     const unsubConfig = onValue(configRef, (snapshot) => {
       setInjectConfig(snapshot.val());
+      setFirebaseConfigReady(true); // Unlock Stage 1: Firebase is connected
     });
     
     return () => {
@@ -131,36 +135,39 @@ function AudienceView() {
   }, []);
 
   // 2. AUDIENCE-SIDE AUTONOMOUS POLLING
-  // This runs entirely on the spectator's phone the moment it loads!
   useEffect(() => {
     let timer;
-    if (injectConfig && injectConfig.active && injectConfig.url) {
-      const fetchInject = async () => {
-        try {
-          const res = await fetch(`${injectConfig.url}?t=${Date.now()}`);
-          const text = await res.text();
-          let word = "";
+    if (firebaseConfigReady) {
+      if (injectConfig && injectConfig.active && injectConfig.url) {
+        const fetchInject = async () => {
           try {
-             const json = JSON.parse(text);
-             const keyToPoll = injectConfig.key?.trim() || 'peek';
-             if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
-                word = String(json[keyToPoll]).trim();
-             }
-          } catch(e) {} // Fail silently so spectator sees no errors
-
-          setPollText(word);
-        } catch (e) {
-          // Network errors ignored silently on audience side
-        }
-      };
-      
-      fetchInject(); // Fetch instantly on page load
-      timer = setInterval(fetchInject, 2000); // Keep checking
-    } else {
-      setPollText(''); // Clear if Master turns sync off
+            const res = await fetch(`${injectConfig.url}?t=${Date.now()}`);
+            const text = await res.text();
+            let word = "";
+            try {
+               const json = JSON.parse(text);
+               const keyToPoll = injectConfig.key?.trim() || 'peek';
+               if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
+                  word = String(json[keyToPoll]).trim();
+               }
+            } catch(e) {} 
+            setPollText(word);
+          } catch (e) {
+            // Ignore network errors silently for spectators
+          } finally {
+            setInjectPollReady(true); // Unlock Stage 2: Inject API responded
+          }
+        };
+        
+        fetchInject(); 
+        timer = setInterval(fetchInject, 2000); 
+      } else {
+        setPollText(''); 
+        setInjectPollReady(true); // Bypass Stage 2 if Sync is off
+      }
     }
     return () => clearInterval(timer);
-  }, [injectConfig]);
+  }, [injectConfig, firebaseConfigReady]);
 
   const handleCommand = (command) => {
     clearTimeout(timerRef.current);
@@ -222,8 +229,9 @@ function AudienceView() {
     }
   };
 
-  // Logic: Local Poll takes absolute priority. If it fails, fallback to Firebase manual text. If empty, show default.
+  // UI Display Logic
   const finalBtnText = pollText || fbText || 'ENTER EXPERIENCE';
+  const isUIReady = firebaseConfigReady && injectPollReady;
 
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
@@ -241,7 +249,8 @@ function AudienceView() {
             className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none"
           />
 
-          <div className="flex flex-col items-center w-full max-w-md px-6 z-10">
+          {/* This container stays invisible until the app secures the final word */}
+          <div className={`flex flex-col items-center w-full max-w-md px-6 z-10 transition-opacity duration-700 ease-in-out ${isUIReady ? 'opacity-100' : 'opacity-0'}`}>
             <button 
               onClick={startCamera}
               className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
@@ -359,7 +368,6 @@ function ControlView() {
     localStorage.setItem('magicInjectKey', injectKey);
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
 
-    // This broadcast allows Audience phones to poll autonomously!
     set(ref(db, 'injectConfig'), {
       url: injectUrl,
       key: injectKey,
@@ -368,7 +376,7 @@ function ControlView() {
 
   }, [injectUrl, injectKey, isInjectSyncing]);
 
-  // MASTER DECK AUTO-POLLING LOGIC (For your own UI feedback)
+  // MASTER DECK AUTO-POLLING LOGIC
   useEffect(() => {
     let timer;
     if (isInjectSyncing && injectUrl) {
@@ -391,7 +399,6 @@ function ControlView() {
             set(ref(db, 'buttonText'), word); 
           }
         } catch (e) {
-          // Silent catch
         }
       }, 2000); 
     }
@@ -464,7 +471,6 @@ function ControlView() {
     };
   }, [localMode, audienceMode, redirectUrl]); 
 
-  // MANUAL TEXT CONTROLS
   const handleSetCustomText = () => {
     lastInjectRef.current = customText; 
     set(ref(db, 'buttonText'), customText);
