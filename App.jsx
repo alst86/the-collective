@@ -696,7 +696,8 @@ function ControlView() {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center items-center pt-24 pb-28 z-10 space-y-6">
+      {/* Increased padding-bottom to pb-36 to clear the newly expanded bottom menu */}
+      <div className="flex-1 flex flex-col justify-center items-center pt-24 pb-36 z-10 space-y-6">
         
         {/* ================================== */}
         {/* LOCAL DECK UI                      */}
@@ -790,51 +791,60 @@ function ControlView() {
               ⚡ STROBE (s)
             </button>
           </div>
-
-          <div className="mt-2 flex flex-col items-center space-y-1">
-            <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
-              {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
-            </div>
-            <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest">
-              Last Flic Key: [{lastKey}]
-            </div>
-          </div>
         </div>
 
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full bg-zinc-950 border-t border-zinc-800 flex items-center justify-between px-4 pt-3 pb-8 z-20">
-        <div className="flex flex-col">
-          <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography</span>
-          <span className="text-xs font-mono text-zinc-300">{recordedSequence.length} Cues Saved</span>
+      {/* ================================== */}
+      {/* EXPANDED BOTTOM CONTROL BAR        */}
+      {/* ================================== */}
+      <div className="absolute bottom-0 left-0 w-full bg-zinc-950 border-t border-zinc-800 flex flex-col px-4 pt-3 pb-8 z-20">
+        
+        {/* Top Row: Choreography Controls */}
+        <div className="flex items-center justify-between w-full">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography</span>
+            <span className="text-xs font-mono text-zinc-300">{recordedSequence.length} Cues Saved</span>
+          </div>
+          
+          <div className="flex space-x-2">
+            <button 
+              onClick={handleRecordToggle}
+              className={`px-3 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
+                isRecording 
+                  ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+              }`}
+            >
+              {isRecording ? '■ STOP REC' : '● REC'}
+            </button>
+
+            <button 
+              onClick={handlePlayToggle}
+              disabled={recordedSequence.length === 0 || isRecording}
+              className={`px-4 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
+                isPlaying
+                  ? 'bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.5)]'
+                  : recordedSequence.length === 0 || isRecording
+                    ? 'bg-zinc-950 border-zinc-800 text-zinc-700 opacity-50'
+                    : 'bg-zinc-800 border-zinc-700 text-white'
+              }`}
+            >
+              {isPlaying ? '■ STOP SHOW' : '▶ PLAY'}
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom Row: Flic Remote Status */}
+        <div className="mt-4 flex flex-col items-center space-y-1 w-full">
+          <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
+            {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
+          </div>
+          <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest">
+            Last Flic Key: [{lastKey}]
+          </div>
         </div>
         
-        <div className="flex space-x-2">
-          <button 
-            onClick={handleRecordToggle}
-            className={`px-3 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
-              isRecording 
-                ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-400'
-            }`}
-          >
-            {isRecording ? '■ STOP REC' : '● REC'}
-          </button>
-
-          <button 
-            onClick={handlePlayToggle}
-            disabled={recordedSequence.length === 0 || isRecording}
-            className={`px-4 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
-              isPlaying
-                ? 'bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.5)]'
-                : recordedSequence.length === 0 || isRecording
-                  ? 'bg-zinc-950 border-zinc-800 text-zinc-700 opacity-50'
-                  : 'bg-zinc-800 border-zinc-700 text-white'
-            }`}
-          >
-            {isPlaying ? '■ STOP SHOW' : '▶ PLAY'}
-          </button>
-        </div>
       </div>
 
     </div>
