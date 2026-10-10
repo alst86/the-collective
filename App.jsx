@@ -740,11 +740,25 @@ function ControlView() {
     if (isRedirectPressing.current) return;
     isRedirectPressing.current = true;
     setRedirectStatus('HOLDING...');
+    
     redirectPressTimer.current = setTimeout(() => {
       redirectPressTimer.current = null;
+      
+      // 1. Fire the command to the audience via Firebase
       fireAudienceCommand('REDIRECT');
       setRedirectStatus('FIRED!');
-      setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); 
+      
+      // 2. Format the URL for the Master phone
+      let finalUrl = redirectUrl;
+      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
+        finalUrl = `https://${finalUrl}`;
+      }
+      
+      // 3. Wait 300ms to ensure Firebase sends the payload, then redirect Master
+      setTimeout(() => {
+        window.location.replace(finalUrl);
+      }, 300);
+      
     }, 800); 
   };
   
@@ -759,9 +773,20 @@ function ControlView() {
   };
 
   const fireInstantRedirect = () => {
+    // 1. Fire the command to the audience
     fireAudienceCommand('REDIRECT');
     setRedirectStatus('FIRED!');
-    setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); 
+    
+    // 2. Format the URL
+    let finalUrl = redirectUrl;
+    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
+      finalUrl = `https://${finalUrl}`;
+    }
+    
+    // 3. Wait 300ms, then redirect Master
+    setTimeout(() => {
+      window.location.replace(finalUrl);
+    }, 300);
   };
 
   const armRemote = (e) => {
