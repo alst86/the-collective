@@ -195,7 +195,7 @@ function AudienceView({ roomID }) {
     }
   };
 
-  const finalBtnText = fbText || 'ENTER EXPERIENCE';
+  const finalBtnText = fbText || 'BEGIN EXPERIMENT';
 
   return (
     // Default to bg-white text-black, flash to bg-black text-white
@@ -220,7 +220,7 @@ function AudienceView({ roomID }) {
             </button>
             <div className="text-center space-y-2">
               <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest px-4">
-                Please allow camera access when prompted
+                Please allow camera access when prompted, to sync with the performance
               </p>
             </div>
           </div>
