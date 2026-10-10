@@ -23,7 +23,8 @@ function AudienceView({ roomID }) {
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
   
-  const [fbText, setFbText] = useState('');
+  // The secret word for the kicker ending
+  const [kickerWord, setKickerWord] = useState('');
   const [uiReady, setUiReady] = useState(false);
 
   const trackRef = useRef(null);
@@ -125,11 +126,11 @@ function AudienceView({ roomID }) {
       }
     }, () => { setDbStatus('error'); });
 
-    // Listen for MANUALLY set text from Master
+    // Listen for MANUALLY set text or polled API text from Master
     const textRef = ref(db, `${roomID}/buttonText`);
     const unsubText = onValue(textRef, (snapshot) => {
       const val = snapshot.val();
-      setFbText(val && val.trim() !== '' ? val : '');
+      setKickerWord(val && val.trim() !== '' ? val : '');
     });
     
     return () => {
@@ -195,8 +196,6 @@ function AudienceView({ roomID }) {
     }
   };
 
-  const finalBtnText = fbText || 'BEGIN EXPERIMENT';
-
   return (
     // Default to bg-white text-black, flash to bg-black text-white
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
@@ -216,7 +215,7 @@ function AudienceView({ roomID }) {
               onClick={startCamera}
               className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
             >
-              {finalBtnText}
+              BEGIN EXPERIMENT
             </button>
             <div className="text-center space-y-2">
               <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest px-4">
@@ -227,17 +226,37 @@ function AudienceView({ roomID }) {
         </>
       ) : (
         <>
-          <div className="flex-1 flex flex-col items-center justify-center w-full pb-20 pointer-events-none">
-            <div className="text-[45vh] leading-none animate-pulse drop-shadow-2xl select-none">
-              ❤️
+          {/* THEATRICAL KICKER REVEAL */}
+          <div className="absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20">
+            {kickerWord && (
+              <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-80">
+                Please say hello to<br/>
+                <span className="text-3xl font-black mt-2 mb-2 block tracking-widest">
+                  {kickerWord}
+                </span>
+                for me
+              </p>
+            )}
+          </div>
+
+          {/* MINIMALIST SYNC NODE / PULSE (Replaces the Heart) */}
+          <div className="flex-1 flex flex-col items-center justify-center w-full pointer-events-none">
+            <div className="relative flex items-center justify-center">
+              {/* Center Dot */}
+              <div className="w-6 h-6 bg-current rounded-full"></div>
+              {/* Expanding Rings */}
+              <div className="absolute w-24 h-24 border-2 border-current rounded-full animate-ping opacity-30"></div>
+              <div className="absolute w-48 h-48 border border-current rounded-full opacity-10" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
+              <div className="absolute w-72 h-72 border border-current rounded-full opacity-5" style={{ animation: 'ping 4s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
             </div>
           </div>
 
-          <div className="absolute bottom-12 left-0 right-0 w-full text-center px-4 pointer-events-none">
-            <h1 className="text-3xl font-black uppercase tracking-widest">
-              Hold up your phone
+          {/* BOTTOM INSTRUCTION */}
+          <div className="absolute bottom-16 left-0 right-0 w-full text-center px-4 pointer-events-none z-20">
+            <h1 className="text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
+              Hold up your<br/>phone
             </h1>
-            {error && <p className="text-red-500 mt-2 text-xs font-bold uppercase tracking-widest">{error}</p>}
+            {error && <p className="text-red-500 mt-4 text-xs font-bold uppercase tracking-widest">{error}</p>}
           </div>
         </>
       )}
@@ -320,7 +339,7 @@ function ControlView({ roomID }) {
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
   }, [injectUrl, injectKey, isInjectSyncing]);
 
-  // MASTER DECK AUTO-POLLING LOGIC (For Peeking Only!)
+  // MASTER DECK AUTO-POLLING LOGIC (For Peeking and Audience Kicker Sync)
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
@@ -328,7 +347,7 @@ function ControlView({ roomID }) {
       try {
         let text = "";
         try {
-          // If you set up the Cloudflare Worker, replace the proxyUrl below!
+          // Dedicated CORS Proxy Call
           const res = await fetch(`${injectUrl}?t=${Date.now()}`);
           if (!res.ok) throw new Error();
           text = await res.text();
@@ -350,8 +369,9 @@ function ControlView({ roomID }) {
 
         if (word && word !== lastInjectRef.current) {
           lastInjectRef.current = word;
-          // Only update the stealth Master UI peek display. Do NOT push to Audience!
-          setPeekedWord(word); 
+          setPeekedWord(word);
+          // Push to Firebase so audience phone can display the kicker
+          set(ref(db, `${roomID}/buttonText`), word);
         }
       } catch (e) {}
     };
@@ -361,7 +381,7 @@ function ControlView({ roomID }) {
       timer = setInterval(executeMasterPoll, 2000); 
     }
     return () => clearInterval(timer);
-  }, [isInjectSyncing, injectUrl, injectKey]);
+  }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
@@ -417,9 +437,11 @@ function ControlView({ roomID }) {
 
   const handleSetCustomText = () => {
     set(ref(db, `${roomID}/buttonText`), customText);
+    setPeekedWord(customText);
   };
   const handleClearCustomText = () => {
     setCustomText('');
+    setPeekedWord('');
     set(ref(db, `${roomID}/buttonText`), '');
   };
 
@@ -707,7 +729,6 @@ function ControlView({ roomID }) {
           🚀 {redirectStatus}
         </button>
 
-        {/* --- THE STEALTH INJECT PEEK DISPLAY --- */}
         <div className="flex-1 flex justify-center">
           <span className="text-[10px] font-mono text-zinc-500 font-bold tracking-widest uppercase truncate max-w-[150px]">
             {peekedWord ? `[ ${peekedWord} ]` : ''}
