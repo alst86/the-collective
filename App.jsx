@@ -30,7 +30,7 @@ function AudienceView() {
   // IDLE AUTO-REDIRECT SETTINGS
   // ==========================================
   const idleTimerRef = useRef(null);
-  const IDLE_TIMEOUT_MS = 30 * 1000; // 30 seconds of inactivity
+  const IDLE_TIMEOUT_MS = 40 * 1000; // 40 seconds of inactivity
   const IDLE_FALLBACK_URL = "https://www.google.com"; // Fallback URL
 
   const resetIdleTimer = () => {
@@ -44,17 +44,9 @@ function AudienceView() {
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
-  // AUTO-LOAD MEMORY (Skips the Enter button if they already clicked it before)
-  useEffect(() => {
-    if (localStorage.getItem('hasEnteredCollective') === 'true') {
-      startCamera(true);
-    }
-  }, []);
-
-  const startCamera = async (isAutoLoad = false) => {
+  const startCamera = async () => {
     try {
-      // Fullscreen API requires a physical tap, so we skip it if auto-loading
-      if (!isAutoLoad && document.documentElement.requestFullscreen) {
+      if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen denied"));
       }
     } catch (err) {
@@ -75,7 +67,6 @@ function AudienceView() {
     } catch (err) {
       setError('Camera denied. Screen flash active instead.');
     } finally {
-      localStorage.setItem('hasEnteredCollective', 'true');
       setCameraReady(true); 
     }
   };
@@ -203,7 +194,7 @@ function AudienceView() {
 
           <div className="flex flex-col items-center w-full max-w-md px-6 z-10">
             <button 
-              onClick={() => startCamera(false)}
+              onClick={startCamera}
               className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95"
             >
               ENTER EXPERIENCE
