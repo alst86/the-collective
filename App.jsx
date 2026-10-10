@@ -105,7 +105,6 @@ function AudienceView({ roomID }) {
 
   // 1. LISTEN TO FIREBASE COMMANDS ONLY
   useEffect(() => {
-    // Show UI quickly without waiting for polling
     const uiTimer = setTimeout(() => setUiReady(true), 300);
 
     const commandRef = ref(db, `${roomID}/audienceCommand`);
@@ -126,7 +125,6 @@ function AudienceView({ roomID }) {
       }
     }, () => { setDbStatus('error'); });
 
-    // Listen for MANUALLY set text or polled API text from Master
     const textRef = ref(db, `${roomID}/buttonText`);
     const unsubText = onValue(textRef, (snapshot) => {
       const val = snapshot.val();
@@ -226,17 +224,17 @@ function AudienceView({ roomID }) {
         </>
       ) : (
         <>
-          {/* THEATRICAL KICKER REVEAL */}
-          <div className="absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20">
-            {kickerWord && (
-              <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-80">
-                Please say hello to<br/>
-                <span className="text-3xl font-black mt-2 mb-2 block tracking-widest">
-                  {kickerWord}
-                </span>
-                for me
-              </p>
-            )}
+          {/* THEATRICAL KICKER REVEAL (FADES IN SMOOTHLY) */}
+          <div className={`absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 transition-all duration-1000 ease-out delay-500 ${kickerWord ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+              Please say hello to
+            </p>
+            <span className="text-4xl font-black mt-3 mb-3 block tracking-widest text-black mix-blend-difference drop-shadow-sm">
+              {kickerWord}
+            </span>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+              for me
+            </p>
           </div>
 
           {/* MINIMALIST SYNC NODE / PULSE (Replaces the Heart) */}
@@ -347,7 +345,6 @@ function ControlView({ roomID }) {
       try {
         let text = "";
         try {
-          // Dedicated CORS Proxy Call
           const res = await fetch(`${injectUrl}?t=${Date.now()}`);
           if (!res.ok) throw new Error();
           text = await res.text();
@@ -729,10 +726,20 @@ function ControlView({ roomID }) {
           🚀 {redirectStatus}
         </button>
 
-        <div className="flex-1 flex justify-center">
-          <span className="text-[10px] font-mono text-zinc-500 font-bold tracking-widest uppercase truncate max-w-[150px]">
-            {peekedWord ? `[ ${peekedWord} ]` : ''}
-          </span>
+        {/* --- LIVE KICKER BROADCAST INDICATOR --- */}
+        <div className="flex-1 flex justify-center items-center">
+          {peekedWord ? (
+            <div className="flex items-center space-x-2 bg-green-900/20 border border-green-500/50 px-3 py-1 rounded-full">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]"></div>
+              <span className="text-[9px] font-mono text-green-400 font-bold tracking-widest uppercase truncate max-w-[120px]">
+                LIVE: {peekedWord}
+              </span>
+            </div>
+          ) : (
+            <span className="text-[9px] font-mono text-zinc-700 font-bold tracking-widest uppercase">
+              NO KICKER
+            </span>
+          )}
         </div>
 
         <button 
@@ -791,6 +798,18 @@ function ControlView({ roomID }) {
               {isInjectSyncing ? 'SYNCING' : 'AUTO-SYNC'}
             </button>
           </div>
+
+          {/* --- SHORTCUT TO TEST SPECTATOR VIEW --- */}
+          <div className="w-full h-px bg-zinc-800 my-2"></div>
+          <button 
+            onClick={() => {
+              window.location.href = window.location.pathname + '?room=' + roomID;
+            }}
+            className="w-full py-3 rounded bg-zinc-800 border border-zinc-600 text-white font-bold text-[10px] tracking-widest transition-colors flex justify-center items-center"
+          >
+            👁️ TEST SPECTATOR VIEW
+          </button>
+
         </div>
       )}
 
