@@ -267,6 +267,7 @@ function ControlView() {
   
   // INJECT API STATES
   const [injectUrl, setInjectUrl] = useState('https://11z.co/8682');
+  const [injectKey, setInjectKey] = useState('value');
   const [isInjectSyncing, setIsInjectSyncing] = useState(false);
   const lastInjectRef = useRef('');
 
@@ -319,7 +320,7 @@ function ControlView() {
     }
   }, [recordedSequence, isRecording]);
 
-  // INJECT API AUTO-POLLING LOGIC (STRICT JSON "value" EXTRACTOR)
+  // INJECT API AUTO-POLLING LOGIC (DYNAMIC JSON KEY EXTRACTOR)
   useEffect(() => {
     let timer;
     if (isInjectSyncing && injectUrl) {
@@ -330,10 +331,11 @@ function ControlView() {
           
           let word = "";
           try {
-             // Strictly parse as JSON and specifically grab the "value" key
              const json = JSON.parse(text);
-             if (json.value !== undefined && json.value !== null) {
-                word = String(json.value).trim();
+             const keyToPoll = injectKey.trim() || 'value';
+             
+             if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
+                word = String(json[keyToPoll]).trim();
              }
           } catch(e) { 
              console.log('Inject API Fetch Error: Data returned is not valid JSON.');
@@ -350,7 +352,7 @@ function ControlView() {
       }, 2000); 
     }
     return () => clearInterval(timer);
-  }, [isInjectSyncing, injectUrl]);
+  }, [isInjectSyncing, injectUrl, injectKey]);
 
   // INITIALIZE MASTER CAMERA & KEYBOARD LISTENER
   useEffect(() => {
@@ -713,7 +715,7 @@ function ControlView() {
       {/* ================================== */}
       {/* MINIMAL TOP HEADER WITH SETTINGS   */}
       {/* ================================== */}
-      <div className="w-full h-14 flex items-center justify-end px-4 shrink-0 z-40">
+      <div className="w-full h-14 flex items-center justify-end px-4 shrink-0 z-40 border-b border-zinc-900">
         <button 
           onClick={() => setIsSettingsOpen(!isSettingsOpen)}
           className={`px-3 py-1.5 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${
@@ -786,25 +788,35 @@ function ControlView() {
             </div>
           </div>
 
-          {/* ROW 3: INJECT API */}
-          <div className="flex space-x-3 items-end">
+          {/* ROW 3: API POLL */}
+          <div className="flex space-x-2 items-end">
             <div className="flex-1 flex flex-col">
-              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Inject JSON API URL</label>
+              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">API Poll URL</label>
               <input 
                 type="text" 
                 value={injectUrl}
                 onChange={(e) => setInjectUrl(e.target.value)}
-                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
                 placeholder="https://11z.co/..."
+              />
+            </div>
+            <div className="w-16 flex flex-col">
+              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Key</label>
+              <input 
+                type="text" 
+                value={injectKey}
+                onChange={(e) => setInjectKey(e.target.value)}
+                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+                placeholder="value"
               />
             </div>
             <button 
               onClick={() => setIsInjectSyncing(!isInjectSyncing)}
-              className={`w-24 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${
+              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${
                 isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'
               }`}
             >
-              {isInjectSyncing ? 'SYNCING...' : 'AUTO-SYNC'}
+              {isInjectSyncing ? 'SYNCING' : 'AUTO-SYNC'}
             </button>
           </div>
 
