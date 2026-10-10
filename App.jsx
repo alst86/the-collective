@@ -265,10 +265,15 @@ function ControlView() {
 
   const [customText, setCustomText] = useState('');
   
-  // INJECT API STATES
-  const [injectUrl, setInjectUrl] = useState('https://11z.co/8682');
-  const [injectKey, setInjectKey] = useState('value');
-  const [isInjectSyncing, setIsInjectSyncing] = useState(false);
+  // ==========================================
+  // INJECT API STATES WITH LOCAL MEMORY
+  // ==========================================
+  const [injectUrl, setInjectUrl] = useState(() => localStorage.getItem('magicInjectUrl') || '');
+  const [injectKey, setInjectKey] = useState(() => localStorage.getItem('magicInjectKey') || 'peek');
+  const [isInjectSyncing, setIsInjectSyncing] = useState(() => {
+    const saved = localStorage.getItem('magicInjectSyncing');
+    return saved !== null ? JSON.parse(saved) : true; // Defaults to TRUE automatically
+  });
   const lastInjectRef = useRef('');
 
   const [lastKey, setLastKey] = useState('NONE'); 
@@ -320,6 +325,13 @@ function ControlView() {
     }
   }, [recordedSequence, isRecording]);
 
+  // SAVE INJECT API SETTINGS TO LOCAL STORAGE
+  useEffect(() => {
+    localStorage.setItem('magicInjectUrl', injectUrl);
+    localStorage.setItem('magicInjectKey', injectKey);
+    localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
+  }, [injectUrl, injectKey, isInjectSyncing]);
+
   // INJECT API AUTO-POLLING LOGIC (DYNAMIC JSON KEY EXTRACTOR)
   useEffect(() => {
     let timer;
@@ -332,7 +344,7 @@ function ControlView() {
           let word = "";
           try {
              const json = JSON.parse(text);
-             const keyToPoll = injectKey.trim() || 'value';
+             const keyToPoll = injectKey.trim() || 'peek';
              
              if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
                 word = String(json[keyToPoll]).trim();
@@ -797,7 +809,7 @@ function ControlView() {
                 value={injectUrl}
                 onChange={(e) => setInjectUrl(e.target.value)}
                 className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-                placeholder="https://11z.co/..."
+                placeholder="https://..."
               />
             </div>
             <div className="w-16 flex flex-col">
@@ -807,7 +819,7 @@ function ControlView() {
                 value={injectKey}
                 onChange={(e) => setInjectKey(e.target.value)}
                 className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-                placeholder="value"
+                placeholder="peek"
               />
             </div>
             <button 
