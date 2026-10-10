@@ -9,7 +9,6 @@ import { ref, onValue, set } from 'firebase/database';
 export default function App() {
   const searchParams = new URLSearchParams(window.location.search);
   const isMaster = searchParams.has('master');
-  // Use a default room, or specify in URL like ?room=gala-dinner
   const roomID = searchParams.get('room') || 'main-stage';
 
   return isMaster ? <ControlView roomID={roomID} /> : <AudienceView roomID={roomID} />;
@@ -21,25 +20,17 @@ export default function App() {
 function AudienceView({ roomID }) {
   const [cameraReady, setCameraReady] = useState(false);
   const [error, setError] = useState('');
-  
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
   
-  // DUAL-REDUNDANCY TEXT STATES
   const [fbText, setFbText] = useState('');
-  const [pollText, setPollText] = useState('');
-  const [injectConfig, setInjectConfig] = useState(null);
-
-  // DATA-LOCK BOOTLOADER
   const [uiReady, setUiReady] = useState(false);
-  const bootDoneRef = useRef(false);
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
 
-  // IDLE AUTO-REDIRECT SETTINGS
   const idleTimerRef = useRef(null);
   const IDLE_TIMEOUT_MS = 40 * 1000; 
   const IDLE_FALLBACK_URL = "https://www.google.com"; 
@@ -54,18 +45,15 @@ function AudienceView({ roomID }) {
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
-  // WAKE LOCK API (Prevents screen from sleeping)
+  // WAKE LOCK API
   useEffect(() => {
     let wakeLock = null;
-
     const requestWakeLock = async () => {
       try {
         if ('wakeLock' in navigator) {
           wakeLock = await navigator.wakeLock.request('screen');
         }
-      } catch (err) {
-        console.log('Wake Lock failed:', err.name, err.message);
-      }
+      } catch (err) {}
     };
 
     if (cameraReady) requestWakeLock();
@@ -98,10 +86,7 @@ function AudienceView({ roomID }) {
       
       const track = stream.getVideoTracks()[0];
       trackRef.current = track;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (err) {
       setError('Camera denied. Screen flash active instead.');
     } finally {
@@ -110,21 +95,17 @@ function AudienceView({ roomID }) {
   };
 
   const applyTorch = async (active) => {
-    // We set the state regardless so the screen flashes as a fallback for iOS
     setIsFlashing(active); 
     if (!trackRef.current) return;
     try {
-      await trackRef.current.applyConstraints({
-        advanced: [{ torch: active }]
-      });
-    } catch (err) {
-      console.log("Torch constraint not applied - using screen flash fallback");
-    }
+      await trackRef.current.applyConstraints({ advanced: [{ torch: active }] });
+    } catch (err) {}
   };
 
-  // 1. LISTEN TO FIREBASE COMMANDS & CONFIG (Scoped by Room)
+  // 1. LISTEN TO FIREBASE COMMANDS ONLY
   useEffect(() => {
-    const failsafe = setTimeout(() => setUiReady(true), 1500);
+    // Show UI quickly without waiting for polling
+    const uiTimer = setTimeout(() => setUiReady(true), 300);
 
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
@@ -142,79 +123,23 @@ function AudienceView({ roomID }) {
         }
         handleCommand(command);
       }
-    }, (err) => {
-      setDbStatus('error');
-    });
+    }, () => { setDbStatus('error'); });
 
+    // Listen for MANUALLY set text from Master
     const textRef = ref(db, `${roomID}/buttonText`);
     const unsubText = onValue(textRef, (snapshot) => {
       const val = snapshot.val();
       setFbText(val && val.trim() !== '' ? val : '');
     });
-
-    const configRef = ref(db, `${roomID}/injectConfig`);
-    const unsubConfig = onValue(configRef, (snapshot) => {
-      setInjectConfig(snapshot.val());
-    });
     
     return () => {
-      clearTimeout(failsafe);
+      clearTimeout(uiTimer);
       unsubCommand();
       unsubText();
-      unsubConfig();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
     };
   }, [roomID]);
-
-  // 2. AUDIENCE-SIDE AUTONOMOUS POLLING
-  useEffect(() => {
-    let timer;
-    const executePoll = async () => {
-      if (!injectConfig || !injectConfig.active || !injectConfig.url) {
-        setPollText('');
-        if (!bootDoneRef.current) { bootDoneRef.current = true; setUiReady(true); }
-        return;
-      }
-
-      try {
-        let text = "";
-        try {
-          const res = await fetch(`${injectConfig.url}?t=${Date.now()}`);
-          if (!res.ok) throw new Error("CORS Blocked");
-          text = await res.text();
-        } catch (e) {
-          const targetUrl = encodeURIComponent(`${injectConfig.url}?t=${Date.now()}`);
-          const proxyUrl = `https://api.allorigins.win/raw?url=${targetUrl}`;
-          const res2 = await fetch(proxyUrl);
-          text = await res2.text();
-        }
-
-        let word = "";
-        try {
-          const json = JSON.parse(text);
-          const keyToPoll = injectConfig.key?.trim() || 'peek';
-          if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
-            word = String(json[keyToPoll]).trim();
-          }
-        } catch(e) {} 
-
-        if (word) setPollText(word);
-      } catch (e) {
-      } finally {
-        if (!bootDoneRef.current) { 
-          bootDoneRef.current = true; 
-          setUiReady(true); 
-        }
-      }
-    };
-
-    executePoll();
-    if (injectConfig?.active && injectConfig?.url) {
-      timer = setInterval(executePoll, 2000); 
-    }
-    return () => clearInterval(timer);
-  }, [injectConfig]);
 
   const handleCommand = (command) => {
     clearTimeout(timerRef.current);
@@ -270,7 +195,7 @@ function AudienceView({ roomID }) {
     }
   };
 
-  const finalBtnText = pollText || fbText || 'ENTER EXPERIENCE';
+  const finalBtnText = fbText || 'ENTER EXPERIENCE';
 
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-white text-black' : 'bg-black text-white'}`}>
@@ -341,6 +266,7 @@ function ControlView({ roomID }) {
     const saved = localStorage.getItem('magicInjectSyncing');
     return saved !== null ? JSON.parse(saved) : true; 
   });
+  const [peekedWord, setPeekedWord] = useState('');
   const lastInjectRef = useRef('');
   const [lastKey, setLastKey] = useState('NONE'); 
   const hiddenInputRef = useRef(null);
@@ -391,16 +317,9 @@ function ControlView({ roomID }) {
     localStorage.setItem('magicInjectUrl', injectUrl);
     localStorage.setItem('magicInjectKey', injectKey);
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
+  }, [injectUrl, injectKey, isInjectSyncing]);
 
-    set(ref(db, `${roomID}/injectConfig`), {
-      url: injectUrl,
-      key: injectKey,
-      active: isInjectSyncing
-    }).catch(err => console.log("Config Sync Error:", err));
-
-  }, [injectUrl, injectKey, isInjectSyncing, roomID]);
-
-  // MASTER DECK AUTO-POLLING LOGIC
+  // MASTER DECK AUTO-POLLING LOGIC (For Peeking Only!)
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
@@ -408,6 +327,7 @@ function ControlView({ roomID }) {
       try {
         let text = "";
         try {
+          // If you set up the Cloudflare Worker, replace the proxyUrl below!
           const res = await fetch(`${injectUrl}?t=${Date.now()}`);
           if (!res.ok) throw new Error();
           text = await res.text();
@@ -429,8 +349,8 @@ function ControlView({ roomID }) {
 
         if (word && word !== lastInjectRef.current) {
           lastInjectRef.current = word;
-          setCustomText(word); 
-          set(ref(db, `${roomID}/buttonText`), word); 
+          // Only update the stealth Master UI peek display. Do NOT push to Audience!
+          setPeekedWord(word); 
         }
       } catch (e) {}
     };
@@ -440,7 +360,7 @@ function ControlView({ roomID }) {
       timer = setInterval(executeMasterPoll, 2000); 
     }
     return () => clearInterval(timer);
-  }, [isInjectSyncing, injectUrl, injectKey, roomID]);
+  }, [isInjectSyncing, injectUrl, injectKey]);
 
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
@@ -495,12 +415,10 @@ function ControlView({ roomID }) {
   }, [localMode, audienceMode, redirectUrl]); 
 
   const handleSetCustomText = () => {
-    lastInjectRef.current = customText; 
     set(ref(db, `${roomID}/buttonText`), customText);
   };
   const handleClearCustomText = () => {
     setCustomText('');
-    lastInjectRef.current = '';
     set(ref(db, `${roomID}/buttonText`), '');
   };
 
@@ -788,6 +706,13 @@ function ControlView({ roomID }) {
           🚀 {redirectStatus}
         </button>
 
+        {/* --- THE STEALTH INJECT PEEK DISPLAY --- */}
+        <div className="flex-1 flex justify-center">
+          <span className="text-[10px] font-mono text-zinc-500 font-bold tracking-widest uppercase truncate max-w-[150px]">
+            {peekedWord ? `[ ${peekedWord} ]` : ''}
+          </span>
+        </div>
+
         <button 
           onClick={() => setIsSettingsOpen(!isSettingsOpen)}
           className={`px-3 py-1.5 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${
@@ -830,7 +755,7 @@ function ControlView({ roomID }) {
 
           <div className="flex space-x-2 items-end">
             <div className="flex-1 flex flex-col">
-              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">API Poll URL</label>
+              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">API Poll URL (Proxy)</label>
               <input type="text" value={injectUrl} onChange={(e) => setInjectUrl(e.target.value)} className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors" placeholder="https://..." />
             </div>
             <div className="w-16 flex flex-col">
