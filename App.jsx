@@ -7,14 +7,18 @@ import { db } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 
 export default function App() {
-  const isMaster = window.location.search.includes('master');
-  return isMaster ? <ControlView /> : <AudienceView />;
+  const searchParams = new URLSearchParams(window.location.search);
+  const isMaster = searchParams.has('master');
+  // Use a default room, or specify in URL like ?room=gala-dinner
+  const roomID = searchParams.get('room') || 'main-stage';
+
+  return isMaster ? <ControlView roomID={roomID} /> : <AudienceView roomID={roomID} />;
 }
 
 // ==========================================
 // AUDIENCE VIEW (Spectator's Phone)
 // ==========================================
-function AudienceView() {
+function AudienceView({ roomID }) {
   const [cameraReady, setCameraReady] = useState(false);
   const [error, setError] = useState('');
   
@@ -26,7 +30,7 @@ function AudienceView() {
   const [pollText, setPollText] = useState('');
   const [injectConfig, setInjectConfig] = useState(null);
 
-  // DATA-LOCK BOOTLOADER (Prevents text flashing)
+  // DATA-LOCK BOOTLOADER
   const [uiReady, setUiReady] = useState(false);
   const bootDoneRef = useRef(false);
 
@@ -35,9 +39,7 @@ function AudienceView() {
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
 
-  // ==========================================
   // IDLE AUTO-REDIRECT SETTINGS
-  // ==========================================
   const idleTimerRef = useRef(null);
   const IDLE_TIMEOUT_MS = 40 * 1000; 
   const IDLE_FALLBACK_URL = "https://www.google.com"; 
@@ -52,14 +54,42 @@ function AudienceView() {
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
+  // WAKE LOCK API (Prevents screen from sleeping)
+  useEffect(() => {
+    let wakeLock = null;
+
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.log('Wake Lock failed:', err.name, err.message);
+      }
+    };
+
+    if (cameraReady) requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (wakeLock !== null && document.visibilityState === 'visible' && cameraReady) {
+        requestWakeLock();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (wakeLock !== null) wakeLock.release();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [cameraReady]);
+
   const startCamera = async () => {
     try {
       if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen denied"));
+        document.documentElement.requestFullscreen().catch(() => {});
       }
-    } catch (err) {
-      console.log("Fullscreen API not supported");
-    }
+    } catch (err) {}
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -80,22 +110,23 @@ function AudienceView() {
   };
 
   const applyTorch = async (active) => {
+    // We set the state regardless so the screen flashes as a fallback for iOS
+    setIsFlashing(active); 
     if (!trackRef.current) return;
     try {
       await trackRef.current.applyConstraints({
         advanced: [{ torch: active }]
       });
     } catch (err) {
-      console.log("Torch constraint not applied", err);
+      console.log("Torch constraint not applied - using screen flash fallback");
     }
   };
 
-  // 1. LISTEN TO FIREBASE COMMANDS & CONFIG
+  // 1. LISTEN TO FIREBASE COMMANDS & CONFIG (Scoped by Room)
   useEffect(() => {
-    // Failsafe: Force UI to appear after 1.5 seconds maximum, even on terrible internet
     const failsafe = setTimeout(() => setUiReady(true), 1500);
 
-    const commandRef = ref(db, 'audienceCommand');
+    const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
       resetIdleTimer(); 
@@ -113,16 +144,15 @@ function AudienceView() {
       }
     }, (err) => {
       setDbStatus('error');
-      console.error("Firebase Connection Error:", err);
     });
 
-    const textRef = ref(db, 'buttonText');
+    const textRef = ref(db, `${roomID}/buttonText`);
     const unsubText = onValue(textRef, (snapshot) => {
       const val = snapshot.val();
       setFbText(val && val.trim() !== '' ? val : '');
     });
 
-    const configRef = ref(db, 'injectConfig');
+    const configRef = ref(db, `${roomID}/injectConfig`);
     const unsubConfig = onValue(configRef, (snapshot) => {
       setInjectConfig(snapshot.val());
     });
@@ -135,14 +165,12 @@ function AudienceView() {
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
     };
-  }, []);
+  }, [roomID]);
 
-  // 2. AUDIENCE-SIDE AUTONOMOUS POLLING WITH CORS PROXY
+  // 2. AUDIENCE-SIDE AUTONOMOUS POLLING
   useEffect(() => {
     let timer;
-
     const executePoll = async () => {
-      // If Auto-Sync is turned off by the Master, clear text and unlock UI instantly
       if (!injectConfig || !injectConfig.active || !injectConfig.url) {
         setPollText('');
         if (!bootDoneRef.current) { bootDoneRef.current = true; setUiReady(true); }
@@ -152,19 +180,16 @@ function AudienceView() {
       try {
         let text = "";
         try {
-          // Attempt 1: Direct Fetch
           const res = await fetch(`${injectConfig.url}?t=${Date.now()}`);
           if (!res.ok) throw new Error("CORS Blocked");
           text = await res.text();
         } catch (e) {
-          // Attempt 2: Bypassing iOS Safari CORS using a raw Proxy
           const targetUrl = encodeURIComponent(`${injectConfig.url}?t=${Date.now()}`);
           const proxyUrl = `https://api.allorigins.win/raw?url=${targetUrl}`;
           const res2 = await fetch(proxyUrl);
           text = await res2.text();
         }
 
-        // Extract specific JSON Key
         let word = "";
         try {
           const json = JSON.parse(text);
@@ -175,11 +200,8 @@ function AudienceView() {
         } catch(e) {} 
 
         if (word) setPollText(word);
-
       } catch (e) {
-        console.log("Polling failed entirely.");
       } finally {
-        // The exact moment the fetch finishes (success or fail), fade the button in.
         if (!bootDoneRef.current) { 
           bootDoneRef.current = true; 
           setUiReady(true); 
@@ -187,12 +209,10 @@ function AudienceView() {
       }
     };
 
-    // Fire instantly when config arrives, then loop every 2 seconds
     executePoll();
     if (injectConfig?.active && injectConfig?.url) {
       timer = setInterval(executePoll, 2000); 
     }
-
     return () => clearInterval(timer);
   }, [injectConfig]);
 
@@ -204,27 +224,16 @@ function AudienceView() {
     const parts = safeCommand.split('|');
     const baseCmd = parts[0];
     
-    if (baseCmd === 'ON') {
-      applyTorch(true);
-      setIsFlashing(true); 
-    } else if (baseCmd === 'OFF') {
-      applyTorch(false);
-      setIsFlashing(false); 
-    } else if (baseCmd === 'BLINK') {
+    if (baseCmd === 'ON') applyTorch(true);
+    else if (baseCmd === 'OFF') applyTorch(false);
+    else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
-
       const playHeartbeat = () => {
         const duration = pattern[step];
         const isOn = (step === 0 || step === 2); 
-        
         applyTorch(isOn);
-        setIsFlashing(isOn); 
-        
-        if (step === 0 && navigator.vibrate) {
-          navigator.vibrate([100, 150, 100]); 
-        }
-        
+        if (step === 0 && navigator.vibrate) navigator.vibrate([100, 150, 100]); 
         step = (step + 1) % pattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
@@ -233,7 +242,6 @@ function AudienceView() {
       const playStrobe = () => {
         const isOn = Math.random() > 0.5; 
         applyTorch(isOn);
-        setIsFlashing(isOn); 
         const randomDelay = Math.floor(Math.random() * 90) + 60;
         timerRef.current = setTimeout(playStrobe, randomDelay);
       };
@@ -242,9 +250,7 @@ function AudienceView() {
       const url = parts.slice(2).join('|'); 
       if (url) {
         let finalUrl = url;
-        if (!url.startsWith('http') && !url.includes('://')) {
-          finalUrl = `https://${url}`;
-        }
+        if (!url.startsWith('http') && !url.includes('://')) finalUrl = `https://${url}`;
         setTimeout(() => window.location.replace("https://www.google.com"), 30000);
         window.location.replace(finalUrl);
       }
@@ -259,15 +265,15 @@ function AudienceView() {
 
     if (secretClickCount.current === 3) {
       secretClickCount.current = 0;
-      window.location.href = window.location.pathname + '?master';
+      const separator = window.location.search ? '&' : '?';
+      window.location.href = window.location.pathname + window.location.search + separator + 'master=true';
     }
   };
 
-  // Logic: Autonomous poll takes absolute priority. Fallback to Firebase manual text.
   const finalBtnText = pollText || fbText || 'ENTER EXPERIENCE';
 
   return (
-    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
+    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-white text-black' : 'bg-black text-white'}`}>
       
       <div className="absolute top-4 left-4 z-50">
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
@@ -277,16 +283,12 @@ function AudienceView() {
 
       {!cameraReady ? (
         <>
-          <div 
-            onPointerDown={handleSecretClick}
-            className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none"
-          />
+          <div onPointerDown={handleSecretClick} className="absolute top-0 left-0 w-32 h-32 z-[100] bg-white/0 touch-none" />
 
-          {/* This wrapper stays perfectly invisible (opacity-0) until the network fetch is fully secured */}
           <div className={`flex flex-col items-center w-full max-w-md px-6 z-10 transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}>
             <button 
               onClick={startCamera}
-              className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
+              className="w-full py-6 bg-white text-black font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
             >
               {finalBtnText}
             </button>
@@ -306,7 +308,7 @@ function AudienceView() {
           </div>
 
           <div className="absolute bottom-12 left-0 right-0 w-full text-center px-4 pointer-events-none">
-            <h1 className="text-3xl font-black uppercase tracking-widest">
+            <h1 className="text-3xl font-black uppercase tracking-widest mix-blend-difference text-white">
               Hold up your phone
             </h1>
             {error && <p className="text-red-500 mt-2 text-xs font-bold uppercase tracking-widest">{error}</p>}
@@ -320,19 +322,16 @@ function AudienceView() {
 // ==========================================
 // SHOW CONTROL VIEW (Your Master Deck)
 // ==========================================
-function ControlView() {
+function ControlView({ roomID }) {
   const [isReady, setIsReady] = useState(false);
   const trackRef = useRef(null);
   
   // UI STATES
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
-  
   const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
-
   const [customText, setCustomText] = useState('');
   
   // INJECT API STATES WITH LOCAL MEMORY
@@ -343,16 +342,15 @@ function ControlView() {
     return saved !== null ? JSON.parse(saved) : true; 
   });
   const lastInjectRef = useRef('');
-
   const [lastKey, setLastKey] = useState('NONE'); 
   const hiddenInputRef = useRef(null);
   const [isRemoteArmed, setIsRemoteArmed] = useState(false);
 
+  // CHOREOGRAPHY RECORDING STATES
   const [isRecording, setIsRecording] = useState(false);
   const isRecordingRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlayingRef = useRef(false);
-  
   const [recordedSequence, setRecordedSequence] = useState([]);
   const recordedSequenceRef = useRef([]);
   const recordingStartRef = useRef(0);
@@ -372,46 +370,39 @@ function ControlView() {
   const masterSecretClickCount = useRef(0);
   const masterSecretLastClickTime = useRef(0);
 
-  // LOAD SAVED SEQUENCE
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('magicSequence');
+      const saved = localStorage.getItem(`magicSequence_${roomID}`);
       if (saved) {
         const parsed = JSON.parse(saved);
         setRecordedSequence(parsed);
         recordedSequenceRef.current = parsed;
       }
-    } catch (e) {
-      console.log('No saved sequence found');
-    }
-  }, []);
+    } catch (e) {}
+  }, [roomID]);
 
-  // SAVE SEQUENCE TO LOCAL STORAGE
   useEffect(() => {
     if (!isRecording) {
-      localStorage.setItem('magicSequence', JSON.stringify(recordedSequence));
+      localStorage.setItem(`magicSequence_${roomID}`, JSON.stringify(recordedSequence));
     }
-  }, [recordedSequence, isRecording]);
+  }, [recordedSequence, isRecording, roomID]);
 
-  // SAVE INJECT SETTINGS TO LOCAL STORAGE & PUSH TO FIREBASE
   useEffect(() => {
     localStorage.setItem('magicInjectUrl', injectUrl);
     localStorage.setItem('magicInjectKey', injectKey);
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
 
-    // This broadcast allows Audience phones to poll autonomously!
-    set(ref(db, 'injectConfig'), {
+    set(ref(db, `${roomID}/injectConfig`), {
       url: injectUrl,
       key: injectKey,
       active: isInjectSyncing
     }).catch(err => console.log("Config Sync Error:", err));
 
-  }, [injectUrl, injectKey, isInjectSyncing]);
+  }, [injectUrl, injectKey, isInjectSyncing, roomID]);
 
-  // MASTER DECK AUTO-POLLING LOGIC (For your own UI feedback)
+  // MASTER DECK AUTO-POLLING LOGIC
   useEffect(() => {
     let timer;
-
     const executeMasterPoll = async () => {
       if (!isInjectSyncing || !injectUrl) return;
       try {
@@ -439,10 +430,9 @@ function ControlView() {
         if (word && word !== lastInjectRef.current) {
           lastInjectRef.current = word;
           setCustomText(word); 
-          set(ref(db, 'buttonText'), word); 
+          set(ref(db, `${roomID}/buttonText`), word); 
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     };
 
     if (isInjectSyncing && injectUrl) {
@@ -450,19 +440,12 @@ function ControlView() {
       timer = setInterval(executeMasterPoll, 2000); 
     }
     return () => clearInterval(timer);
-  }, [isInjectSyncing, injectUrl, injectKey]);
+  }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
-  // INITIALIZE MASTER CAMERA & KEYBOARD LISTENER
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(stream => {
-        trackRef.current = stream.getVideoTracks()[0];
-        setIsReady(true);
-      })
-      .catch(err => {
-        console.error("Admin camera denied", err);
-        setIsReady(true);
-      });
+      .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
+      .catch(err => { setIsReady(true); });
 
     const armTimer = setTimeout(() => {
       if (hiddenInputRef.current) hiddenInputRef.current.focus();
@@ -475,26 +458,19 @@ function ControlView() {
       const k = e.key;
       setLastKey(k);
 
-      if (isPlayingRef.current) {
-        handleStopPlayback();
-        return; 
-      }
-
+      if (isPlayingRef.current) { handleStopPlayback(); return; }
       if (k === 'p' || k === 'P') { handlePlayToggle(); return; }
       
       if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalDown(); 
       else if (k === 'ArrowRight') startLocalHeartbeat(); 
       else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceDown(); 
       else if (k === 'ArrowLeft') startAudienceHeartbeat(); 
-
       else if (k === 'u' || k === 'U') toggleLocalTorch();
       else if (k === 'r' || k === 'R') toggleLocalHeartbeat();
       else if (k === 'e' || k === 'E') toggleLocalStrobe();
-      
       else if (k === 'd' || k === 'D') toggleAudienceTorch();
       else if (k === 'l' || k === 'L') toggleAudienceHeartbeat();
       else if (k === 's' || k === 'S') toggleAudienceStrobe();
-      
       else if (k === 'i' || k === 'I') fireInstantRedirect(); 
     };
 
@@ -518,15 +494,14 @@ function ControlView() {
     };
   }, [localMode, audienceMode, redirectUrl]); 
 
-  // MANUAL TEXT CONTROLS
   const handleSetCustomText = () => {
     lastInjectRef.current = customText; 
-    set(ref(db, 'buttonText'), customText);
+    set(ref(db, `${roomID}/buttonText`), customText);
   };
   const handleClearCustomText = () => {
     setCustomText('');
     lastInjectRef.current = '';
-    set(ref(db, 'buttonText'), '');
+    set(ref(db, `${roomID}/buttonText`), '');
   };
 
   const recordCue = (target, cmd) => {
@@ -540,20 +515,12 @@ function ControlView() {
 
   const fireAudienceCommand = (cmd, isPlayback = false) => {
     if (!isPlayback) recordCue('AUDIENCE', cmd);
-
-    if (isPlayback) {
-      if (cmd === 'ON') setAudienceMode('ON');
-      else if (cmd === 'OFF') setAudienceMode('OFF');
-      else if (cmd === 'BLINK') setAudienceMode('BLINK');
-      else if (cmd === 'STROBE') setAudienceMode('STROBE');
-    }
+    if (isPlayback) setAudienceMode(cmd);
     
     let payload = `${cmd}|${Date.now()}`;
-    if (cmd === 'REDIRECT') {
-      payload = `REDIRECT|${Date.now()}|${redirectUrl}`;
-    }
+    if (cmd === 'REDIRECT') payload = `REDIRECT|${Date.now()}|${redirectUrl}`;
     
-    set(ref(db, 'audienceCommand'), payload).catch(err => {
+    set(ref(db, `${roomID}/audienceCommand`), payload).catch(err => {
         alert(`🔥 FIREBASE SYNC BLOCKED: ${err.message}`);
     });
   };
@@ -564,20 +531,17 @@ function ControlView() {
       isRecordingRef.current = false;
     } else {
       if (isPlayingRef.current) handleStopPlayback();
-      
       setRecordedSequence([]); 
       recordedSequenceRef.current = [];
       recordingStartRef.current = Date.now();
-      
       setIsRecording(true);
       isRecordingRef.current = true;
     }
   };
 
   const handlePlayToggle = () => {
-    if (isPlayingRef.current) {
-      handleStopPlayback();
-    } else {
+    if (isPlayingRef.current) handleStopPlayback();
+    else {
       if (isRecordingRef.current) {
         setIsRecording(false);
         isRecordingRef.current = false;
@@ -595,9 +559,8 @@ function ControlView() {
         if (offset > maxOffset) maxOffset = offset;
         
         const tid = setTimeout(() => {
-          if (actualTarget === 'AUDIENCE') {
-            fireAudienceCommand(cmd, true);
-          } else if (actualTarget === 'LOCAL') {
+          if (actualTarget === 'AUDIENCE') fireAudienceCommand(cmd, true);
+          else if (actualTarget === 'LOCAL') {
             if (cmd === 'ON') turnLocalOn(true);
             else if (cmd === 'OFF') turnLocalOff(true);
             else if (cmd === 'BLINK') startLocalHeartbeat(true);
@@ -619,14 +582,10 @@ function ControlView() {
   const handleStopPlayback = () => {
     playbackTimeoutsRef.current.forEach(clearTimeout);
     playbackTimeoutsRef.current = [];
-    
     setIsPlaying(false);
     isPlayingRef.current = false;
-    
     setAudienceMode('OFF');
-    let payload = `OFF|${Date.now()}`;
-    set(ref(db, 'audienceCommand'), payload);
-    
+    set(ref(db, `${roomID}/audienceCommand`), `OFF|${Date.now()}`);
     turnLocalOff(true); 
   };
 
@@ -673,7 +632,6 @@ function ControlView() {
     if (!isPlayback) recordCue('LOCAL', 'STROBE');
     clearTimeout(localTimerRef.current);
     setLocalMode('STROBE');
-    
     const playLocalStrobe = () => {
       const isOn = Math.random() > 0.5;
       applyLocalTorch(isOn);
@@ -743,22 +701,11 @@ function ControlView() {
     
     redirectPressTimer.current = setTimeout(() => {
       redirectPressTimer.current = null;
-      
-      // 1. Fire the command to the audience via Firebase
       fireAudienceCommand('REDIRECT');
       setRedirectStatus('FIRED!');
-      
-      // 2. Format the URL for the Master phone
       let finalUrl = redirectUrl;
-      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
-        finalUrl = `https://${finalUrl}`;
-      }
-      
-      // 3. Wait 300ms to ensure Firebase sends the payload, then redirect Master
-      setTimeout(() => {
-        window.location.replace(finalUrl);
-      }, 300);
-      
+      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
+      setTimeout(() => window.location.replace(finalUrl), 300);
     }, 800); 
   };
   
@@ -773,20 +720,11 @@ function ControlView() {
   };
 
   const fireInstantRedirect = () => {
-    // 1. Fire the command to the audience
     fireAudienceCommand('REDIRECT');
     setRedirectStatus('FIRED!');
-    
-    // 2. Format the URL
     let finalUrl = redirectUrl;
-    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
-      finalUrl = `https://${finalUrl}`;
-    }
-    
-    // 3. Wait 300ms, then redirect Master
-    setTimeout(() => {
-      window.location.replace(finalUrl);
-    }, 300);
+    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
+    setTimeout(() => window.location.replace(finalUrl), 300);
   };
 
   const armRemote = (e) => {
@@ -834,12 +772,7 @@ function ControlView() {
         className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-14 z-[100] bg-black/0 touch-none"
       />
 
-      {/* ================================== */}
-      {/* BALANCED TOP HEADER                */}
-      {/* ================================== */}
       <div className="w-full h-14 flex items-center justify-between px-4 shrink-0 z-40 border-b border-zinc-900">
-        
-        {/* TOP LEFT: REDIRECT BUTTON */}
         <button 
           onPointerDown={handleRedirectDown}
           onPointerUp={handleRedirectUp}
@@ -855,7 +788,6 @@ function ControlView() {
           🚀 {redirectStatus}
         </button>
 
-        {/* TOP RIGHT: SETTINGS BUTTON */}
         <button 
           onClick={() => setIsSettingsOpen(!isSettingsOpen)}
           className={`px-3 py-1.5 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${
@@ -866,12 +798,8 @@ function ControlView() {
         </button>
       </div>
 
-      {/* ================================== */}
-      {/* SETTINGS DROPDOWN PANEL            */}
-      {/* ================================== */}
       {isSettingsOpen && (
         <div className="absolute top-16 left-4 right-4 bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
-          
           <div className="flex flex-col w-full">
             <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
             <input 
@@ -895,61 +823,32 @@ function ControlView() {
               />
             </div>
             <div className="flex space-x-1 w-24">
-              <button 
-                onClick={handleClearCustomText}
-                className="flex-1 h-10 rounded bg-zinc-950 border border-zinc-800 text-zinc-500 font-bold text-[9px] tracking-widest transition-colors"
-              >
-                CLR
-              </button>
-              <button 
-                onClick={handleSetCustomText}
-                className="flex-1 h-10 rounded bg-zinc-800 border border-zinc-600 text-white font-bold text-[9px] tracking-widest transition-colors"
-              >
-                SET
-              </button>
+              <button onClick={handleClearCustomText} className="flex-1 h-10 rounded bg-zinc-950 border border-zinc-800 text-zinc-500 font-bold text-[9px] tracking-widest transition-colors">CLR</button>
+              <button onClick={handleSetCustomText} className="flex-1 h-10 rounded bg-zinc-800 border border-zinc-600 text-white font-bold text-[9px] tracking-widest transition-colors">SET</button>
             </div>
           </div>
 
           <div className="flex space-x-2 items-end">
             <div className="flex-1 flex flex-col">
               <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">API Poll URL</label>
-              <input 
-                type="text" 
-                value={injectUrl}
-                onChange={(e) => setInjectUrl(e.target.value)}
-                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-                placeholder="https://..."
-              />
+              <input type="text" value={injectUrl} onChange={(e) => setInjectUrl(e.target.value)} className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors" placeholder="https://..." />
             </div>
             <div className="w-16 flex flex-col">
               <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Key</label>
-              <input 
-                type="text" 
-                value={injectKey}
-                onChange={(e) => setInjectKey(e.target.value)}
-                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-                placeholder="peek"
-              />
+              <input type="text" value={injectKey} onChange={(e) => setInjectKey(e.target.value)} className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors" placeholder="peek" />
             </div>
             <button 
               onClick={() => setIsInjectSyncing(!isInjectSyncing)}
-              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${
-                isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'
-              }`}
+              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
             >
               {isInjectSyncing ? 'SYNCING' : 'AUTO-SYNC'}
             </button>
           </div>
-
         </div>
       )}
 
-      {/* ================================== */}
-      {/* MAIN CUE CONTROLS                  */}
-      {/* ================================== */}
       <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10">
         
-        {/* LOCAL CUE */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
           <div className="text-lg mb-4">
@@ -984,9 +883,7 @@ function ControlView() {
           <div className="mt-3 flex space-x-3">
             <button 
               onPointerDown={(e) => { e.preventDefault(); toggleLocalStrobe(); }}
-              className={`px-4 py-2 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${
-                localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-              }`}
+              className={`px-4 py-2 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
             >
               ⚡ STROBE (e)
             </button>
@@ -995,7 +892,6 @@ function ControlView() {
 
         <div className="w-full h-px bg-zinc-900 shrink-0 my-2"></div>
 
-        {/* MASTER CUE */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
           <div className="text-lg mb-4">
@@ -1030,9 +926,7 @@ function ControlView() {
           <div className="mt-3 flex space-x-3">
             <button 
               onPointerDown={(e) => { e.preventDefault(); toggleAudienceStrobe(); }}
-              className={`px-4 py-2 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${
-                audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-              }`}
+              className={`px-4 py-2 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
             >
               ⚡ STROBE (s)
             </button>
@@ -1041,14 +935,11 @@ function ControlView() {
 
       </div>
 
-      {/* ================================== */}
-      {/* BOTTOM CHOREOGRAPHY BAR            */}
-      {/* ================================== */}
       <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col px-4 pt-3 pb-8 z-20">
         
         <div className="flex items-center justify-between w-full mb-3">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography</span>
+            <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography (Room: {roomID})</span>
             <span className="text-xs font-mono text-zinc-300">{recordedSequence.length} Cues Saved</span>
           </div>
           
