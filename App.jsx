@@ -30,8 +30,8 @@ function AudienceView() {
   // IDLE AUTO-REDIRECT SETTINGS
   // ==========================================
   const idleTimerRef = useRef(null);
-  const IDLE_TIMEOUT_MS = 40 * 1000; // 40 seconds of general inactivity
-  const IDLE_FALLBACK_URL = "https://www.google.com"; // Fallback URL
+  const IDLE_TIMEOUT_MS = 40 * 1000; 
+  const IDLE_FALLBACK_URL = "https://www.google.com"; 
 
   const resetIdleTimer = () => {
     clearTimeout(idleTimerRef.current);
@@ -40,7 +40,6 @@ function AudienceView() {
     }, IDLE_TIMEOUT_MS);
   };
   
-  // TRIPLE TAP SECRET GATEWAY
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
@@ -86,7 +85,7 @@ function AudienceView() {
     const commandRef = ref(db, 'audienceCommand');
     const unsubscribe = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
-      resetIdleTimer(); // Starts/Resets the auto-redirect countdown
+      resetIdleTimer(); 
 
       const command = snapshot.val();
       
@@ -147,13 +146,10 @@ function AudienceView() {
       };
       playHeartbeat();
     } else if (baseCmd === 'STROBE') {
-      // PAPARAZZI CHAOS STROBE (Locally randomized per phone)
       const playStrobe = () => {
-        const isOn = Math.random() > 0.5; // Randomly snap ON or OFF
+        const isOn = Math.random() > 0.5; 
         applyTorch(isOn);
         setIsFlashing(isOn); 
-        
-        // Random strobe speed between 60ms and 150ms
         const randomDelay = Math.floor(Math.random() * 90) + 60;
         timerRef.current = setTimeout(playStrobe, randomDelay);
       };
@@ -166,7 +162,6 @@ function AudienceView() {
           finalUrl = `https://${url}`;
         }
         
-        // POST-REDIRECT DEADMAN'S SWITCH
         setTimeout(() => {
           window.location.replace("https://www.google.com");
         }, 30000);
@@ -326,16 +321,13 @@ function ControlView() {
       const k = e.key;
       setLastKey(k);
 
-      // ULTIMATE PANIC STOP
       if (isPlayingRef.current) {
         handleStopPlayback();
         return; 
       }
 
-      // BLUETOOTH CUES
       if (k === 'p' || k === 'P') { handlePlayToggle(); return; }
       
-      // STANDARD & STROBE CUES
       if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalDown(); 
       else if (k === 'ArrowRight') startLocalHeartbeat(); 
       else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceDown(); 
@@ -343,11 +335,11 @@ function ControlView() {
 
       else if (k === 'u' || k === 'U') toggleLocalTorch();
       else if (k === 'r' || k === 'R') toggleLocalHeartbeat();
-      else if (k === 'e' || k === 'E') toggleLocalStrobe(); // LOCAL STROBE
+      else if (k === 'e' || k === 'E') toggleLocalStrobe();
       
       else if (k === 'd' || k === 'D') toggleAudienceTorch();
       else if (k === 'l' || k === 'L') toggleAudienceHeartbeat();
-      else if (k === 's' || k === 'S') toggleAudienceStrobe(); // AUDIENCE STROBE
+      else if (k === 's' || k === 'S') toggleAudienceStrobe();
       
       else if (k === 'i' || k === 'I') fireInstantRedirect(); 
     };
@@ -372,9 +364,6 @@ function ControlView() {
     };
   }, [localMode, audienceMode, redirectUrl]); 
 
-  // ==========================================
-  // UNIVERSAL RECORDER HELPER
-  // ==========================================
   const recordCue = (target, cmd) => {
     if (isRecordingRef.current) {
       const offset = Date.now() - recordingStartRef.current;
@@ -384,9 +373,6 @@ function ControlView() {
     }
   };
 
-  // ==========================================
-  // CORE FIREBASE DISPATCHER (AUDIENCE)
-  // ==========================================
   const fireAudienceCommand = (cmd, isPlayback = false) => {
     if (!isPlayback) recordCue('AUDIENCE', cmd);
 
@@ -407,9 +393,6 @@ function ControlView() {
     });
   };
 
-  // ==========================================
-  // CHOREOGRAPHY RECORDER & PLAYBACK CONTROLS
-  // ==========================================
   const handleRecordToggle = () => {
     if (isRecordingRef.current) {
       setIsRecording(false);
@@ -482,9 +465,6 @@ function ControlView() {
     turnLocalOff(true); 
   };
 
-  // ==========================================
-  // STANDARD CONTROLS (LOCAL)
-  // ==========================================
   const applyLocalTorch = (active) => {
     if (trackRef.current) {
       trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => console.log(e));
@@ -524,7 +504,6 @@ function ControlView() {
   const stopLocalHeartbeat = () => turnLocalOff();
   const toggleLocalHeartbeat = () => localMode === 'BLINK' ? stopLocalHeartbeat() : startLocalHeartbeat();
 
-  // LOCAL CHAOS STROBE
   const startLocalStrobe = (isPlayback = false) => {
     if (!isPlayback) recordCue('LOCAL', 'STROBE');
     clearTimeout(localTimerRef.current);
@@ -560,9 +539,6 @@ function ControlView() {
     } else stopLocalHeartbeat();
   };
 
-  // ==========================================
-  // AUDIENCE CONTROLS
-  // ==========================================
   const turnAudienceOn = () => { setAudienceMode('ON'); fireAudienceCommand('ON'); };
   const turnAudienceOff = () => { setAudienceMode('OFF'); fireAudienceCommand('OFF'); };
   const toggleAudienceTorch = () => audienceMode === 'OFF' ? turnAudienceOn() : turnAudienceOff();
@@ -571,7 +547,6 @@ function ControlView() {
   const stopAudienceHeartbeat = () => turnAudienceOff();
   const toggleAudienceHeartbeat = () => audienceMode === 'BLINK' ? stopAudienceHeartbeat() : startAudienceHeartbeat();
 
-  // AUDIENCE CHAOS STROBE
   const startAudienceStrobe = () => { setAudienceMode('STROBE'); fireAudienceCommand('STROBE'); };
   const toggleAudienceStrobe = () => audienceMode === 'STROBE' ? turnAudienceOff() : startAudienceStrobe();
 
@@ -650,6 +625,7 @@ function ControlView() {
   return (
     <div 
       onClick={armRemote}
+      // Switch to standard flexbox layout to completely eliminate UI overlap
       className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans"
     >
       <input 
@@ -669,7 +645,10 @@ function ControlView() {
         className="absolute bottom-16 right-0 w-40 h-40 z-[100] bg-black/0 touch-none"
       />
 
-      <div className="absolute top-0 left-0 w-full h-20 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 z-20 space-x-3">
+      {/* ================================== */}
+      {/* TOP HEADER                         */}
+      {/* ================================== */}
+      <div className="w-full h-20 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 shrink-0 z-20 space-x-3">
         <div className="flex-1 flex flex-col justify-center">
           <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
           <input 
@@ -696,12 +675,12 @@ function ControlView() {
         </button>
       </div>
 
-      {/* Increased padding-bottom to pb-36 to clear the newly expanded bottom menu */}
-      <div className="flex-1 flex flex-col justify-center items-center pt-24 pb-36 z-10 space-y-6">
+      {/* ================================== */}
+      {/* MAIN CONTENT AREA                  */}
+      {/* ================================== */}
+      <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10">
         
-        {/* ================================== */}
-        {/* LOCAL DECK UI                      */}
-        {/* ================================== */}
+        {/* LOCAL CUE UI */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
           <div className="text-lg mb-4">
@@ -745,11 +724,9 @@ function ControlView() {
           </div>
         </div>
 
-        <div className="w-full h-px bg-zinc-900"></div>
+        <div className="w-full h-px bg-zinc-900 shrink-0 my-2"></div>
 
-        {/* ================================== */}
-        {/* AUDIENCE DECK UI                   */}
-        {/* ================================== */}
+        {/* MASTER CUE UI */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
           <div className="text-lg mb-4">
@@ -769,7 +746,7 @@ function ControlView() {
             onPointerLeave={handleAudienceUp}
             onPointerCancel={handleAudienceUp}
             onContextMenu={(e) => e.preventDefault()}
-            className={`w-40 h-40 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+            className={`w-32 h-32 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
               audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
               audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.2)]' :
               audienceMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_30px_rgba(250,204,21,0.3)]' :
@@ -796,12 +773,12 @@ function ControlView() {
       </div>
 
       {/* ================================== */}
-      {/* EXPANDED BOTTOM CONTROL BAR        */}
+      {/* BOTTOM CONTROL BAR                 */}
       {/* ================================== */}
-      <div className="absolute bottom-0 left-0 w-full bg-zinc-950 border-t border-zinc-800 flex flex-col px-4 pt-3 pb-8 z-20">
+      <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col px-4 pt-3 pb-8 z-20">
         
-        {/* Top Row: Choreography Controls */}
-        <div className="flex items-center justify-between w-full">
+        {/* Choreography Row */}
+        <div className="flex items-center justify-between w-full mb-3">
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography</span>
             <span className="text-xs font-mono text-zinc-300">{recordedSequence.length} Cues Saved</span>
@@ -835,8 +812,8 @@ function ControlView() {
           </div>
         </div>
 
-        {/* Bottom Row: Flic Remote Status */}
-        <div className="mt-4 flex flex-col items-center space-y-1 w-full">
+        {/* Remote Status Row (Pushed to bottom, opacity slightly lowered so it acts as background info) */}
+        <div className="flex flex-col items-center space-y-1 w-full opacity-75">
           <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
             {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
           </div>
