@@ -254,6 +254,9 @@ function ControlView() {
   const [isReady, setIsReady] = useState(false);
   const trackRef = useRef(null);
   
+  // UI STATES
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
   
@@ -316,39 +319,35 @@ function ControlView() {
     }
   }, [recordedSequence, isRecording]);
 
-  // INJECT API AUTO-POLLING LOGIC
+  // INJECT API AUTO-POLLING LOGIC (STRICT JSON "value" EXTRACTOR)
   useEffect(() => {
     let timer;
     if (isInjectSyncing && injectUrl) {
       timer = setInterval(async () => {
         try {
-          // Append a timestamp so Safari doesn't cache the API response
           const res = await fetch(`${injectUrl}?t=${Date.now()}`);
           const text = await res.text();
           
-          let word = text.trim();
-          
-          // Safety check: if the API returns JSON instead of raw text, parse it
+          let word = "";
           try {
+             // Strictly parse as JSON and specifically grab the "value" key
              const json = JSON.parse(text);
-             if (json.text) word = json.text;
-             else if (json.value) word = json.value;
-             else if (json.word) word = json.word;
+             if (json.value !== undefined && json.value !== null) {
+                word = String(json.value).trim();
+             }
           } catch(e) { 
-             // If plain HTML is returned, strip the tags
-             word = word.replace(/<[^>]*>?/gm, '').trim();
+             console.log('Inject API Fetch Error: Data returned is not valid JSON.');
           }
 
-          // If the word exists and is NEW, push it directly to Firebase
           if (word && word !== lastInjectRef.current) {
             lastInjectRef.current = word;
-            setCustomText(word); // Updates your Master Deck view
-            set(ref(db, 'buttonText'), word); // Updates Audience phones
+            setCustomText(word); 
+            set(ref(db, 'buttonText'), word); 
           }
         } catch (e) {
-          console.log('Inject API Fetch Error:', e);
+          console.log('Inject API Network Error:', e);
         }
-      }, 2000); // Polls every 2 seconds
+      }, 2000); 
     }
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl]);
@@ -421,7 +420,7 @@ function ControlView() {
 
   // MANUAL TEXT CONTROLS
   const handleSetCustomText = () => {
-    lastInjectRef.current = customText; // Prevent inject API from overriding manual changes
+    lastInjectRef.current = customText; 
     set(ref(db, 'buttonText'), customText);
   };
   const handleClearCustomText = () => {
@@ -705,95 +704,119 @@ function ControlView() {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
-      {/* Secret gateway dynamically shifted down to top-[220px] so it clears the new 3-row header completely */}
+      {/* Secret Gateway (Top Left) */}
       <div 
         onPointerDown={handleMasterSecretClick}
-        className="absolute top-[220px] left-0 w-32 h-32 z-[100] bg-black/0 touch-none"
+        className="absolute top-0 left-0 w-32 h-20 z-[100] bg-black/0 touch-none"
       />
 
-      <div className="w-full bg-zinc-900 border-b border-zinc-800 flex flex-col px-4 py-3 shrink-0 z-20 space-y-3">
-        {/* ROW 1: URL Redirect Row */}
-        <div className="flex space-x-3 items-end">
-          <div className="flex-1 flex flex-col">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
-            <input 
-              type="text" 
-              value={redirectUrl}
-              onChange={(e) => setRedirectUrl(e.target.value)}
-              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-              placeholder="https://..."
-            />
-          </div>
-          <button 
-            onPointerDown={handleRedirectDown}
-            onPointerUp={handleRedirectUp}
-            onPointerLeave={handleRedirectUp}
-            onPointerCancel={handleRedirectUp}
-            onContextMenu={(e) => e.preventDefault()}
-            className={`w-24 h-10 rounded flex flex-col items-center justify-center font-bold text-[9px] tracking-widest transition-colors border text-center px-1 ${
-              redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
-              : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
-              : 'bg-zinc-950 border-zinc-800 text-zinc-400'
-            }`}
-          >
-            {redirectStatus}
-          </button>
-        </div>
-
-        {/* ROW 2: Reveal Text Row (Manual Override) */}
-        <div className="flex space-x-3 items-end">
-          <div className="flex-1 flex flex-col">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Audience Reveal Name</label>
-            <input 
-              type="text" 
-              value={customText}
-              onChange={(e) => setCustomText(e.target.value)}
-              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-              placeholder="Leave empty for default..."
-            />
-          </div>
-          <div className="flex space-x-1 w-24">
-            <button 
-              onClick={handleClearCustomText}
-              className="flex-1 h-10 rounded bg-zinc-950 border border-zinc-800 text-zinc-500 font-bold text-[9px] tracking-widest transition-colors"
-            >
-              CLR
-            </button>
-            <button 
-              onClick={handleSetCustomText}
-              className="flex-1 h-10 rounded bg-zinc-800 border border-zinc-600 text-white font-bold text-[9px] tracking-widest transition-colors"
-            >
-              SET
-            </button>
-          </div>
-        </div>
-
-        {/* ROW 3: INJECT API (11z.co auto-pull) */}
-        <div className="flex space-x-3 items-end">
-          <div className="flex-1 flex flex-col">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Inject API URL (11z)</label>
-            <input 
-              type="text" 
-              value={injectUrl}
-              onChange={(e) => setInjectUrl(e.target.value)}
-              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-              placeholder="https://11z.co/..."
-            />
-          </div>
-          <button 
-            onClick={() => setIsInjectSyncing(!isInjectSyncing)}
-            className={`w-24 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${
-              isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-            }`}
-          >
-            {isInjectSyncing ? 'SYNCING...' : 'AUTO-SYNC'}
-          </button>
-        </div>
-
+      {/* ================================== */}
+      {/* MINIMAL TOP HEADER WITH SETTINGS   */}
+      {/* ================================== */}
+      <div className="w-full h-14 flex items-center justify-end px-4 shrink-0 z-40">
+        <button 
+          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+          className={`px-3 py-1.5 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${
+            isSettingsOpen ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500'
+          }`}
+        >
+          ⚙️ SETTINGS
+        </button>
       </div>
 
+      {/* ================================== */}
+      {/* SETTINGS DROPDOWN PANEL            */}
+      {/* ================================== */}
+      {isSettingsOpen && (
+        <div className="absolute top-16 left-4 right-4 bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
+          
+          {/* ROW 1: URL Redirect */}
+          <div className="flex space-x-3 items-end">
+            <div className="flex-1 flex flex-col">
+              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
+              <input 
+                type="text" 
+                value={redirectUrl}
+                onChange={(e) => setRedirectUrl(e.target.value)}
+                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+                placeholder="https://..."
+              />
+            </div>
+            <button 
+              onPointerDown={handleRedirectDown}
+              onPointerUp={handleRedirectUp}
+              onPointerLeave={handleRedirectUp}
+              onPointerCancel={handleRedirectUp}
+              onContextMenu={(e) => e.preventDefault()}
+              className={`w-24 h-10 rounded flex flex-col items-center justify-center font-bold text-[9px] tracking-widest transition-colors border text-center px-1 ${
+                redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
+                : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
+                : 'bg-zinc-950 border-zinc-800 text-zinc-400'
+              }`}
+            >
+              {redirectStatus}
+            </button>
+          </div>
+
+          {/* ROW 2: Reveal Text Row */}
+          <div className="flex space-x-3 items-end">
+            <div className="flex-1 flex flex-col">
+              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Audience Reveal Name</label>
+              <input 
+                type="text" 
+                value={customText}
+                onChange={(e) => setCustomText(e.target.value)}
+                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+                placeholder="Leave empty for default..."
+              />
+            </div>
+            <div className="flex space-x-1 w-24">
+              <button 
+                onClick={handleClearCustomText}
+                className="flex-1 h-10 rounded bg-zinc-950 border border-zinc-800 text-zinc-500 font-bold text-[9px] tracking-widest transition-colors"
+              >
+                CLR
+              </button>
+              <button 
+                onClick={handleSetCustomText}
+                className="flex-1 h-10 rounded bg-zinc-800 border border-zinc-600 text-white font-bold text-[9px] tracking-widest transition-colors"
+              >
+                SET
+              </button>
+            </div>
+          </div>
+
+          {/* ROW 3: INJECT API */}
+          <div className="flex space-x-3 items-end">
+            <div className="flex-1 flex flex-col">
+              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Inject JSON API URL</label>
+              <input 
+                type="text" 
+                value={injectUrl}
+                onChange={(e) => setInjectUrl(e.target.value)}
+                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+                placeholder="https://11z.co/..."
+              />
+            </div>
+            <button 
+              onClick={() => setIsInjectSyncing(!isInjectSyncing)}
+              className={`w-24 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${
+                isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'
+              }`}
+            >
+              {isInjectSyncing ? 'SYNCING...' : 'AUTO-SYNC'}
+            </button>
+          </div>
+
+        </div>
+      )}
+
+      {/* ================================== */}
+      {/* MAIN CUE CONTROLS                  */}
+      {/* ================================== */}
       <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10">
         
+        {/* LOCAL CUE */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
           <div className="text-lg mb-4">
@@ -839,6 +862,7 @@ function ControlView() {
 
         <div className="w-full h-px bg-zinc-900 shrink-0 my-2"></div>
 
+        {/* MASTER CUE */}
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
           <div className="text-lg mb-4">
@@ -884,6 +908,9 @@ function ControlView() {
 
       </div>
 
+      {/* ================================== */}
+      {/* BOTTOM CHOREOGRAPHY BAR            */}
+      {/* ================================== */}
       <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col px-4 pt-3 pb-8 z-20">
         
         <div className="flex items-center justify-between w-full mb-3">
