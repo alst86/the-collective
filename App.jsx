@@ -155,12 +155,10 @@ function AudienceView() {
         }
         
         // POST-REDIRECT DEADMAN'S SWITCH
-        // If the web app is still open 30 seconds after firing the redirect command, force them to Google
         setTimeout(() => {
           window.location.replace("https://www.google.com");
         }, 30000);
 
-        // Fire primary redirect (e.g., Instagram)
         window.location.replace(finalUrl);
       }
     }
@@ -248,9 +246,23 @@ function ControlView() {
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
   const [lastKey, setLastKey] = useState('NONE'); 
-  
   const hiddenInputRef = useRef(null);
   const [isRemoteArmed, setIsRemoteArmed] = useState(false);
+
+  // ==========================================
+  // BULLETPROOF RECORDER & PLAYBACK STATES
+  // ==========================================
+  const [isRecording, setIsRecording] = useState(false);
+  const isRecordingRef = useRef(false);
+  
+  const [isPlaying, setIsPlaying] = useState(false);
+  const isPlayingRef = useRef(false);
+  
+  const [recordedSequence, setRecordedSequence] = useState([]);
+  const recordedSequenceRef = useRef([]);
+  
+  const recordingStartRef = useRef(0);
+  const playbackTimeoutsRef = useRef([]);
 
   const localTimerRef = useRef(null);
   const localPressTimer = useRef(null);
@@ -263,9 +275,29 @@ function ControlView() {
   const redirectPressTimer = useRef(null);
   const isRedirectPressing = useRef(false);
 
-  // TRIPLE TAP MASTER REDIRECT GATEWAY
   const masterSecretClickCount = useRef(0);
   const masterSecretLastClickTime = useRef(0);
+
+  // LOAD SAVED SEQUENCE ON MOUNT
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('magicSequence');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setRecordedSequence(parsed);
+        recordedSequenceRef.current = parsed;
+      }
+    } catch (e) {
+      console.log('No saved sequence found');
+    }
+  }, []);
+
+  // SAVE SEQUENCE TO LOCAL BROWSER STORAGE
+  useEffect(() => {
+    if (!isRecording) {
+      localStorage.setItem('magicSequence', JSON.stringify(recordedSequence));
+    }
+  }, [recordedSequence, isRecording]);
 
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
@@ -284,12 +316,30 @@ function ControlView() {
 
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
-      
       if (e.target.tagName === 'INPUT' && e.target !== hiddenInputRef.current) return;
       
       const k = e.key;
       setLastKey(k);
+
+      // ==========================================
+      // ULTIMATE PANIC STOP
+      // ==========================================
+      // If the show is currently playing automatically, ANY button press acts as a kill switch.
+      // It will instantly abort playback, clear all upcoming cues, and blackout the room.
+      if (isPlayingRef.current) {
+        handleStopPlayback();
+        return; // Prevent the accidental button push from firing any other cues
+      }
+
+      // ==========================================
+      // BLUETOOTH PLAY COMMAND ('p')
+      // ==========================================
+      if (k === 'p' || k === 'P') {
+        handlePlayToggle();
+        return;
+      }
       
+      // STANDARD CUE COMMANDS
       if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalDown(); 
       else if (k === 'ArrowRight') startLocalHeartbeat(); 
       else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceDown(); 
@@ -322,13 +372,26 @@ function ControlView() {
     };
   }, [localMode, audienceMode, redirectUrl]); 
 
-  const applyLocalTorch = (active) => {
-    if (trackRef.current) {
-      trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => console.log(e));
+  // ==========================================
+  // CORE FIREBASE DISPATCHER WITH RECORDER
+  // ==========================================
+  const fireAudienceCommand = (cmd, isPlayback = false) => {
+    // 1. If we are recording, capture the exact millisecond timing
+    if (isRecordingRef.current && !isPlayback) {
+      const offset = Date.now() - recordingStartRef.current;
+      const newCue = { cmd, offset };
+      setRecordedSequence(prev => [...prev, newCue]);
+      recordedSequenceRef.current.push(newCue);
     }
-  };
 
-  const fireAudienceCommand = (cmd) => {
+    // 2. If the app is playing the sequence, visibly update the UI for you
+    if (isPlayback) {
+      if (cmd === 'ON') setAudienceMode('ON');
+      else if (cmd === 'OFF') setAudienceMode('OFF');
+      else if (cmd === 'BLINK') setAudienceMode('BLINK');
+    }
+    
+    // 3. Fire to Firebase
     let payload = `${cmd}|${Date.now()}`;
     if (cmd === 'REDIRECT') {
       payload = `REDIRECT|${Date.now()}|${redirectUrl}`;
@@ -339,151 +402,177 @@ function ControlView() {
     });
   };
 
+  // ==========================================
+  // CHOREOGRAPHY RECORDER & PLAYBACK CONTROLS
+  // ==========================================
+  const handleRecordToggle = () => {
+    if (isRecordingRef.current) {
+      setIsRecording(false);
+      isRecordingRef.current = false;
+    } else {
+      if (isPlayingRef.current) handleStopPlayback();
+      
+      setRecordedSequence([]); 
+      recordedSequenceRef.current = [];
+      recordingStartRef.current = Date.now();
+      
+      setIsRecording(true);
+      isRecordingRef.current = true;
+    }
+  };
+
+  const handlePlayToggle = () => {
+    if (isPlayingRef.current) {
+      handleStopPlayback();
+    } else {
+      // Disarm recording if it was somehow left on
+      if (isRecordingRef.current) {
+        setIsRecording(false);
+        isRecordingRef.current = false;
+      }
+      if (recordedSequenceRef.current.length === 0) return;
+      
+      setIsPlaying(true);
+      isPlayingRef.current = true;
+      playbackTimeoutsRef.current.forEach(clearTimeout);
+      playbackTimeoutsRef.current = [];
+
+      let maxOffset = 0;
+      recordedSequenceRef.current.forEach(({ cmd, offset }) => {
+        if (offset > maxOffset) maxOffset = offset;
+        const tid = setTimeout(() => {
+          fireAudienceCommand(cmd, true);
+        }, offset);
+        playbackTimeoutsRef.current.push(tid);
+      });
+
+      // Stop playing smoothly when the final cue fires
+      const endTid = setTimeout(() => {
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+      }, maxOffset + 500);
+      playbackTimeoutsRef.current.push(endTid);
+    }
+  };
+
+  const handleStopPlayback = () => {
+    playbackTimeoutsRef.current.forEach(clearTimeout);
+    playbackTimeoutsRef.current = [];
+    
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    
+    // Safely emergency blackout the room
+    setAudienceMode('OFF');
+    let payload = `OFF|${Date.now()}`;
+    set(ref(db, 'audienceCommand'), payload);
+  };
+
+  // ==========================================
+  // STANDARD CONTROLS
+  // ==========================================
+  const applyLocalTorch = (active) => {
+    if (trackRef.current) {
+      trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => console.log(e));
+    }
+  };
+
   const armRemote = (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
     if (hiddenInputRef.current) hiddenInputRef.current.focus();
   };
 
+  // Local Deck Functions
   const turnLocalOn = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('ON');
     applyLocalTorch(true);
   };
-
   const turnLocalOff = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('OFF');
     applyLocalTorch(false);
   };
-
-  const toggleLocalTorch = () => {
-    if (localMode === 'OFF') turnLocalOn();
-    else turnLocalOff();
-  };
-
+  const toggleLocalTorch = () => localMode === 'OFF' ? turnLocalOn() : turnLocalOff();
+  
   const startLocalHeartbeat = () => {
     clearTimeout(localTimerRef.current);
     setLocalMode('BLINK');
     localStepRef.current = 0;
-    
     const pattern = [100, 150, 100, 650]; 
     const playLocalHeartbeat = () => {
-      const duration = pattern[localStepRef.current];
       const isOn = (localStepRef.current === 0 || localStepRef.current === 2);
-      
       applyLocalTorch(isOn);
-      
       localStepRef.current = (localStepRef.current + 1) % pattern.length;
-      localTimerRef.current = setTimeout(playLocalHeartbeat, duration);
+      localTimerRef.current = setTimeout(playLocalHeartbeat, pattern[localStepRef.current]);
     };
     playLocalHeartbeat();
   };
-
-  const stopLocalHeartbeat = () => {
-    turnLocalOff();
-  };
-
-  const toggleLocalHeartbeat = () => {
-    if (localMode === 'BLINK') stopLocalHeartbeat();
-    else startLocalHeartbeat();
-  };
+  const stopLocalHeartbeat = () => turnLocalOff();
+  const toggleLocalHeartbeat = () => localMode === 'BLINK' ? stopLocalHeartbeat() : startLocalHeartbeat();
 
   const handleLocalDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isLocalPressing.current) return;
     isLocalPressing.current = true;
-
     localPressTimer.current = setTimeout(() => {
       localPressTimer.current = null;
       startLocalHeartbeat();
     }, 400); 
   };
-
   const handleLocalUp = () => {
     if (!isLocalPressing.current) return;
     isLocalPressing.current = false;
-
     if (localPressTimer.current) {
       clearTimeout(localPressTimer.current);
       localPressTimer.current = null;
       toggleLocalTorch();
-    } else {
-      stopLocalHeartbeat();
-    }
+    } else stopLocalHeartbeat();
   };
 
-  const turnAudienceOn = () => {
-    setAudienceMode('ON');
-    fireAudienceCommand('ON');
-  };
-
-  const turnAudienceOff = () => {
-    setAudienceMode('OFF');
-    fireAudienceCommand('OFF');
-  };
-
-  const toggleAudienceTorch = () => {
-    if (audienceMode === 'OFF') turnAudienceOn();
-    else turnAudienceOff();
-  };
-
-  const startAudienceHeartbeat = () => {
-    setAudienceMode('BLINK');
-    fireAudienceCommand('BLINK');
-  };
-
-  const stopAudienceHeartbeat = () => {
-    turnAudienceOff();
-  };
-
-  const toggleAudienceHeartbeat = () => {
-    if (audienceMode === 'BLINK') stopAudienceHeartbeat();
-    else startAudienceHeartbeat();
-  };
+  // Audience Deck Functions
+  const turnAudienceOn = () => { setAudienceMode('ON'); fireAudienceCommand('ON'); };
+  const turnAudienceOff = () => { setAudienceMode('OFF'); fireAudienceCommand('OFF'); };
+  const toggleAudienceTorch = () => audienceMode === 'OFF' ? turnAudienceOn() : turnAudienceOff();
+  
+  const startAudienceHeartbeat = () => { setAudienceMode('BLINK'); fireAudienceCommand('BLINK'); };
+  const stopAudienceHeartbeat = () => turnAudienceOff();
+  const toggleAudienceHeartbeat = () => audienceMode === 'BLINK' ? stopAudienceHeartbeat() : startAudienceHeartbeat();
 
   const handleAudienceDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isAudiencePressing.current) return;
     isAudiencePressing.current = true;
-
     audiencePressTimer.current = setTimeout(() => {
       audiencePressTimer.current = null;
       startAudienceHeartbeat();
     }, 400);
   };
-
   const handleAudienceUp = () => {
     if (!isAudiencePressing.current) return;
     isAudiencePressing.current = false;
-
     if (audiencePressTimer.current) {
       clearTimeout(audiencePressTimer.current);
       audiencePressTimer.current = null;
       toggleAudienceTorch();
-    } else {
-      stopAudienceHeartbeat();
-    }
+    } else stopAudienceHeartbeat();
   };
 
   const handleRedirectDown = () => {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isRedirectPressing.current) return;
     isRedirectPressing.current = true;
-
     setRedirectStatus('HOLDING...');
     redirectPressTimer.current = setTimeout(() => {
       redirectPressTimer.current = null;
       fireAudienceCommand('REDIRECT');
-      
       setRedirectStatus('FIRED!');
       setTimeout(() => setRedirectStatus('HOLD TO REDIRECT'), 2000); 
     }, 800); 
   };
-
   const handleRedirectUp = () => {
     if (!isRedirectPressing.current) return;
     isRedirectPressing.current = false;
-
     if (redirectPressTimer.current) {
       clearTimeout(redirectPressTimer.current);
       redirectPressTimer.current = null;
@@ -501,21 +590,14 @@ function ControlView() {
     e.stopPropagation(); 
     const currentTime = new Date().getTime();
     const timeSinceLastClick = currentTime - masterSecretLastClickTime.current;
-
-    if (timeSinceLastClick < 500) {
-      masterSecretClickCount.current += 1;
-    } else {
-      masterSecretClickCount.current = 1;
-    }
-
+    if (timeSinceLastClick < 500) { masterSecretClickCount.current += 1; } 
+    else { masterSecretClickCount.current = 1; }
     masterSecretLastClickTime.current = currentTime;
 
     if (masterSecretClickCount.current === 3) {
       masterSecretClickCount.current = 0;
       let finalUrl = redirectUrl;
-      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
-        finalUrl = `https://${finalUrl}`;
-      }
+      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
       window.location.replace(finalUrl);
     }
   };
@@ -539,7 +621,6 @@ function ControlView() {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
-      {/* HIDDEN TRIPLE-TAP TRIGGER FOR MASTER REDIRECT */}
       <div 
         onPointerDown={handleMasterSecretClick}
         className="absolute bottom-16 right-0 w-40 h-40 z-[100] bg-black/0 touch-none"
@@ -572,7 +653,7 @@ function ControlView() {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col justify-evenly items-center pt-20 pb-4 z-10">
+      <div className="flex-1 flex flex-col justify-center items-center pt-24 pb-20 z-10 space-y-6">
         
         <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
@@ -582,31 +663,27 @@ function ControlView() {
               {localMode === 'OFF' ? 'BLACKOUT' : localMode === 'ON' ? 'ILLUMINATED' : 'HEARTBEAT'}
             </span>
           </div>
-
           <button
             onPointerDown={handleLocalDown}
             onPointerUp={handleLocalUp}
             onPointerLeave={handleLocalUp}
             onPointerCancel={handleLocalUp}
             onContextMenu={(e) => e.preventDefault()}
-            className={`w-40 h-40 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+            className={`w-32 h-32 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
               localMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
               localMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.2)]' :
               'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_30px_rgba(220,38,38,0.3)]'
             }`}
           >
-            <svg className="w-10 h-10 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
             <span className="font-bold tracking-widest text-xs uppercase">
               {localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : 'PULSING'}
             </span>
           </button>
         </div>
 
-        <div className="w-full h-px bg-zinc-900 my-2"></div>
+        <div className="w-full h-px bg-zinc-900"></div>
 
-        <div className="flex flex-col items-center w-full relative">
+        <div className="flex flex-col items-center w-full">
           <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
           <div className="text-lg mb-4">
             <span className="text-zinc-400">State: </span>
@@ -614,7 +691,6 @@ function ControlView() {
               {audienceMode === 'OFF' ? 'BLACKOUT' : audienceMode === 'ON' ? 'ILLUMINATED' : 'HEARTBEAT'}
             </span>
           </div>
-
           <button
             onPointerDown={handleAudienceDown}
             onPointerUp={handleAudienceUp}
@@ -627,15 +703,12 @@ function ControlView() {
               'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_30px_rgba(220,38,38,0.3)]'
             }`}
           >
-            <svg className="w-10 h-10 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
             <span className="font-bold tracking-widest text-xs uppercase">
               {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : 'PULSING'}
             </span>
           </button>
-          
-          <div className="absolute -bottom-10 flex flex-col items-center space-y-1">
+
+          <div className="mt-4 flex flex-col items-center space-y-1">
             <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
               {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
             </div>
@@ -646,6 +719,42 @@ function ControlView() {
         </div>
 
       </div>
+
+      {/* SEQUENCE CONTROLS - FIXED TO BOTTOM */}
+      <div className="absolute bottom-0 left-0 w-full h-16 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between px-4 z-20">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography</span>
+          <span className="text-xs font-mono text-zinc-300">{recordedSequence.length} Cues Saved</span>
+        </div>
+        
+        <div className="flex space-x-2">
+          <button 
+            onClick={handleRecordToggle}
+            className={`px-3 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
+              isRecording 
+                ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+            }`}
+          >
+            {isRecording ? '■ STOP REC' : '● REC'}
+          </button>
+
+          <button 
+            onClick={handlePlayToggle}
+            disabled={recordedSequence.length === 0 || isRecording}
+            className={`px-4 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
+              isPlaying
+                ? 'bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.5)]'
+                : recordedSequence.length === 0 || isRecording
+                  ? 'bg-zinc-950 border-zinc-800 text-zinc-700 opacity-50'
+                  : 'bg-zinc-800 border-zinc-700 text-white'
+            }`}
+          >
+            {isPlaying ? '■ STOP SHOW' : '▶ PLAY'}
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }
