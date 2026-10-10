@@ -229,7 +229,7 @@ function AudienceView({ roomID }) {
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
               You are currently focusing on
             </p>
-            <span className="text-4xl font-black mt-3 mb-3 block tracking-widest text-black mix-blend-difference drop-shadow-sm">
+            <span className="text-4xl font-black mt-3 mb-3 block tracking-widest drop-shadow-sm">
               {kickerWord}
             </span>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
