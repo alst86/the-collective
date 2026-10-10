@@ -20,6 +20,7 @@ function AudienceView() {
   
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
+  const [btnText, setBtnText] = useState('ENTER EXPERIENCE');
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
@@ -83,7 +84,7 @@ function AudienceView() {
 
   useEffect(() => {
     const commandRef = ref(db, 'audienceCommand');
-    const unsubscribe = onValue(commandRef, (snapshot) => {
+    const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
       resetIdleTimer(); 
 
@@ -104,9 +105,16 @@ function AudienceView() {
       setDbStatus('error');
       console.error("Firebase Connection Error:", err);
     });
+
+    const textRef = ref(db, 'buttonText');
+    const unsubText = onValue(textRef, (snapshot) => {
+      const val = snapshot.val();
+      setBtnText(val && val.trim() !== '' ? val : 'ENTER EXPERIENCE');
+    });
     
     return () => {
-      unsubscribe();
+      unsubCommand();
+      unsubText();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
     };
@@ -200,7 +208,6 @@ function AudienceView() {
 
       {!cameraReady ? (
         <>
-          {/* Secret gateway moved to top-left to avoid bottom overlap */}
           <div 
             onPointerDown={handleSecretClick}
             className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none"
@@ -209,9 +216,9 @@ function AudienceView() {
           <div className="flex flex-col items-center w-full max-w-md px-6 z-10">
             <button 
               onClick={startCamera}
-              className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95"
+              className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
             >
-              ENTER EXPERIENCE
+              {btnText}
             </button>
             <div className="text-center space-y-2">
               <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest px-4">
@@ -253,6 +260,13 @@ function ControlView() {
   const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
 
+  const [customText, setCustomText] = useState('');
+  
+  // INJECT API STATES
+  const [injectUrl, setInjectUrl] = useState('https://11z.co/8682');
+  const [isInjectSyncing, setIsInjectSyncing] = useState(false);
+  const lastInjectRef = useRef('');
+
   const [lastKey, setLastKey] = useState('NONE'); 
   const hiddenInputRef = useRef(null);
   const [isRemoteArmed, setIsRemoteArmed] = useState(false);
@@ -281,6 +295,7 @@ function ControlView() {
   const masterSecretClickCount = useRef(0);
   const masterSecretLastClickTime = useRef(0);
 
+  // LOAD SAVED SEQUENCE
   useEffect(() => {
     try {
       const saved = localStorage.getItem('magicSequence');
@@ -294,12 +309,51 @@ function ControlView() {
     }
   }, []);
 
+  // SAVE SEQUENCE TO LOCAL STORAGE
   useEffect(() => {
     if (!isRecording) {
       localStorage.setItem('magicSequence', JSON.stringify(recordedSequence));
     }
   }, [recordedSequence, isRecording]);
 
+  // INJECT API AUTO-POLLING LOGIC
+  useEffect(() => {
+    let timer;
+    if (isInjectSyncing && injectUrl) {
+      timer = setInterval(async () => {
+        try {
+          // Append a timestamp so Safari doesn't cache the API response
+          const res = await fetch(`${injectUrl}?t=${Date.now()}`);
+          const text = await res.text();
+          
+          let word = text.trim();
+          
+          // Safety check: if the API returns JSON instead of raw text, parse it
+          try {
+             const json = JSON.parse(text);
+             if (json.text) word = json.text;
+             else if (json.value) word = json.value;
+             else if (json.word) word = json.word;
+          } catch(e) { 
+             // If plain HTML is returned, strip the tags
+             word = word.replace(/<[^>]*>?/gm, '').trim();
+          }
+
+          // If the word exists and is NEW, push it directly to Firebase
+          if (word && word !== lastInjectRef.current) {
+            lastInjectRef.current = word;
+            setCustomText(word); // Updates your Master Deck view
+            set(ref(db, 'buttonText'), word); // Updates Audience phones
+          }
+        } catch (e) {
+          console.log('Inject API Fetch Error:', e);
+        }
+      }, 2000); // Polls every 2 seconds
+    }
+    return () => clearInterval(timer);
+  }, [isInjectSyncing, injectUrl]);
+
+  // INITIALIZE MASTER CAMERA & KEYBOARD LISTENER
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => {
@@ -364,6 +418,17 @@ function ControlView() {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [localMode, audienceMode, redirectUrl]); 
+
+  // MANUAL TEXT CONTROLS
+  const handleSetCustomText = () => {
+    lastInjectRef.current = customText; // Prevent inject API from overriding manual changes
+    set(ref(db, 'buttonText'), customText);
+  };
+  const handleClearCustomText = () => {
+    setCustomText('');
+    lastInjectRef.current = '';
+    set(ref(db, 'buttonText'), '');
+  };
 
   const recordCue = (target, cmd) => {
     if (isRecordingRef.current) {
@@ -640,37 +705,91 @@ function ControlView() {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
-      {/* Secret gateway moved to the top-left, just beneath the URL bar (top-24) to avoid blocking the input or bottom buttons */}
+      {/* Secret gateway dynamically shifted down to top-[220px] so it clears the new 3-row header completely */}
       <div 
         onPointerDown={handleMasterSecretClick}
-        className="absolute top-24 left-0 w-32 h-32 z-[100] bg-black/0 touch-none"
+        className="absolute top-[220px] left-0 w-32 h-32 z-[100] bg-black/0 touch-none"
       />
 
-      <div className="w-full h-20 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 shrink-0 z-20 space-x-3">
-        <div className="flex-1 flex flex-col justify-center">
-          <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
-          <input 
-            type="text" 
-            value={redirectUrl}
-            onChange={(e) => setRedirectUrl(e.target.value)}
-            className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-            placeholder="https://..."
-          />
+      <div className="w-full bg-zinc-900 border-b border-zinc-800 flex flex-col px-4 py-3 shrink-0 z-20 space-y-3">
+        {/* ROW 1: URL Redirect Row */}
+        <div className="flex space-x-3 items-end">
+          <div className="flex-1 flex flex-col">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
+            <input 
+              type="text" 
+              value={redirectUrl}
+              onChange={(e) => setRedirectUrl(e.target.value)}
+              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+              placeholder="https://..."
+            />
+          </div>
+          <button 
+            onPointerDown={handleRedirectDown}
+            onPointerUp={handleRedirectUp}
+            onPointerLeave={handleRedirectUp}
+            onPointerCancel={handleRedirectUp}
+            onContextMenu={(e) => e.preventDefault()}
+            className={`w-24 h-10 rounded flex flex-col items-center justify-center font-bold text-[9px] tracking-widest transition-colors border text-center px-1 ${
+              redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
+              : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
+              : 'bg-zinc-950 border-zinc-800 text-zinc-400'
+            }`}
+          >
+            {redirectStatus}
+          </button>
         </div>
-        <button 
-          onPointerDown={handleRedirectDown}
-          onPointerUp={handleRedirectUp}
-          onPointerLeave={handleRedirectUp}
-          onPointerCancel={handleRedirectUp}
-          onContextMenu={(e) => e.preventDefault()}
-          className={`w-24 h-12 rounded flex flex-col items-center justify-center font-bold text-[9px] tracking-widest transition-colors border text-center px-1 ${
-            redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
-            : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
-            : 'bg-zinc-950 border-zinc-800 text-zinc-400'
-          }`}
-        >
-          {redirectStatus}
-        </button>
+
+        {/* ROW 2: Reveal Text Row (Manual Override) */}
+        <div className="flex space-x-3 items-end">
+          <div className="flex-1 flex flex-col">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Audience Reveal Name</label>
+            <input 
+              type="text" 
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+              placeholder="Leave empty for default..."
+            />
+          </div>
+          <div className="flex space-x-1 w-24">
+            <button 
+              onClick={handleClearCustomText}
+              className="flex-1 h-10 rounded bg-zinc-950 border border-zinc-800 text-zinc-500 font-bold text-[9px] tracking-widest transition-colors"
+            >
+              CLR
+            </button>
+            <button 
+              onClick={handleSetCustomText}
+              className="flex-1 h-10 rounded bg-zinc-800 border border-zinc-600 text-white font-bold text-[9px] tracking-widest transition-colors"
+            >
+              SET
+            </button>
+          </div>
+        </div>
+
+        {/* ROW 3: INJECT API (11z.co auto-pull) */}
+        <div className="flex space-x-3 items-end">
+          <div className="flex-1 flex flex-col">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Inject API URL (11z)</label>
+            <input 
+              type="text" 
+              value={injectUrl}
+              onChange={(e) => setInjectUrl(e.target.value)}
+              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+              placeholder="https://11z.co/..."
+            />
+          </div>
+          <button 
+            onClick={() => setIsInjectSyncing(!isInjectSyncing)}
+            className={`w-24 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${
+              isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+            }`}
+          >
+            {isInjectSyncing ? 'SYNCING...' : 'AUTO-SYNC'}
+          </button>
+        </div>
+
       </div>
 
       <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10">
