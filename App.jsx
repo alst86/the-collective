@@ -34,7 +34,7 @@ function AudienceView({ roomID }) {
 
   const idleTimerRef = useRef(null);
   const IDLE_TIMEOUT_MS = 40 * 1000; 
-  const IDLE_FALLBACK_URL = "https://www.andrewleemagic.com/feedback"; 
+  const IDLE_FALLBACK_URL = "https://instagram.com/andrewleemagic"; 
 
   const resetIdleTimer = () => {
     clearTimeout(idleTimerRef.current);
@@ -175,7 +175,7 @@ function AudienceView({ roomID }) {
       if (url) {
         let finalUrl = url;
         if (!url.startsWith('http') && !url.includes('://')) finalUrl = `https://${url}`;
-        setTimeout(() => window.location.replace("https://www.andrewleemagic.com/feedback"), 30000);
+        setTimeout(() => window.location.replace("https://instagram.com/andrewleemagic"), 30000);
         window.location.replace(finalUrl);
       }
     }
@@ -273,7 +273,7 @@ function ControlView({ roomID }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
-  const [redirectUrl, setRedirectUrl] = useState('https://www.andrewleemagic.com/feedback');
+  const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
   const [customText, setCustomText] = useState('');
   
