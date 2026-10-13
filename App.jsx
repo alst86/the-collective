@@ -229,7 +229,7 @@ function AudienceView({ roomID }) {
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
               You are currently focusing on
             </p>
-            <span className="text-4xl font-black mt-3 mb-3 block tracking-widest drop-shadow-sm">
+            <span className="uppercase text-4xl font-black mt-3 mb-3 block tracking-widest drop-shadow-sm">
               {kickerWord}
             </span>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
@@ -273,7 +273,7 @@ function ControlView({ roomID }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
-  const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
+  const [redirectUrl, setRedirectUrl] = useState('https://www.andrewleemagic.com/feedback');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
   const [customText, setCustomText] = useState('');
   
