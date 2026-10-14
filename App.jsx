@@ -19,7 +19,6 @@ export default function App() {
 // ==========================================
 function AudienceView({ roomID }) {
   const [cameraReady, setCameraReady] = useState(false);
-  const [error, setError] = useState('');
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
   
@@ -33,7 +32,7 @@ function AudienceView({ roomID }) {
   const initialLoadRef = useRef(true); 
 
   const idleTimerRef = useRef(null);
-  const IDLE_TIMEOUT_MS = 40 * 1000; 
+  const IDLE_TIMEOUT_MS = 180 * 1000; // 3 minutes
   const IDLE_FALLBACK_URL = "https://instagram.com/andrewleemagic"; 
 
   const resetIdleTimer = () => {
@@ -89,7 +88,7 @@ function AudienceView({ roomID }) {
       trackRef.current = track;
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (err) {
-      setError('Camera denied. Screen flash active instead.');
+      // Silent fallback to screen flash if camera permission is denied
     } finally {
       setCameraReady(true); 
     }
@@ -110,18 +109,18 @@ function AudienceView({ roomID }) {
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
-      resetIdleTimer(); 
 
       const command = snapshot.val();
       if (command) {
         const safeCommand = String(command);
         const baseCmd = safeCommand.split('|')[0];
+        const isInitialLoad = initialLoadRef.current;
         
-        if (initialLoadRef.current) {
+        if (isInitialLoad) {
           initialLoadRef.current = false;
           if (baseCmd === 'REDIRECT') return; 
         }
-        handleCommand(command);
+        handleCommand(command, isInitialLoad);
       }
     }, () => { setDbStatus('error'); });
 
@@ -140,17 +139,20 @@ function AudienceView({ roomID }) {
     };
   }, [roomID]);
 
-  const handleCommand = (command) => {
+  const handleCommand = (command, isInitialLoad = false) => {
     clearTimeout(timerRef.current);
-    resetIdleTimer(); 
+    clearTimeout(idleTimerRef.current);
     
     const safeCommand = String(command);
     const parts = safeCommand.split('|');
     const baseCmd = parts[0];
     
-    if (baseCmd === 'ON') applyTorch(true);
-    else if (baseCmd === 'OFF') applyTorch(false);
-    else if (baseCmd === 'BLINK') {
+    if (baseCmd === 'ON') {
+      applyTorch(true);
+    } else if (baseCmd === 'OFF') {
+      applyTorch(false);
+      if (!isInitialLoad) resetIdleTimer();
+    } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
       const playHeartbeat = () => {
@@ -171,6 +173,7 @@ function AudienceView({ roomID }) {
       };
       playStrobe();
     } else if (baseCmd === 'REDIRECT') {
+      if (!isInitialLoad) resetIdleTimer();
       const url = parts.slice(2).join('|'); 
       if (url) {
         let finalUrl = url;
@@ -187,7 +190,7 @@ function AudienceView({ roomID }) {
     else secretClickCount.current = 1;
     secretLastClickTime.current = currentTime;
 
-    if (secretClickCount.current === 3) {
+    if (secretClickCount.current === 5) {
       secretClickCount.current = 0;
       const separator = window.location.search ? '&' : '?';
       window.location.href = window.location.pathname + window.location.search + separator + 'master=true';
@@ -198,7 +201,7 @@ function AudienceView({ roomID }) {
     // Default to bg-white text-black, flash to bg-black text-white
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
       
-      <div className="absolute top-4 left-4 z-50">
+      <div className="absolute top-4 left-4 z-50 opacity-20">
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
 
@@ -254,7 +257,6 @@ function AudienceView({ roomID }) {
             <h1 className="text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
               Hold up your<br/>phone
             </h1>
-            {error && <p className="text-red-500 mt-4 text-xs font-bold uppercase tracking-widest">{error}</p>}
           </div>
         </>
       )}
