@@ -31,6 +31,10 @@ function AudienceView({ roomID }) {
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
 
+  // Web Audio & Silent Switch Bypass Refs
+  const audioCtxRef = useRef(null);
+  const silentAudioRef = useRef(null);
+
   const idleTimerRef = useRef(null);
   const IDLE_TIMEOUT_MS = 180 * 1000; // 3 minutes
   const IDLE_FALLBACK_URL = "https://instagram.com/andrewleemagic"; 
@@ -44,6 +48,99 @@ function AudienceView({ roomID }) {
   
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
+
+  // UNLOCK AUDIO & BYPASS iOS SILENT SWITCH (OLD + NEW iOS)
+  const unlockAudio = () => {
+    try {
+      // 1. New iOS (iOS 17+): Native AudioSession API bypasses physical silent switch
+      if ('audioSession' in navigator) {
+        navigator.audioSession.type = 'playback';
+      }
+
+      // 2. Older iOS (iOS 16 & below): Looping an in-memory silent WAV forces Safari onto the Media channel
+      if (!silentAudioRef.current) {
+        const sampleRate = 8000;
+        const numSamples = sampleRate; // 1 second of silence
+        const buffer = new ArrayBuffer(44 + numSamples);
+        const view = new DataView(buffer);
+        const writeStr = (offset, str) => {
+          for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+        };
+        writeStr(0, 'RIFF');
+        view.setUint32(4, 36 + numSamples, true);
+        writeStr(8, 'WAVE');
+        writeStr(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM format
+        view.setUint16(22, 1, true); // Mono
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate, true);
+        view.setUint16(32, 1, true);
+        view.setUint16(34, 8, true); // 8-bit
+        writeStr(36, 'data');
+        view.setUint32(40, numSamples, true);
+        for (let i = 0; i < numSamples; i++) view.setUint8(44 + i, 128); // 128 = midpoint silence
+
+        const blob = new Blob([buffer], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.loop = true;
+        audio.setAttribute('playsinline', '');
+        audio.setAttribute('x-webkit-airplay', 'deny');
+        audio.play().catch(() => {});
+        silentAudioRef.current = audio;
+      }
+
+      // 3. Initialize & Resume Web Audio API Synthesizer
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new AudioCtx();
+        }
+        if (audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume().catch(() => {});
+        }
+      }
+    } catch (e) {}
+  };
+
+  // SYNTHESIZED HEARTBEAT THUD (LUB-DUB)
+  const playHeartbeatThud = (isSecondBeat = false) => {
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      // Low-passed triangle wave gives small phone speakers warm chest-thud harmonics
+      osc.type = 'triangle';
+      const startFreq = isSecondBeat ? 145 : 125;
+      const endFreq = isSecondBeat ? 50 : 40;
+      const duration = isSecondBeat ? 0.11 : 0.14;
+      const peakGain = isSecondBeat ? 0.65 : 0.95;
+
+      osc.frequency.setValueAtTime(startFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(180, now);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(peakGain, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + duration + 0.01);
+    } catch (e) {}
+  };
 
   // WAKE LOCK API
   useEffect(() => {
@@ -73,6 +170,9 @@ function AudienceView({ roomID }) {
   }, [cameraReady]);
 
   const startCamera = async () => {
+    // Must fire synchronously on button tap before any await to satisfy iOS Safari gesture rules
+    unlockAudio();
+
     try {
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -136,6 +236,14 @@ function AudienceView({ roomID }) {
       unsubText();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
+      if (silentAudioRef.current) {
+        silentAudioRef.current.pause();
+        silentAudioRef.current = null;
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+        audioCtxRef.current = null;
+      }
     };
   }, [roomID]);
 
@@ -159,7 +267,12 @@ function AudienceView({ roomID }) {
         const duration = pattern[step];
         const isOn = (step === 0 || step === 2); 
         applyTorch(isOn);
-        if (step === 0 && navigator.vibrate) navigator.vibrate([100, 150, 100]); 
+        if (step === 0) {
+          playHeartbeatThud(false); // First beat: "LUB"
+          if (navigator.vibrate) navigator.vibrate([100, 150, 100]);
+        } else if (step === 2) {
+          playHeartbeatThud(true);  // Second beat: "DUB"
+        }
         step = (step + 1) % pattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
