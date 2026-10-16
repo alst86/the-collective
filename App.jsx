@@ -914,8 +914,44 @@ function ControlView({ roomID }) {
             </button>
           </div>
 
+          {/* --- PROTECTED CHOREOGRAPHY RECORDER & PLAYER --- */}
+          <div className="w-full h-px bg-zinc-800 my-1"></div>
+          <div className="flex items-center justify-between w-full bg-black/50 border border-zinc-800 rounded-lg p-3">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography ({roomID})</span>
+              <span className="text-xs font-mono text-zinc-300">{recordedSequence.length} Cues Saved</span>
+            </div>
+            
+            <div className="flex space-x-2">
+              <button 
+                onClick={handleRecordToggle}
+                className={`px-3 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
+                  isRecording 
+                    ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                }`}
+              >
+                {isRecording ? '■ STOP REC' : '● REC'}
+              </button>
+
+              <button 
+                onClick={handlePlayToggle}
+                disabled={recordedSequence.length === 0 || isRecording}
+                className={`px-4 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
+                  isPlaying
+                    ? 'bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.5)]'
+                    : recordedSequence.length === 0 || isRecording
+                      ? 'bg-zinc-950 border-zinc-800 text-zinc-700 opacity-50'
+                      : 'bg-zinc-800 border-zinc-700 text-white'
+                }`}
+              >
+                {isPlaying ? '■ STOP' : '▶ PLAY'}
+              </button>
+            </div>
+          </div>
+
           {/* --- SHORTCUT TO TEST SPECTATOR VIEW --- */}
-          <div className="w-full h-px bg-zinc-800 my-2"></div>
+          <div className="w-full h-px bg-zinc-800 my-1"></div>
           <button 
             onClick={() => {
               window.location.href = window.location.pathname + '?room=' + roomID;
@@ -1016,51 +1052,22 @@ function ControlView({ roomID }) {
 
       </div>
 
-      <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col px-4 pt-3 pb-8 z-20">
-        
-        <div className="flex items-center justify-between w-full mb-3">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography (Room: {roomID})</span>
-            <span className="text-xs font-mono text-zinc-300">{recordedSequence.length} Cues Saved</span>
-          </div>
-          
-          <div className="flex space-x-2">
-            <button 
-              onClick={handleRecordToggle}
-              className={`px-3 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
-                isRecording 
-                  ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-400'
-              }`}
-            >
-              {isRecording ? '■ STOP REC' : '● REC'}
-            </button>
-
-            <button 
-              onClick={handlePlayToggle}
-              disabled={recordedSequence.length === 0 || isRecording}
-              className={`px-4 py-2 rounded text-[10px] font-bold tracking-widest uppercase transition-colors border ${
-                isPlaying
-                  ? 'bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.5)]'
-                  : recordedSequence.length === 0 || isRecording
-                    ? 'bg-zinc-950 border-zinc-800 text-zinc-700 opacity-50'
-                    : 'bg-zinc-800 border-zinc-700 text-white'
-              }`}
-            >
-              {isPlaying ? '■ STOP SHOW' : '▶ PLAY'}
-            </button>
-          </div>
+      {/* --- CLEAN, ACCIDENTAL-TOUCH-PROOF STATUS FOOTER --- */}
+      <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col items-center px-4 pt-3 pb-8 z-20 space-y-1">
+        <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
+          {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
         </div>
-
-        <div className="flex flex-col items-center space-y-1 w-full opacity-75">
-          <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
-            {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
-          </div>
-          <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest">
-            Last Flic Key: [{lastKey}]
-          </div>
+        <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest flex items-center space-x-2">
+          <span>Last Flic Key: [{lastKey}]</span>
+          <span>•</span>
+          <span className={
+            isRecording ? 'text-red-500 font-bold animate-pulse' : 
+            isPlaying ? 'text-green-400 font-bold animate-pulse' : 
+            'text-zinc-600'
+          }>
+            {isRecording ? '● REC ACTIVE' : isPlaying ? '▶ SEQ PLAYING' : `${recordedSequence.length} Cues`}
+          </span>
         </div>
-        
       </div>
 
     </div>
