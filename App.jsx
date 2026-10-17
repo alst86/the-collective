@@ -868,7 +868,7 @@ function ControlView({ roomID }) {
       </div>
 
       {isSettingsOpen && (
-        <div className="absolute top-16 left-4 right-4 bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
+        <div className="absolute top-16 left-4 right-4 max-h-[82dvh] overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
           <div className="flex flex-col w-full">
             <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
             <input 
@@ -947,6 +947,32 @@ function ControlView({ roomID }) {
               >
                 {isPlaying ? '■ STOP' : '▶ PLAY'}
               </button>
+            </div>
+          </div>
+
+          {/* --- KEYBOARD / FLIC REMOTE TRIGGER LEGEND --- */}
+          <div className="w-full bg-black/50 border border-zinc-800 rounded-lg p-3 flex flex-col space-y-2">
+            <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Keyboard / Flic Triggers</span>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono">
+              <div className="text-zinc-500 font-bold uppercase col-span-1 border-b border-zinc-800 pb-1">Local Cues</div>
+              <div className="text-zinc-500 font-bold uppercase col-span-1 border-b border-zinc-800 pb-1">Master Cues</div>
+
+              <div className="flex justify-between text-zinc-300"><span>Torch ON/OFF</span><span className="text-white font-bold">[U]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Torch ON/OFF</span><span className="text-white font-bold">[D]</span></div>
+
+              <div className="flex justify-between text-zinc-300"><span>Heartbeat</span><span className="text-red-400 font-bold">[R]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Heartbeat</span><span className="text-red-400 font-bold">[L]</span></div>
+
+              <div className="flex justify-between text-zinc-300"><span>Strobe</span><span className="text-yellow-400 font-bold">[E]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Strobe</span><span className="text-yellow-400 font-bold">[S]</span></div>
+
+              <div className="flex justify-between text-zinc-400"><span>Tap/Hold</span><span>[↑ / Vol+]</span></div>
+              <div className="flex justify-between text-zinc-400"><span>Tap/Hold</span><span>[↓ / Vol-]</span></div>
+
+              <div className="col-span-2 h-px bg-zinc-800 my-0.5"></div>
+
+              <div className="flex justify-between text-zinc-300"><span>Play / Stop Seq</span><span className="text-green-400 font-bold">[P]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Instant Redirect</span><span className="text-red-500 font-bold">[I]</span></div>
             </div>
           </div>
 
