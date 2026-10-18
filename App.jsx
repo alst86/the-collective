@@ -322,15 +322,32 @@ function AudienceView({ roomID }) {
 
       {!cameraReady ? (
         <>
-          <div onPointerDown={handleSecretClick} className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none" />
+          {/* Secret 5-tap corner for Master Deck */}
+          <div 
+            onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
+            className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
+          />
 
-          <div className={`flex flex-col items-center w-full max-w-md px-6 z-10 transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}>
+          {/* Option A: Full-screen tap area + Pulsing micro-prompt + Breathing button */}
+          <div 
+            onClick={startCamera}
+            className={`flex flex-col items-center justify-center w-full min-h-[100dvh] max-w-md px-6 z-10 cursor-pointer transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}
+          >
+            {/* Subtle pulsing indicator above the button */}
+            <div className="flex items-center space-x-2 mb-3 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_8px_#dc2626]"></span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                [ Tap to Connect ]
+              </span>
+            </div>
+
             <button 
-              onClick={startCamera}
-              className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
+              onClick={(e) => { e.stopPropagation(); startCamera(); }}
+              className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-[0_12px_35px_rgba(0,0,0,0.22)] mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight ring-4 ring-black/5 animate-pulse"
             >
               BEGIN EXPERIMENT
             </button>
+
             <div className="text-center space-y-2">
               <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest px-4">
                 Please allow camera access when prompted, to sync with the performance
