@@ -1022,7 +1022,7 @@ function ControlView({ roomID }) {
         </div>
       )}
 
-      {/* --- MAIN CONTROL SCREEN (LOCKED FIXED HEIGHT ON RHYTHMIC CUEPAD) --- */}
+      {/* --- MAIN CONTROL SCREEN --- */}
       <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10 px-4">
         
         {/* 1. CHOREOGRAPHY CONTROLS */}
@@ -1062,15 +1062,15 @@ function ControlView({ roomID }) {
           </div>
         </div>
 
-        {/* 2. RHYTHMIC CUEPAD / TEMPO CONTROLS (LOCKED HEIGHT H-[132px]) */}
-        <div className="w-full h-[132px] bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 flex flex-col justify-between">
+        {/* 2. RHYTHMIC CUEPAD / TEMPO CONTROLS (LOCKED FIXED HEIGHT & NON-SHIFTING BPM DISPLAY) */}
+        <div className="w-full h-[132px] bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 flex flex-col justify-between shrink-0">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase">Rhythmic Cuepad (Live Tempo)</span>
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-mono font-bold text-red-500">{displayBpm} BPM</span>
+            <span className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase truncate mr-2">Rhythmic Cuepad (Live Tempo)</span>
+            <div className="flex items-center space-x-2 shrink-0">
+              <span className="text-xs font-mono font-bold text-red-500 whitespace-nowrap">{displayBpm} BPM</span>
               <button 
                 onClick={handleTapTempo}
-                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-[9px] font-bold tracking-widest rounded border border-zinc-700 text-white uppercase"
+                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-[9px] font-bold tracking-widest rounded border border-zinc-700 text-white uppercase whitespace-nowrap"
               >
                 Tap Tempo
               </button>
@@ -1090,7 +1090,7 @@ function ControlView({ roomID }) {
             />
             <button 
               onClick={() => setIsMetronomeActive(!isMetronomeActive)}
-              className={`px-3 py-1.5 rounded text-[9px] font-bold tracking-widest uppercase border transition-colors ${
+              className={`px-3 py-1.5 rounded text-[9px] font-bold tracking-widest uppercase border transition-colors whitespace-nowrap ${
                 isMetronomeActive 
                   ? 'bg-red-600 border-red-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.5)] animate-pulse'
                   : 'bg-zinc-950 border-zinc-800 text-zinc-400'
