@@ -418,7 +418,8 @@ function ControlView({ roomID }) {
   const [isRemoteArmed, setIsRemoteArmed] = useState(false);
 
   // RHYTHMIC CUEPAD STATES
-  const [bpm, setBpm] = useState(72);
+  const [displayBpm, setDisplayBpm] = useState(72);
+  const [activeBpm, setActiveBpm] = useState(72);
   const [isMetronomeActive, setIsMetronomeActive] = useState(false);
   const metronomeTimerRef = useRef(null);
   const tapTimesRef = useRef([]);
@@ -474,7 +475,7 @@ function ControlView({ roomID }) {
 
   useEffect(() => {
     if (isMetronomeActive) {
-      const intervalMs = (60 / bpm) * 1000;
+      const intervalMs = (60 / activeBpm) * 1000;
       let beat = 0;
       const runMetronome = () => {
         fireAudienceCommand(beat % 2 === 0 ? 'STRIKE_LUB' : 'STRIKE_DUB', false);
@@ -486,7 +487,7 @@ function ControlView({ roomID }) {
       clearTimeout(metronomeTimerRef.current);
     }
     return () => clearTimeout(metronomeTimerRef.current);
-  }, [isMetronomeActive, bpm]);
+  }, [isMetronomeActive, activeBpm]);
 
   const handleTapTempo = () => {
     const now = Date.now();
@@ -500,7 +501,8 @@ function ControlView({ roomID }) {
       const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
       const calculatedBpm = Math.round(60000 / avgInterval);
       if (calculatedBpm >= 40 && calculatedBpm <= 200) {
-        setBpm(calculatedBpm);
+        setDisplayBpm(calculatedBpm);
+        setActiveBpm(calculatedBpm);
       }
     }
   };
@@ -632,7 +634,6 @@ function ControlView({ roomID }) {
     });
   };
 
-  // DOUBLE-TAP PROTECTED RECORD BUTTON
   const handleRecordButtonTap = () => {
     if (isRecordingRef.current) {
       setIsRecording(false);
@@ -1021,10 +1022,10 @@ function ControlView({ roomID }) {
         </div>
       )}
 
-      {/* --- MAIN CONTROL SCREEN (ORDERED: 1. CHOREOGRAPHY -> 2. TEMPO -> 3. LOCAL & AUDIENCE CUES) --- */}
+      {/* --- MAIN CONTROL SCREEN (LOCKED FIXED HEIGHT ON RHYTHMIC CUEPAD) --- */}
       <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10 px-4">
         
-        {/* 1. CHOREOGRAPHY CONTROLS (VERY TOP, DOUBLE-TAP REC) */}
+        {/* 1. CHOREOGRAPHY CONTROLS */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 flex items-center justify-between">
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography ({roomID})</span>
@@ -1061,12 +1062,12 @@ function ControlView({ roomID }) {
           </div>
         </div>
 
-        {/* 2. RHYTHMIC CUEPAD / TEMPO CONTROLS */}
-        <div className="w-full bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 flex flex-col space-y-2.5">
+        {/* 2. RHYTHMIC CUEPAD / TEMPO CONTROLS (LOCKED HEIGHT H-[132px]) */}
+        <div className="w-full h-[132px] bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase">Rhythmic Cuepad (Live Tempo)</span>
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-mono font-bold text-red-500">{bpm} BPM</span>
+              <span className="text-xs font-mono font-bold text-red-500">{displayBpm} BPM</span>
               <button 
                 onClick={handleTapTempo}
                 className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-[9px] font-bold tracking-widest rounded border border-zinc-700 text-white uppercase"
@@ -1081,8 +1082,10 @@ function ControlView({ roomID }) {
               type="range" 
               min="40" 
               max="160" 
-              value={bpm} 
-              onChange={(e) => setBpm(Number(e.target.value))}
+              value={displayBpm} 
+              onChange={(e) => setDisplayBpm(Number(e.target.value))}
+              onMouseUp={() => setActiveBpm(displayBpm)}
+              onTouchEnd={() => setActiveBpm(displayBpm)}
               className="flex-1 accent-red-600 bg-zinc-800 h-1.5 rounded-lg appearance-none cursor-pointer"
             />
             <button 
@@ -1097,16 +1100,16 @@ function ControlView({ roomID }) {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-0.5">
+          <div className="grid grid-cols-2 gap-2">
             <button 
               onClick={() => fireAudienceCommand('STRIKE_LUB')}
-              className="py-2 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform"
+              className="py-1.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform"
             >
               💥 LUB (Thud)
             </button>
             <button 
               onClick={() => fireAudienceCommand('STRIKE_DUB')}
-              className="py-2 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform"
+              className="py-1.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform"
             >
               💥 DUB (Snap)
             </button>
