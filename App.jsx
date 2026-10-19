@@ -37,12 +37,12 @@ function AudienceView({ roomID }) {
 
   const idleTimerRef = useRef(null);
   const IDLE_TIMEOUT_MS = 180 * 1000; // 3 minutes
-  const IDLE_FALLBACK_URL = "https://instagram.com/andrewleemagic"; 
+  const IDLE_FALLBACK_URL = ""; 
 
   const resetIdleTimer = () => {
     clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
-      window.location.replace(IDLE_FALLBACK_URL);
+      if (IDLE_FALLBACK_URL) window.location.replace(IDLE_FALLBACK_URL);
     }, IDLE_TIMEOUT_MS);
   };
   
@@ -52,15 +52,13 @@ function AudienceView({ roomID }) {
   // UNLOCK AUDIO & BYPASS iOS SILENT SWITCH (OLD + NEW iOS)
   const unlockAudio = () => {
     try {
-      // 1. New iOS (iOS 17+): Native AudioSession API bypasses physical silent switch
       if ('audioSession' in navigator) {
         navigator.audioSession.type = 'playback';
       }
 
-      // 2. Older iOS (iOS 16 & below): Looping an in-memory silent WAV forces Safari onto the Media channel
       if (!silentAudioRef.current) {
         const sampleRate = 8000;
-        const numSamples = sampleRate; // 1 second of silence
+        const numSamples = sampleRate; 
         const buffer = new ArrayBuffer(44 + numSamples);
         const view = new DataView(buffer);
         const writeStr = (offset, str) => {
@@ -71,15 +69,15 @@ function AudienceView({ roomID }) {
         writeStr(8, 'WAVE');
         writeStr(12, 'fmt ');
         view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true); // PCM format
-        view.setUint16(22, 1, true); // Mono
+        view.setUint16(20, 1, true); 
+        view.setUint16(22, 1, true); 
         view.setUint32(24, sampleRate, true);
         view.setUint32(28, sampleRate, true);
         view.setUint16(32, 1, true);
-        view.setUint16(34, 8, true); // 8-bit
+        view.setUint16(34, 8, true); 
         writeStr(36, 'data');
         view.setUint32(40, numSamples, true);
-        for (let i = 0; i < numSamples; i++) view.setUint8(44 + i, 128); // 128 = midpoint silence
+        for (let i = 0; i < numSamples; i++) view.setUint8(44 + i, 128); 
 
         const blob = new Blob([buffer], { type: 'audio/wav' });
         const url = URL.createObjectURL(blob);
@@ -91,7 +89,6 @@ function AudienceView({ roomID }) {
         silentAudioRef.current = audio;
       }
 
-      // 3. Initialize & Resume Web Audio API Synthesizer
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         if (!audioCtxRef.current) {
@@ -104,7 +101,7 @@ function AudienceView({ roomID }) {
     } catch (e) {}
   };
 
-  // SYNTHESIZED HEARTBEAT THUD (LUB-DUB)
+  // HIGH-OUTPUT SYNTHESIZED HEARTBEAT THUD (+10.8 dB BOOST)
   const playHeartbeatThud = (isSecondBeat = false) => {
     try {
       const ctx = audioCtxRef.current;
@@ -112,33 +109,42 @@ function AudienceView({ roomID }) {
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
+      const oscSub = ctx.createOscillator();
+      const oscPunch = ctx.createOscillator();
       const filter = ctx.createBiquadFilter();
       const gain = ctx.createGain();
 
-      // Low-passed triangle wave gives small phone speakers warm chest-thud harmonics
-      osc.type = 'triangle';
-      const startFreq = isSecondBeat ? 145 : 125;
-      const endFreq = isSecondBeat ? 50 : 40;
-      const duration = isSecondBeat ? 0.11 : 0.14;
-      const peakGain = isSecondBeat ? 0.65 : 0.95;
+      oscSub.type = 'triangle';
+      oscPunch.type = 'sine';
 
-      osc.frequency.setValueAtTime(startFreq, now);
-      osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+      const startFreq = isSecondBeat ? 210 : 185;
+      const endFreq = isSecondBeat ? 70 : 58;
+      const duration = isSecondBeat ? 0.14 : 0.18;
+      const peakGain = isSecondBeat ? 2.4 : 3.5;
+
+      oscSub.frequency.setValueAtTime(startFreq, now);
+      oscSub.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+
+      oscPunch.frequency.setValueAtTime(startFreq * 1.5, now);
+      oscPunch.frequency.exponentialRampToValueAtTime(endFreq * 1.2, now + duration);
 
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(180, now);
+      filter.frequency.setValueAtTime(340, now);
+      filter.Q.setValueAtTime(3.5, now);
 
       gain.gain.setValueAtTime(0.001, now);
-      gain.gain.linearRampToValueAtTime(peakGain, now + 0.015);
+      gain.gain.linearRampToValueAtTime(peakGain, now + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
-      osc.connect(filter);
+      oscSub.connect(filter);
+      oscPunch.connect(filter);
       filter.connect(gain);
       gain.connect(ctx.destination);
 
-      osc.start(now);
-      osc.stop(now + duration + 0.01);
+      oscSub.start(now);
+      oscPunch.start(now);
+      oscSub.stop(now + duration + 0.02);
+      oscPunch.stop(now + duration + 0.02);
     } catch (e) {}
   };
 
@@ -170,9 +176,7 @@ function AudienceView({ roomID }) {
   }, [cameraReady]);
 
   const startCamera = async () => {
-    // Must fire synchronously on button tap before any await to satisfy iOS Safari gesture rules
     unlockAudio();
-
     try {
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -188,7 +192,7 @@ function AudienceView({ roomID }) {
       trackRef.current = track;
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (err) {
-      // Silent fallback to screen flash if camera permission is denied
+      // Fallback
     } finally {
       setCameraReady(true); 
     }
@@ -202,14 +206,13 @@ function AudienceView({ roomID }) {
     } catch (err) {}
   };
 
-  // 1. LISTEN TO FIREBASE COMMANDS ONLY
+  // LISTEN TO FIREBASE COMMANDS
   useEffect(() => {
     const uiTimer = setTimeout(() => setUiReady(true), 300);
 
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
-
       const command = snapshot.val();
       if (command) {
         const safeCommand = String(command);
@@ -260,6 +263,16 @@ function AudienceView({ roomID }) {
     } else if (baseCmd === 'OFF') {
       applyTorch(false);
       if (!isInitialLoad) resetIdleTimer();
+    } else if (baseCmd === 'STRIKE_LUB') {
+      applyTorch(true);
+      playHeartbeatThud(false);
+      if (navigator.vibrate) navigator.vibrate(100);
+      timerRef.current = setTimeout(() => applyTorch(false), 140);
+    } else if (baseCmd === 'STRIKE_DUB') {
+      applyTorch(true);
+      playHeartbeatThud(true);
+      if (navigator.vibrate) navigator.vibrate(70);
+      timerRef.current = setTimeout(() => applyTorch(false), 110);
     } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
@@ -268,10 +281,10 @@ function AudienceView({ roomID }) {
         const isOn = (step === 0 || step === 2); 
         applyTorch(isOn);
         if (step === 0) {
-          playHeartbeatThud(false); // First beat: "LUB"
+          playHeartbeatThud(false); 
           if (navigator.vibrate) navigator.vibrate([100, 150, 100]);
         } else if (step === 2) {
-          playHeartbeatThud(true);  // Second beat: "DUB"
+          playHeartbeatThud(true);  
         }
         step = (step + 1) % pattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
@@ -291,7 +304,7 @@ function AudienceView({ roomID }) {
       if (url) {
         let finalUrl = url;
         if (!url.startsWith('http') && !url.includes('://')) finalUrl = `https://${url}`;
-        setTimeout(() => window.location.replace("https://instagram.com/andrewleemagic"), 30000);
+        if (IDLE_FALLBACK_URL) setTimeout(() => window.location.replace(IDLE_FALLBACK_URL), 30000);
         window.location.replace(finalUrl);
       }
     }
@@ -311,9 +324,7 @@ function AudienceView({ roomID }) {
   };
 
   return (
-    // Default to bg-white text-black, flash to bg-black text-white
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
-      
       <div className="absolute top-4 left-4 z-50 opacity-20">
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
@@ -322,18 +333,15 @@ function AudienceView({ roomID }) {
 
       {!cameraReady ? (
         <>
-          {/* Secret 5-tap corner for Master Deck */}
           <div 
             onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
             className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
           />
 
-          {/* Option A: Full-screen tap area + Pulsing micro-prompt + Breathing button */}
           <div 
             onClick={startCamera}
             className={`flex flex-col items-center justify-center w-full min-h-[100dvh] max-w-md px-6 z-10 cursor-pointer transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}
           >
-            {/* Subtle pulsing indicator above the button */}
             <div className="flex items-center space-x-2 mb-3 animate-pulse">
               <span className="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_8px_#dc2626]"></span>
               <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">
@@ -357,7 +365,6 @@ function AudienceView({ roomID }) {
         </>
       ) : (
         <>
-          {/* THEATRICAL KICKER REVEAL (STATIONARY FADE) */}
           <div className={`absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 transition-opacity duration-500 ${kickerWord ? 'opacity-100' : 'opacity-0'}`}>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
               You are currently focusing on
@@ -370,19 +377,15 @@ function AudienceView({ roomID }) {
             </p>
           </div>
 
-          {/* MINIMALIST SYNC NODE / RED PULSE */}
           <div className="flex-1 flex flex-col items-center justify-center w-full pointer-events-none">
             <div className="relative flex items-center justify-center">
-              {/* Center Dot (Deep Red) */}
               <div className="w-6 h-6 bg-red-600 rounded-full drop-shadow-md"></div>
-              {/* Expanding Rings (Deep Red) */}
               <div className="absolute w-24 h-24 border-2 border-red-600 rounded-full animate-ping opacity-30"></div>
               <div className="absolute w-48 h-48 border border-red-600 rounded-full opacity-10" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
               <div className="absolute w-72 h-72 border border-red-600 rounded-full opacity-5" style={{ animation: 'ping 4s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
             </div>
           </div>
 
-          {/* BOTTOM INSTRUCTION */}
           <div className="absolute bottom-16 left-0 right-0 w-full text-center px-4 pointer-events-none z-20">
             <h1 className="text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
               Hold up your<br/>phone
@@ -401,15 +404,13 @@ function ControlView({ roomID }) {
   const [isReady, setIsReady] = useState(false);
   const trackRef = useRef(null);
   
-  // UI STATES
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
-  const [redirectUrl, setRedirectUrl] = useState('https://instagram.com/andrewleemagic');
+  const [redirectUrl, setRedirectUrl] = useState('');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
   const [customText, setCustomText] = useState('');
   
-  // INJECT API STATES WITH LOCAL MEMORY
   const [injectUrl, setInjectUrl] = useState(() => localStorage.getItem('magicInjectUrl') || '');
   const [injectKey, setInjectKey] = useState(() => localStorage.getItem('magicInjectKey') || 'peek');
   const [isInjectSyncing, setIsInjectSyncing] = useState(() => {
@@ -422,7 +423,12 @@ function ControlView({ roomID }) {
   const hiddenInputRef = useRef(null);
   const [isRemoteArmed, setIsRemoteArmed] = useState(false);
 
-  // CHOREOGRAPHY RECORDING STATES
+  // RHYTHMIC CUEPAD STATES
+  const [bpm, setBpm] = useState(72);
+  const [isMetronomeActive, setIsMetronomeActive] = useState(false);
+  const metronomeTimerRef = useRef(null);
+  const tapTimesRef = useRef([]);
+
   const [isRecording, setIsRecording] = useState(false);
   const isRecordingRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -469,7 +475,43 @@ function ControlView({ roomID }) {
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
   }, [injectUrl, injectKey, isInjectSyncing]);
 
-  // MASTER DECK AUTO-POLLING LOGIC (For Peeking and Audience Kicker Sync)
+  // METRONOME LOOP EFFECT
+  useEffect(() => {
+    if (isMetronomeActive) {
+      const intervalMs = (60 / bpm) * 1000;
+      let beat = 0;
+      const runMetronome = () => {
+        // Fire alternating LUB / DUB strikes at the set tempo
+        fireAudienceCommand(beat % 2 === 0 ? 'STRIKE_LUB' : 'STRIKE_DUB', true);
+        beat++;
+        metronomeTimerRef.current = setTimeout(runMetronome, intervalMs);
+      };
+      runMetronome();
+    } else {
+      clearTimeout(metronomeTimerRef.current);
+    }
+    return () => clearTimeout(metronomeTimerRef.current);
+  }, [isMetronomeActive, bpm]);
+
+  const handleTapTempo = () => {
+    const now = Date.now();
+    tapTimesRef.current.push(now);
+    // Keep last 4 taps
+    if (tapTimesRef.current.length > 4) tapTimesRef.current.shift();
+    if (tapTimesRef.current.length > 1) {
+      const intervals = [];
+      for (let i = 1; i < tapTimesRef.current.length; i++) {
+        intervals.push(tapTimesRef.current[i] - tapTimesRef.current[i - 1]);
+      }
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const calculatedBpm = Math.round(60000 / avgInterval);
+      if (calculatedBpm >= 40 && calculatedBpm <= 200) {
+        setBpm(calculatedBpm);
+      }
+    }
+  };
+
+  // MASTER DECK AUTO-POLLING LOGIC
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
@@ -499,7 +541,6 @@ function ControlView({ roomID }) {
         if (word && word !== lastInjectRef.current) {
           lastInjectRef.current = word;
           setPeekedWord(word);
-          // Push to Firebase so audience phone can display the kicker
           set(ref(db, `${roomID}/buttonText`), word);
         }
       } catch (e) {}
@@ -661,7 +702,7 @@ function ControlView({ roomID }) {
 
   const applyLocalTorch = (active) => {
     if (trackRef.current) {
-      trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => console.log(e));
+      trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => {});
     }
   };
 
@@ -773,7 +814,7 @@ function ControlView({ roomID }) {
       redirectPressTimer.current = null;
       fireAudienceCommand('REDIRECT');
       setRedirectStatus('FIRED!');
-      let finalUrl = redirectUrl;
+      let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
       if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
       setTimeout(() => window.location.replace(finalUrl), 300);
     }, 800); 
@@ -792,7 +833,7 @@ function ControlView({ roomID }) {
   const fireInstantRedirect = () => {
     fireAudienceCommand('REDIRECT');
     setRedirectStatus('FIRED!');
-    let finalUrl = redirectUrl;
+    let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
     if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
     setTimeout(() => window.location.replace(finalUrl), 300);
   };
@@ -812,7 +853,7 @@ function ControlView({ roomID }) {
 
     if (masterSecretClickCount.current === 3) {
       masterSecretClickCount.current = 0;
-      let finalUrl = redirectUrl;
+      let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
       if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
       window.location.replace(finalUrl);
     }
@@ -931,7 +972,7 @@ function ControlView({ roomID }) {
             </button>
           </div>
 
-          {/* --- PROTECTED CHOREOGRAPHY RECORDER & PLAYER --- */}
+          {/* --- CHOREOGRAPHY RECORDER --- */}
           <div className="w-full h-px bg-zinc-800 my-1"></div>
           <div className="flex items-center justify-between w-full bg-black/50 border border-zinc-800 rounded-lg p-3">
             <div className="flex flex-col">
@@ -993,7 +1034,6 @@ function ControlView({ roomID }) {
             </div>
           </div>
 
-          {/* --- SHORTCUT TO TEST SPECTATOR VIEW --- */}
           <div className="w-full h-px bg-zinc-800 my-1"></div>
           <button 
             onClick={() => {
@@ -1003,58 +1043,69 @@ function ControlView({ roomID }) {
           >
             👁️ TEST SPECTATOR VIEW
           </button>
-
         </div>
       )}
 
-      <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10">
+      {/* --- MAIN CONTROL SCREEN WITH RHYTHMIC CUEPAD --- */}
+      <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10 px-4">
         
-        <div className="flex flex-col items-center w-full">
-          <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">LOCAL CUE</div>
-          <div className="text-lg mb-4">
-            <span className="text-zinc-400">State: </span>
-            <span className={
-              localMode === 'OFF' ? 'text-red-500 font-bold' : 
-              localMode === 'ON' ? 'text-white font-bold' : 
-              localMode === 'STROBE' ? 'text-yellow-400 font-bold animate-pulse' : 
-              'text-red-500 font-bold animate-pulse'
-            }>
-              {localMode === 'OFF' ? 'BLACKOUT' : localMode === 'ON' ? 'ILLUMINATED' : localMode === 'STROBE' ? 'STROBING' : 'HEARTBEAT'}
-            </span>
+        {/* TEMPO & RHYTHMIC CUEPAD CONTROLS */}
+        <div className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 flex flex-col space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase">Rhythmic Cuepad (Live Tempo)</span>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-mono font-bold text-red-500">{bpm} BPM</span>
+              <button 
+                onClick={handleTapTempo}
+                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-[9px] font-bold tracking-widest rounded border border-zinc-700 text-white uppercase"
+              >
+                Tap Tempo
+              </button>
+            </div>
           </div>
-          <button
-            onPointerDown={handleLocalDown}
-            onPointerUp={handleLocalUp}
-            onPointerLeave={handleLocalUp}
-            onPointerCancel={handleLocalUp}
-            onContextMenu={(e) => e.preventDefault()}
-            className={`w-32 h-32 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
-              localMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
-              localMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.2)]' :
-              localMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_30px_rgba(250,204,21,0.3)]' :
-              'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_30px_rgba(220,38,38,0.3)]'
-            }`}
-          >
-            <span className="font-bold tracking-widest text-xs uppercase">
-              {localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : localMode === 'STROBE' ? 'STROBING' : 'PULSING'}
-            </span>
-          </button>
-          
-          <div className="mt-3 flex space-x-3">
+
+          <div className="flex items-center space-x-3">
+            <input 
+              type="range" 
+              min="40" 
+              max="160" 
+              value={bpm} 
+              onChange={(e) => setBpm(Number(e.target.value))}
+              className="flex-1 accent-red-600 bg-zinc-800 h-1.5 rounded-lg appearance-none cursor-pointer"
+            />
             <button 
-              onPointerDown={(e) => { e.preventDefault(); toggleLocalStrobe(); }}
-              className={`px-4 py-2 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+              onClick={() => setIsMetronomeActive(!isMetronomeActive)}
+              className={`px-4 py-1.5 rounded text-[9px] font-bold tracking-widest uppercase border transition-colors ${
+                isMetronomeActive 
+                  ? 'bg-red-600 border-red-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.5)] animate-pulse'
+                  : 'bg-zinc-950 border-zinc-800 text-zinc-400'
+              }`}
             >
-              ⚡ STROBE (e)
+              {isMetronomeActive ? '■ STOP PULSE' : '▶ AUTO PULSE'}
+            </button>
+          </div>
+
+          {/* MANUAL LIVE STRIKE PADS */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button 
+              onClick={() => fireAudienceCommand('STRIKE_LUB')}
+              className="py-2.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform shadow-sm"
+            >
+              💥 LUB (Thud)
+            </button>
+            <button 
+              onClick={() => fireAudienceCommand('STRIKE_DUB')}
+              className="py-2.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform shadow-sm"
+            >
+              💥 DUB (Snap)
             </button>
           </div>
         </div>
 
-        <div className="w-full h-px bg-zinc-900 shrink-0 my-2"></div>
-
+        {/* MASTER CUE BUTTON */}
         <div className="flex flex-col items-center w-full">
-          <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE</div>
-          <div className="text-lg mb-4">
+          <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE (AUDIENCE)</div>
+          <div className="text-lg mb-2">
             <span className="text-zinc-400">State: </span>
             <span className={
               audienceMode === 'OFF' ? 'text-red-500 font-bold' : 
@@ -1071,7 +1122,7 @@ function ControlView({ roomID }) {
             onPointerLeave={handleAudienceUp}
             onPointerCancel={handleAudienceUp}
             onContextMenu={(e) => e.preventDefault()}
-            className={`w-32 h-32 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+            className={`w-28 h-28 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
               audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
               audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.2)]' :
               audienceMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_30px_rgba(250,204,21,0.3)]' :
@@ -1083,10 +1134,10 @@ function ControlView({ roomID }) {
             </span>
           </button>
           
-          <div className="mt-3 flex space-x-3">
+          <div className="mt-2 flex space-x-3">
             <button 
               onPointerDown={(e) => { e.preventDefault(); toggleAudienceStrobe(); }}
-              className={`px-4 py-2 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+              className={`px-4 py-1.5 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
             >
               ⚡ STROBE (s)
             </button>
@@ -1095,7 +1146,7 @@ function ControlView({ roomID }) {
 
       </div>
 
-      {/* --- CLEAN, ACCIDENTAL-TOUCH-PROOF STATUS FOOTER --- */}
+      {/* --- STATUS FOOTER --- */}
       <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col items-center px-4 pt-3 pb-8 z-20 space-y-1">
         <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
           {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
