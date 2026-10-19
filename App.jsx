@@ -22,7 +22,6 @@ function AudienceView({ roomID }) {
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
   
-  // The secret word for the kicker ending
   const [kickerWord, setKickerWord] = useState('');
   const [uiReady, setUiReady] = useState(false);
 
@@ -31,12 +30,11 @@ function AudienceView({ roomID }) {
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
 
-  // Web Audio & Silent Switch Bypass Refs
   const audioCtxRef = useRef(null);
   const silentAudioRef = useRef(null);
 
   const idleTimerRef = useRef(null);
-  const IDLE_TIMEOUT_MS = 180 * 1000; // 3 minutes
+  const IDLE_TIMEOUT_MS = 180 * 1000; 
   const IDLE_FALLBACK_URL = ""; 
 
   const resetIdleTimer = () => {
@@ -49,7 +47,6 @@ function AudienceView({ roomID }) {
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
-  // UNLOCK AUDIO & BYPASS iOS SILENT SWITCH (OLD + NEW iOS)
   const unlockAudio = () => {
     try {
       if ('audioSession' in navigator) {
@@ -101,7 +98,6 @@ function AudienceView({ roomID }) {
     } catch (e) {}
   };
 
-  // HIGH-OUTPUT SYNTHESIZED HEARTBEAT THUD (+10.8 dB BOOST)
   const playHeartbeatThud = (isSecondBeat = false) => {
     try {
       const ctx = audioCtxRef.current;
@@ -148,7 +144,6 @@ function AudienceView({ roomID }) {
     } catch (e) {}
   };
 
-  // WAKE LOCK API
   useEffect(() => {
     let wakeLock = null;
     const requestWakeLock = async () => {
@@ -206,7 +201,6 @@ function AudienceView({ roomID }) {
     } catch (err) {}
   };
 
-  // LISTEN TO FIREBASE COMMANDS
   useEffect(() => {
     const uiTimer = setTimeout(() => setUiReady(true), 300);
 
@@ -475,13 +469,11 @@ function ControlView({ roomID }) {
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
   }, [injectUrl, injectKey, isInjectSyncing]);
 
-  // METRONOME LOOP EFFECT
   useEffect(() => {
     if (isMetronomeActive) {
       const intervalMs = (60 / bpm) * 1000;
       let beat = 0;
       const runMetronome = () => {
-        // Fire alternating LUB / DUB strikes at the set tempo
         fireAudienceCommand(beat % 2 === 0 ? 'STRIKE_LUB' : 'STRIKE_DUB', true);
         beat++;
         metronomeTimerRef.current = setTimeout(runMetronome, intervalMs);
@@ -496,7 +488,6 @@ function ControlView({ roomID }) {
   const handleTapTempo = () => {
     const now = Date.now();
     tapTimesRef.current.push(now);
-    // Keep last 4 taps
     if (tapTimesRef.current.length > 4) tapTimesRef.current.shift();
     if (tapTimesRef.current.length > 1) {
       const intervals = [];
@@ -511,7 +502,6 @@ function ControlView({ roomID }) {
     }
   };
 
-  // MASTER DECK AUTO-POLLING LOGIC
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
@@ -972,7 +962,6 @@ function ControlView({ roomID }) {
             </button>
           </div>
 
-          {/* --- CHOREOGRAPHY RECORDER --- */}
           <div className="w-full h-px bg-zinc-800 my-1"></div>
           <div className="flex items-center justify-between w-full bg-black/50 border border-zinc-800 rounded-lg p-3">
             <div className="flex flex-col">
@@ -1008,7 +997,6 @@ function ControlView({ roomID }) {
             </div>
           </div>
 
-          {/* --- KEYBOARD / FLIC REMOTE TRIGGER LEGEND --- */}
           <div className="w-full bg-black/50 border border-zinc-800 rounded-lg p-3 flex flex-col space-y-2">
             <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Keyboard / Flic Triggers</span>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono">
@@ -1046,13 +1034,13 @@ function ControlView({ roomID }) {
         </div>
       )}
 
-      {/* --- MAIN CONTROL SCREEN WITH RHYTHMIC CUEPAD --- */}
-      <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10 px-4">
+      {/* --- BALANCED CONTROL SCREEN (RHYTHMIC CUEPAD + LOCAL CUE + MASTER CUE) --- */}
+      <div className="flex-1 flex flex-col justify-between items-center w-full min-h-0 py-2 z-10 px-4 overflow-y-auto">
         
-        {/* TEMPO & RHYTHMIC CUEPAD CONTROLS */}
-        <div className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 flex flex-col space-y-3">
+        {/* 1. RHYTHMIC CUEPAD */}
+        <div className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 flex flex-col space-y-2 shrink-0 my-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase">Rhythmic Cuepad (Live Tempo)</span>
+            <span className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase">Rhythmic Cuepad</span>
             <div className="flex items-center space-x-2">
               <span className="text-xs font-mono font-bold text-red-500">{bpm} BPM</span>
               <button 
@@ -1075,7 +1063,7 @@ function ControlView({ roomID }) {
             />
             <button 
               onClick={() => setIsMetronomeActive(!isMetronomeActive)}
-              className={`px-4 py-1.5 rounded text-[9px] font-bold tracking-widest uppercase border transition-colors ${
+              className={`px-3 py-1 rounded text-[9px] font-bold tracking-widest uppercase border transition-colors ${
                 isMetronomeActive 
                   ? 'bg-red-600 border-red-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.5)] animate-pulse'
                   : 'bg-zinc-950 border-zinc-800 text-zinc-400'
@@ -1085,73 +1073,91 @@ function ControlView({ roomID }) {
             </button>
           </div>
 
-          {/* MANUAL LIVE STRIKE PADS */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="grid grid-cols-2 gap-2">
             <button 
               onClick={() => fireAudienceCommand('STRIKE_LUB')}
-              className="py-2.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform shadow-sm"
+              className="py-1.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[9px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform"
             >
               💥 LUB (Thud)
             </button>
             <button 
               onClick={() => fireAudienceCommand('STRIKE_DUB')}
-              className="py-2.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform shadow-sm"
+              className="py-1.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[9px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform"
             >
               💥 DUB (Snap)
             </button>
           </div>
         </div>
 
-        {/* MASTER CUE BUTTON */}
-        <div className="flex flex-col items-center w-full">
-          <div className="text-zinc-500 font-bold tracking-widest text-xs uppercase mb-1">MASTER CUE (AUDIENCE)</div>
-          <div className="text-lg mb-2">
-            <span className="text-zinc-400">State: </span>
-            <span className={
-              audienceMode === 'OFF' ? 'text-red-500 font-bold' : 
-              audienceMode === 'ON' ? 'text-white font-bold' : 
-              audienceMode === 'STROBE' ? 'text-yellow-400 font-bold animate-pulse' : 
-              'text-red-500 font-bold animate-pulse'
-            }>
-              {audienceMode === 'OFF' ? 'BLACKOUT' : audienceMode === 'ON' ? 'ILLUMINATED' : audienceMode === 'STROBE' ? 'STROBING' : 'HEARTBEAT'}
-            </span>
-          </div>
-          <button
-            onPointerDown={handleAudienceDown}
-            onPointerUp={handleAudienceUp}
-            onPointerLeave={handleAudienceUp}
-            onPointerCancel={handleAudienceUp}
-            onContextMenu={(e) => e.preventDefault()}
-            className={`w-28 h-28 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
-              audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
-              audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.2)]' :
-              audienceMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_30px_rgba(250,204,21,0.3)]' :
-              'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_30px_rgba(220,38,38,0.3)]'
-            }`}
-          >
-            <span className="font-bold tracking-widest text-xs uppercase">
-              {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : audienceMode === 'STROBE' ? 'STROBING' : 'PULSING'}
-            </span>
-          </button>
+        {/* 2. LOCAL CUE & MASTER CUE SIDE-BY-SIDE OR STACKED COMPACTLY */}
+        <div className="w-full grid grid-cols-2 gap-3 shrink-0 my-1">
           
-          <div className="mt-2 flex space-x-3">
+          {/* LOCAL CUE */}
+          <div className="flex flex-col items-center bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-2">
+            <div className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-1">LOCAL CUE</div>
+            <button
+              onPointerDown={handleLocalDown}
+              onPointerUp={handleLocalUp}
+              onPointerLeave={handleLocalUp}
+              onPointerCancel={handleLocalUp}
+              onContextMenu={(e) => e.preventDefault()}
+              className={`w-20 h-20 rounded-full border-2 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+                localMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
+                localMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.2)]' :
+                localMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_20px_rgba(250,204,21,0.3)]' :
+                'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_20px_rgba(220,38,38,0.3)]'
+              }`}
+            >
+              <span className="font-bold tracking-widest text-[9px] uppercase text-center px-1">
+                {localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : localMode === 'STROBE' ? 'STROBE' : 'PULSING'}
+              </span>
+            </button>
+            <button 
+              onPointerDown={(e) => { e.preventDefault(); toggleLocalStrobe(); }}
+              className={`mt-2 px-2.5 py-1 rounded-full border text-[8px] font-bold tracking-widest transition-colors ${localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+            >
+              ⚡ STROBE (e)
+            </button>
+          </div>
+
+          {/* MASTER CUE */}
+          <div className="flex flex-col items-center bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-2">
+            <div className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-1">MASTER CUE</div>
+            <button
+              onPointerDown={handleAudienceDown}
+              onPointerUp={handleAudienceUp}
+              onPointerLeave={handleAudienceUp}
+              onPointerCancel={handleAudienceUp}
+              onContextMenu={(e) => e.preventDefault()}
+              className={`w-20 h-20 rounded-full border-2 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+                audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
+                audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.2)]' :
+                audienceMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_20px_rgba(250,204,21,0.3)]' :
+                'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_20px_rgba(220,38,38,0.3)]'
+              }`}
+            >
+              <span className="font-bold tracking-widest text-[9px] uppercase text-center px-1">
+                {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : audienceMode === 'STROBE' ? 'STROBE' : 'PULSING'}
+              </span>
+            </button>
             <button 
               onPointerDown={(e) => { e.preventDefault(); toggleAudienceStrobe(); }}
-              className={`px-4 py-1.5 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+              className={`mt-2 px-2.5 py-1 rounded-full border text-[8px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
             >
               ⚡ STROBE (s)
             </button>
           </div>
+
         </div>
 
       </div>
 
       {/* --- STATUS FOOTER --- */}
-      <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col items-center px-4 pt-3 pb-8 z-20 space-y-1">
+      <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col items-center px-4 pt-2 pb-8 z-20 space-y-0.5">
         <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
           {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
         </div>
-        <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest flex items-center space-x-2">
+        <div className="text-zinc-600 font-mono text-[9px] uppercase tracking-widest flex items-center space-x-2">
           <span>Last Flic Key: [{lastKey}]</span>
           <span>•</span>
           <span className={
