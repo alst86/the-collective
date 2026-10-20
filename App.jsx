@@ -298,7 +298,6 @@ function AudienceView({ roomID }) {
       if (url) {
         let finalUrl = url;
         if (!url.startsWith('http') && !url.includes('://')) finalUrl = `https://${url}`;
-        if (IDLE_FALLBACK_URL) setTimeout(() => window.location.replace(IDLE_FALLBACK_URL), 30000);
         window.location.replace(finalUrl);
       }
     }
@@ -821,26 +820,23 @@ function ControlView({ roomID }) {
     if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isRedirectPressing.current) return;
     isRedirectPressing.current = true;
-    setRedirectStatus('HOLDING...');
+    setRedirectStatus('FIRED!');
     
-    redirectPressTimer.current = setTimeout(() => {
+    // INSTANT REDIRECT ON MOUSE/FINGER DOWN (NO 800MS HOLD DELAY)
+    if (redirectPressTimer.current) {
+      clearTimeout(redirectPressTimer.current);
       redirectPressTimer.current = null;
-      fireAudienceCommand('REDIRECT');
-      setRedirectStatus('FIRED!');
-      let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
-      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
-      setTimeout(() => window.location.replace(finalUrl), 300);
-    }, 800); 
+    }
+    
+    fireAudienceCommand('REDIRECT');
+    let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
+    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
+    window.location.replace(finalUrl);
   };
   
   const handleRedirectUp = () => {
     if (!isRedirectPressing.current) return;
     isRedirectPressing.current = false;
-    if (redirectPressTimer.current) {
-      clearTimeout(redirectPressTimer.current);
-      redirectPressTimer.current = null;
-      setRedirectStatus('HOLD TO REDIRECT');
-    }
   };
 
   const fireInstantRedirect = () => {
@@ -848,7 +844,7 @@ function ControlView({ roomID }) {
     setRedirectStatus('FIRED!');
     let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
     if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
-    setTimeout(() => window.location.replace(finalUrl), 300);
+    window.location.replace(finalUrl);
   };
 
   const armRemote = (e) => {
@@ -905,7 +901,6 @@ function ControlView({ roomID }) {
           onContextMenu={(e) => e.preventDefault()}
           className={`px-3 py-1.5 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${
             redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
-            : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
             : 'bg-zinc-950 border-zinc-800 text-zinc-400'
           }`}
         >
@@ -1062,7 +1057,7 @@ function ControlView({ roomID }) {
           </div>
         </div>
 
-        {/* 2. RHYTHMIC CUEPAD / TEMPO CONTROLS (LOCKED FIXED HEIGHT & NON-SHIFTING BPM DISPLAY) */}
+        {/* 2. RHYTHMIC CUEPAD / TEMPO CONTROLS */}
         <div className="w-full h-[132px] bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 flex flex-col justify-between shrink-0">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase truncate mr-2">Rhythmic Cuepad (Live Tempo)</span>
