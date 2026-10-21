@@ -414,7 +414,7 @@ function ControlView({ roomID }) {
   const lastInjectRef = useRef('');
   const [lastKey, setLastKey] = useState('NONE'); 
   const hiddenInputRef = useRef(null);
-  const [isRemoteArmed, setIsRemoteArmed] = useState(false);
+  const deckContainerRef = useRef(null);
 
   // RHYTHMIC CUEPAD STATES
   const [displayBpm, setDisplayBpm] = useState(72);
@@ -547,56 +547,74 @@ function ControlView({ roomID }) {
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
+  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
-      .catch(err => { setIsReady(true); });
+      .catch(() => { setIsReady(true); });
 
-    const armTimer = setTimeout(() => {
-      if (hiddenInputRef.current) hiddenInputRef.current.focus();
-    }, 1000);
+    const keepRemoteLocked = () => {
+      // Only allow text inputs inside Settings to hold focus; otherwise lock focus to the deck
+      const activeEl = document.activeElement;
+      const isTypingInSettings = activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'text' && activeEl !== hiddenInputRef.current;
+      if (!isTypingInSettings) {
+        if (activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'range') {
+          activeEl.blur();
+        }
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.focus({ preventScroll: true });
+        }
+      }
+    };
+
+    const focusInterval = setInterval(keepRemoteLocked, 600);
 
     const handleKeyDown = (e) => {
       if (e.repeat) return; 
-      if (e.target.tagName === 'INPUT' && e.target !== hiddenInputRef.current) return;
+      const activeEl = document.activeElement;
+      const isTypingInSettings = activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'text' && activeEl !== hiddenInputRef.current;
+      if (isTypingInSettings) return;
       
       const k = e.key;
       setLastKey(k);
 
       if (isPlayingRef.current) { handleStopPlayback(); return; }
-      if (k === 'p' || k === 'P') { handlePlayToggle(); return; }
+      if (k === 'p' || k === 'P') { e.preventDefault(); handlePlayToggle(); return; }
       
-      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalDown(); 
-      else if (k === 'ArrowRight') startLocalHeartbeat(); 
-      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceDown(); 
-      else if (k === 'ArrowLeft') startAudienceHeartbeat(); 
-      else if (k === 'u' || k === 'U') toggleLocalTorch();
-      else if (k === 'r' || k === 'R') toggleLocalHeartbeat();
-      else if (k === 'e' || k === 'E') toggleLocalStrobe();
-      else if (k === 'd' || k === 'D') toggleAudienceTorch();
-      else if (k === 'l' || k === 'L') toggleAudienceHeartbeat();
-      else if (k === 's' || k === 'S') toggleAudienceStrobe();
-      else if (k === 'i' || k === 'I') fireInstantRedirect(); 
+      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') { e.preventDefault(); handleLocalDown(); }
+      else if (k === 'ArrowRight') { e.preventDefault(); startLocalHeartbeat(); }
+      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') { e.preventDefault(); handleAudienceDown(); }
+      else if (k === 'ArrowLeft') { e.preventDefault(); startAudienceHeartbeat(); }
+      else if (k === 'u' || k === 'U') { e.preventDefault(); toggleLocalTorch(); }
+      else if (k === 'r' || k === 'R') { e.preventDefault(); toggleLocalHeartbeat(); }
+      else if (k === 'e' || k === 'E') { e.preventDefault(); toggleLocalStrobe(); }
+      else if (k === 'd' || k === 'D') { e.preventDefault(); toggleAudienceTorch(); }
+      else if (k === 'l' || k === 'L') { e.preventDefault(); toggleAudienceHeartbeat(); }
+      else if (k === 's' || k === 'S') { e.preventDefault(); toggleAudienceStrobe(); }
+      else if (k === 'i' || k === 'I') { e.preventDefault(); fireInstantRedirect(); }
     };
 
     const handleKeyUp = (e) => {
-      if (e.target.tagName === 'INPUT' && e.target !== hiddenInputRef.current) return;
+      const activeEl = document.activeElement;
+      const isTypingInSettings = activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'text' && activeEl !== hiddenInputRef.current;
+      if (isTypingInSettings) return;
+
       const k = e.key;
-      
-      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') handleLocalUp();
-      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') handleAudienceUp();
-      else if (k === 'ArrowRight') stopLocalHeartbeat(); 
-      else if (k === 'ArrowLeft') stopAudienceHeartbeat(); 
+      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') { e.preventDefault(); handleLocalUp(); }
+      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') { e.preventDefault(); handleAudienceUp(); }
+      else if (k === 'ArrowRight') { e.preventDefault(); stopLocalHeartbeat(); }
+      else if (k === 'ArrowLeft') { e.preventDefault(); stopAudienceHeartbeat(); }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    // Capture phase = true guarantees keystrokes are caught even if no input is focused
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
 
     return () => {
-      clearTimeout(armTimer);
+      clearInterval(focusInterval);
       clearTimeout(recConfirmTimeoutRef.current);
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
     };
   }, [localMode, audienceMode, redirectUrl]); 
 
@@ -766,7 +784,6 @@ function ControlView({ roomID }) {
   const toggleLocalStrobe = () => localMode === 'STROBE' ? turnLocalOff() : startLocalStrobe();
 
   const handleLocalDown = () => {
-    if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isLocalPressing.current) return;
     isLocalPressing.current = true;
     localPressTimer.current = setTimeout(() => {
@@ -797,7 +814,6 @@ function ControlView({ roomID }) {
   const toggleAudienceStrobe = () => audienceMode === 'STROBE' ? turnAudienceOff() : startAudienceStrobe();
 
   const handleAudienceDown = () => {
-    if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isAudiencePressing.current) return;
     isAudiencePressing.current = true;
     audiencePressTimer.current = setTimeout(() => {
@@ -817,12 +833,10 @@ function ControlView({ roomID }) {
   };
 
   const handleRedirectDown = () => {
-    if (hiddenInputRef.current) hiddenInputRef.current.focus(); 
     if (isRedirectPressing.current) return;
     isRedirectPressing.current = true;
     setRedirectStatus('FIRED!');
     
-    // INSTANT REDIRECT ON MOUSE/FINGER DOWN (NO 800MS HOLD DELAY)
     if (redirectPressTimer.current) {
       clearTimeout(redirectPressTimer.current);
       redirectPressTimer.current = null;
@@ -848,8 +862,8 @@ function ControlView({ roomID }) {
   };
 
   const armRemote = (e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-    if (hiddenInputRef.current) hiddenInputRef.current.focus();
+    if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+    if (hiddenInputRef.current) hiddenInputRef.current.focus({ preventScroll: true });
   };
 
   const handleMasterSecretClick = (e) => {
@@ -872,18 +886,19 @@ function ControlView({ roomID }) {
 
   return (
     <div 
+      ref={deckContainerRef}
+      tabIndex={-1}
       onClick={armRemote}
-      className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans"
+      className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans outline-none"
     >
       <input 
         ref={hiddenInputRef}
         type="text"
+        readOnly
         inputMode="none" 
         autoComplete="off"
         autoCorrect="off"
         spellCheck="false"
-        onFocus={() => setIsRemoteArmed(true)}
-        onBlur={() => setIsRemoteArmed(false)}
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
@@ -1079,8 +1094,8 @@ function ControlView({ roomID }) {
               max="160" 
               value={displayBpm} 
               onChange={(e) => setDisplayBpm(Number(e.target.value))}
-              onMouseUp={() => setActiveBpm(displayBpm)}
-              onTouchEnd={() => setActiveBpm(displayBpm)}
+              onMouseUp={(e) => { setActiveBpm(displayBpm); e.target.blur(); }}
+              onTouchEnd={(e) => { setActiveBpm(displayBpm); e.target.blur(); }}
               className="flex-1 accent-red-600 bg-zinc-800 h-1.5 rounded-lg appearance-none cursor-pointer"
             />
             <button 
@@ -1202,8 +1217,8 @@ function ControlView({ roomID }) {
 
       {/* --- STATUS FOOTER --- */}
       <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col items-center px-4 pt-3 pb-8 z-20 space-y-1">
-        <div className={`text-[10px] font-bold uppercase tracking-widest ${isRemoteArmed ? 'text-green-500' : 'text-red-500 animate-pulse'}`}>
-          {isRemoteArmed ? '🟢 REMOTE ARMED' : '🔴 TAP SCREEN TO ARM REMOTE'}
+        <div className="text-[10px] font-bold uppercase tracking-widest text-green-500">
+          🟢 FLIC REMOTE LOCKED (ALWAYS ON)
         </div>
         <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest flex items-center space-x-2">
           <span>Last Flic Key: [{lastKey}]</span>
