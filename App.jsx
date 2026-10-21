@@ -554,7 +554,6 @@ function ControlView({ roomID }) {
       .catch(() => { setIsReady(true); });
 
     const keepRemoteLocked = () => {
-      // Only allow text inputs inside Settings to hold focus; otherwise lock focus to the deck
       const activeEl = document.activeElement;
       const isTypingInSettings = activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'text' && activeEl !== hiddenInputRef.current;
       if (!isTypingInSettings) {
@@ -606,7 +605,6 @@ function ControlView({ roomID }) {
       else if (k === 'ArrowLeft') { e.preventDefault(); stopAudienceHeartbeat(); }
     };
 
-    // Capture phase = true guarantees keystrokes are caught even if no input is focused
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp, true);
 
@@ -832,25 +830,30 @@ function ControlView({ roomID }) {
     } else stopAudienceHeartbeat();
   };
 
+  // HOLD-TO-REDIRECT SAFETY LOGIC (800MS HOLD)
   const handleRedirectDown = () => {
     if (isRedirectPressing.current) return;
     isRedirectPressing.current = true;
-    setRedirectStatus('FIRED!');
+    setRedirectStatus('HOLDING...');
     
-    if (redirectPressTimer.current) {
-      clearTimeout(redirectPressTimer.current);
+    redirectPressTimer.current = setTimeout(() => {
       redirectPressTimer.current = null;
-    }
-    
-    fireAudienceCommand('REDIRECT');
-    let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
-    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
-    window.location.replace(finalUrl);
+      fireAudienceCommand('REDIRECT');
+      setRedirectStatus('FIRED!');
+      let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
+      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
+      window.location.replace(finalUrl);
+    }, 800); 
   };
   
   const handleRedirectUp = () => {
     if (!isRedirectPressing.current) return;
     isRedirectPressing.current = false;
+    if (redirectPressTimer.current) {
+      clearTimeout(redirectPressTimer.current);
+      redirectPressTimer.current = null;
+      setRedirectStatus('HOLD TO REDIRECT');
+    }
   };
 
   const fireInstantRedirect = () => {
@@ -916,6 +919,7 @@ function ControlView({ roomID }) {
           onContextMenu={(e) => e.preventDefault()}
           className={`px-3 py-1.5 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${
             redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
+            : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
             : 'bg-zinc-950 border-zinc-800 text-zinc-400'
           }`}
         >
