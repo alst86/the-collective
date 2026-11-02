@@ -7,75 +7,6 @@ import { db } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 
 const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
-const DEFAULT_REVIEW_URL = 'https://g.page/r/YOUR_REVIEW_LINK';
-const REVIEW_REDIRECT_DELAY_MS = 30 * 1000; // 30 seconds
-
-// Helper: Launches Instagram App instantly, then redirects the browser tab to the Review/Feedback URL after 30s
-const triggerAppAndBrowserRedirect = (primaryUrl, reviewUrl) => {
-  const cleanPrimary = (primaryUrl || DEFAULT_REDIRECT_URL).trim();
-  const cleanReview = (reviewUrl || DEFAULT_REVIEW_URL).trim();
-
-  let igAppScheme = null;
-  if (cleanPrimary.startsWith('instagram://')) {
-    igAppScheme = cleanPrimary;
-  } else if (cleanPrimary.toLowerCase().includes('instagram.com/')) {
-    const match = cleanPrimary.match(/instagram\.com\/([^/?#]+)/i);
-    if (match && match[1]) {
-      igAppScheme = `instagram://user?username=${match[1]}`;
-    }
-  }
-
-  let formattedReview = cleanReview;
-  if (formattedReview && !formattedReview.startsWith('http') && !formattedReview.includes('://')) {
-    formattedReview = `https://${formattedReview}`;
-  }
-
-  let formattedPrimary = cleanPrimary;
-  if (!formattedPrimary.startsWith('http') && !formattedPrimary.includes('://')) {
-    formattedPrimary = `https://${formattedPrimary}`;
-  }
-
-  if (igAppScheme) {
-    // 1. INSTANT: Pop open the native Instagram App immediately
-    window.location.href = igAppScheme;
-
-    // 2. AFTER 30 SECONDS: Redirect the underlying browser tab to the Review / Feedback URL
-    const targetTabUrl = (formattedReview && !formattedReview.includes('YOUR_REVIEW_LINK'))
-      ? formattedReview
-      : formattedPrimary;
-
-    const startTime = Date.now();
-    let hasRedirectedTab = false;
-
-    const redirectBrowserTab = () => {
-      if (hasRedirectedTab) return;
-      hasRedirectedTab = true;
-      window.location.replace(targetTabUrl);
-    };
-
-    const tabTimer = setTimeout(redirectBrowserTab, REVIEW_REDIRECT_DELAY_MS);
-
-    // iOS Safari safeguard: if iOS paused background timers while Instagram was open,
-    // check elapsed time as soon as the browser tab wakes back up
-    const handleWakeCheck = () => {
-      if (document.visibilityState === 'visible') {
-        const elapsed = Date.now() - startTime;
-        if (elapsed >= REVIEW_REDIRECT_DELAY_MS) {
-          clearTimeout(tabTimer);
-          redirectBrowserTab();
-        } else {
-          clearTimeout(tabTimer);
-          setTimeout(redirectBrowserTab, REVIEW_REDIRECT_DELAY_MS - elapsed);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleWakeCheck);
-    window.addEventListener('focus', handleWakeCheck);
-  } else {
-    window.location.replace(formattedPrimary);
-  }
-};
 
 export default function App() {
   const searchParams = new URLSearchParams(window.location.search);
@@ -90,37 +21,131 @@ export default function App() {
 // ==========================================
 function AudienceView({ roomID }) {
   const [cameraReady, setCameraReady] = useState(false);
-  const [error, setError] = useState('');
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
   
-  const [fbText, setFbText] = useState('');
-  const [pollText, setPollText] = useState('');
-  const [injectConfig, setInjectConfig] = useState(null);
-
+  const [kickerWord, setKickerWord] = useState('');
   const [uiReady, setUiReady] = useState(false);
-  const bootDoneRef = useRef(false);
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
 
+  const audioCtxRef = useRef(null);
+  const silentAudioRef = useRef(null);
+
   const idleTimerRef = useRef(null);
-  const IDLE_TIMEOUT_MS = 40 * 1000; 
-  const IDLE_FALLBACK_URL = "https://www.google.com"; 
+  const IDLE_TIMEOUT_MS = 180 * 1000; 
+  const IDLE_FALLBACK_URL = ""; 
 
   const resetIdleTimer = () => {
     clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
-      window.location.replace(IDLE_FALLBACK_URL);
+      if (IDLE_FALLBACK_URL) window.location.replace(IDLE_FALLBACK_URL);
     }, IDLE_TIMEOUT_MS);
   };
   
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
-  // WAKE LOCK API
+  const unlockAudio = () => {
+    try {
+      if ('audioSession' in navigator) {
+        navigator.audioSession.type = 'playback';
+      }
+
+      if (!silentAudioRef.current) {
+        const sampleRate = 8000;
+        const numSamples = sampleRate; 
+        const buffer = new ArrayBuffer(44 + numSamples);
+        const view = new DataView(buffer);
+        const writeStr = (offset, str) => {
+          for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+        };
+        writeStr(0, 'RIFF');
+        view.setUint32(4, 36 + numSamples, true);
+        writeStr(8, 'WAVE');
+        writeStr(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); 
+        view.setUint16(22, 1, true); 
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate, true);
+        view.setUint16(32, 1, true);
+        view.setUint16(34, 8, true); 
+        writeStr(36, 'data');
+        view.setUint32(40, numSamples, true);
+        for (let i = 0; i < numSamples; i++) view.setUint8(44 + i, 128); 
+
+        const blob = new Blob([buffer], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.loop = true;
+        audio.setAttribute('playsinline', '');
+        audio.setAttribute('x-webkit-airplay', 'deny');
+        audio.play().catch(() => {});
+        silentAudioRef.current = audio;
+      }
+
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new AudioCtx();
+        }
+        if (audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume().catch(() => {});
+        }
+      }
+    } catch (e) {}
+  };
+
+  const playHeartbeatThud = (isSecondBeat = false) => {
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      const now = ctx.currentTime;
+      const oscSub = ctx.createOscillator();
+      const oscPunch = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      oscSub.type = 'triangle';
+      oscPunch.type = 'sine';
+
+      const startFreq = isSecondBeat ? 210 : 185;
+      const endFreq = isSecondBeat ? 70 : 58;
+      const duration = isSecondBeat ? 0.14 : 0.18;
+      const peakGain = isSecondBeat ? 2.4 : 3.5;
+
+      oscSub.frequency.setValueAtTime(startFreq, now);
+      oscSub.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+
+      oscPunch.frequency.setValueAtTime(startFreq * 1.5, now);
+      oscPunch.frequency.exponentialRampToValueAtTime(endFreq * 1.2, now + duration);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(340, now);
+      filter.Q.setValueAtTime(3.5, now);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(peakGain, now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      oscSub.connect(filter);
+      oscPunch.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      oscSub.start(now);
+      oscPunch.start(now);
+      oscSub.stop(now + duration + 0.02);
+      oscPunch.stop(now + duration + 0.02);
+    } catch (e) {}
+  };
+
   useEffect(() => {
     let wakeLock = null;
     const requestWakeLock = async () => {
@@ -148,6 +173,7 @@ function AudienceView({ roomID }) {
   }, [cameraReady]);
 
   const startCamera = async () => {
+    unlockAudio();
     try {
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -163,7 +189,7 @@ function AudienceView({ roomID }) {
       trackRef.current = track;
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (err) {
-      setError('Camera denied. Screen flash active instead.');
+      // Fallback
     } finally {
       setCameraReady(true); 
     }
@@ -177,116 +203,85 @@ function AudienceView({ roomID }) {
     } catch (err) {}
   };
 
-  // 1. LISTEN TO FIREBASE COMMANDS & CONFIG
   useEffect(() => {
-    const uiTimer = setTimeout(() => setUiReady(true), 1500);
+    const uiTimer = setTimeout(() => setUiReady(true), 300);
 
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
-      resetIdleTimer(); 
-
       const command = snapshot.val();
       if (command) {
         const safeCommand = String(command);
         const baseCmd = safeCommand.split('|')[0];
+        const isInitialLoad = initialLoadRef.current;
         
-        if (initialLoadRef.current) {
+        if (isInitialLoad) {
           initialLoadRef.current = false;
           if (baseCmd === 'REDIRECT') return; 
         }
-        handleCommand(command);
+        handleCommand(command, isInitialLoad);
       }
     }, () => { setDbStatus('error'); });
 
     const textRef = ref(db, `${roomID}/buttonText`);
     const unsubText = onValue(textRef, (snapshot) => {
       const val = snapshot.val();
-      setFbText(val && val.trim() !== '' ? val : '');
-    });
-
-    const configRef = ref(db, `${roomID}/injectConfig`);
-    const unsubConfig = onValue(configRef, (snapshot) => {
-      setInjectConfig(snapshot.val());
+      setKickerWord(val && val.trim() !== '' ? val : '');
     });
     
     return () => {
       clearTimeout(uiTimer);
       unsubCommand();
       unsubText();
-      unsubConfig();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
+      if (silentAudioRef.current) {
+        silentAudioRef.current.pause();
+        silentAudioRef.current = null;
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+        audioCtxRef.current = null;
+      }
     };
   }, [roomID]);
 
-  // 2. AUDIENCE-SIDE AUTONOMOUS POLLING
-  useEffect(() => {
-    let timer;
-    const executePoll = async () => {
-      if (!injectConfig || !injectConfig.active || !injectConfig.url) {
-        setPollText('');
-        if (!bootDoneRef.current) { bootDoneRef.current = true; setUiReady(true); }
-        return;
-      }
-
-      try {
-        let text = "";
-        try {
-          const res = await fetch(`${injectConfig.url}?t=${Date.now()}`);
-          if (!res.ok) throw new Error("CORS Blocked");
-          text = await res.text();
-        } catch (e) {
-          const targetUrl = encodeURIComponent(`${injectConfig.url}?t=${Date.now()}`);
-          const proxyUrl = `https://api.allorigins.win/raw?url=${targetUrl}`;
-          const res2 = await fetch(proxyUrl);
-          text = await res2.text();
-        }
-
-        let word = "";
-        try {
-          const json = JSON.parse(text);
-          const keyToPoll = injectConfig.key?.trim() || 'peek';
-          if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
-            word = String(json[keyToPoll]).trim();
-          }
-        } catch(e) {} 
-
-        if (word) setPollText(word);
-      } catch (e) {
-      } finally {
-        if (!bootDoneRef.current) { 
-          bootDoneRef.current = true; 
-          setUiReady(true); 
-        }
-      }
-    };
-
-    executePoll();
-    if (injectConfig?.active && injectConfig?.url) {
-      timer = setInterval(executePoll, 2000); 
-    }
-    return () => clearInterval(timer);
-  }, [injectConfig]);
-
-  const handleCommand = (command) => {
+  const handleCommand = (command, isInitialLoad = false) => {
     clearTimeout(timerRef.current);
-    resetIdleTimer(); 
+    clearTimeout(idleTimerRef.current);
     
     const safeCommand = String(command);
     const parts = safeCommand.split('|');
     const baseCmd = parts[0];
     
-    if (baseCmd === 'ON') applyTorch(true);
-    else if (baseCmd === 'OFF') applyTorch(false);
-    else if (baseCmd === 'BLINK') {
+    if (baseCmd === 'ON') {
+      applyTorch(true);
+    } else if (baseCmd === 'OFF') {
+      applyTorch(false);
+      if (!isInitialLoad) resetIdleTimer();
+    } else if (baseCmd === 'STRIKE_LUB') {
+      applyTorch(true);
+      playHeartbeatThud(false);
+      if (navigator.vibrate) navigator.vibrate(100);
+      timerRef.current = setTimeout(() => applyTorch(false), 140);
+    } else if (baseCmd === 'STRIKE_DUB') {
+      applyTorch(true);
+      playHeartbeatThud(true);
+      if (navigator.vibrate) navigator.vibrate(70);
+      timerRef.current = setTimeout(() => applyTorch(false), 110);
+    } else if (baseCmd === 'BLINK') {
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
       const playHeartbeat = () => {
         const duration = pattern[step];
         const isOn = (step === 0 || step === 2); 
         applyTorch(isOn);
-        if (step === 0 && navigator.vibrate) navigator.vibrate([100, 150, 100]); 
+        if (step === 0) {
+          playHeartbeatThud(false); 
+          if (navigator.vibrate) navigator.vibrate([100, 150, 100]);
+        } else if (step === 2) {
+          playHeartbeatThud(true);  
+        }
         step = (step + 1) % pattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
@@ -300,11 +295,15 @@ function AudienceView({ roomID }) {
       };
       playStrobe();
     } else if (baseCmd === 'REDIRECT') {
+      // Immediately kill pulsing torch & audio before navigating
       applyTorch(false);
       if (navigator.vibrate) navigator.vibrate(0);
-      const primaryUrl = parts[2] || DEFAULT_REDIRECT_URL;
-      const reviewUrl = parts[3] || DEFAULT_REVIEW_URL;
-      triggerAppAndBrowserRedirect(primaryUrl, reviewUrl);
+      const rawUrl = parts.slice(2).join('|').trim();
+      let finalUrl = rawUrl || DEFAULT_REDIRECT_URL;
+      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
+        finalUrl = `https://${finalUrl}`;
+      }
+      window.location.replace(finalUrl);
     }
   };
 
@@ -321,12 +320,9 @@ function AudienceView({ roomID }) {
     }
   };
 
-  const finalBtnText = pollText || fbText || 'ENTER EXPERIENCE';
-
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
-      
-      <div className="absolute top-4 left-4 z-50">
+      <div className="absolute top-4 left-4 z-50 opacity-20">
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
 
@@ -334,35 +330,63 @@ function AudienceView({ roomID }) {
 
       {!cameraReady ? (
         <>
-          <div onPointerDown={handleSecretClick} className="absolute top-0 left-0 w-32 h-32 z-[100] bg-white/0 touch-none" />
+          <div 
+            onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
+            className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
+          />
 
-          <div className={`flex flex-col items-center w-full max-w-md px-6 z-10 transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}>
+          <div 
+            onClick={startCamera}
+            className={`flex flex-col items-center justify-center w-full min-h-[100dvh] max-w-md px-6 z-10 cursor-pointer transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}
+          >
+            <div className="flex items-center space-x-2 mb-3 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_8px_#dc2626]"></span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                [ Tap to Connect ]
+              </span>
+            </div>
+
             <button 
-              onClick={startCamera}
-              className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-2xl mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight"
+              onClick={(e) => { e.stopPropagation(); startCamera(); }}
+              className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-[0_12px_35px_rgba(0,0,0,0.22)] mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight ring-4 ring-black/5 animate-pulse"
             >
-              {finalBtnText}
+              BEGIN EXPERIMENT
             </button>
+
             <div className="text-center space-y-2">
               <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest px-4">
-                Please allow camera access when prompted
+                Please allow camera access when prompted, to sync with the performance
               </p>
             </div>
           </div>
         </>
       ) : (
         <>
-          <div className="flex-1 flex flex-col items-center justify-center w-full pb-20 pointer-events-none">
-            <div className="text-[45vh] leading-none animate-pulse drop-shadow-2xl select-none">
-              ❤️
+          <div className={`absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 transition-opacity duration-500 ${kickerWord ? 'opacity-100' : 'opacity-0'}`}>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+              You are currently focusing on
+            </p>
+            <span className="uppercase text-4xl font-black mt-3 mb-3 block tracking-widest drop-shadow-sm">
+              {kickerWord}
+            </span>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+              Do not break concentration
+            </p>
+          </div>
+
+          <div className="flex-1 flex flex-col items-center justify-center w-full pointer-events-none">
+            <div className="relative flex items-center justify-center">
+              <div className="w-6 h-6 bg-red-600 rounded-full drop-shadow-md"></div>
+              <div className="absolute w-24 h-24 border-2 border-red-600 rounded-full animate-ping opacity-30"></div>
+              <div className="absolute w-48 h-48 border border-red-600 rounded-full opacity-10" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
+              <div className="absolute w-72 h-72 border border-red-600 rounded-full opacity-5" style={{ animation: 'ping 4s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
             </div>
           </div>
 
-          <div className="absolute bottom-12 left-0 right-0 w-full text-center px-4 pointer-events-none">
-            <h1 className="text-3xl font-black uppercase tracking-widest mix-blend-difference text-white">
-              Hold up your phone
+          <div className="absolute bottom-16 left-0 right-0 w-full text-center px-4 pointer-events-none z-20">
+            <h1 className="text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
+              Hold up your<br/>phone
             </h1>
-            {error && <p className="text-red-500 mt-2 text-xs font-bold uppercase tracking-widest">{error}</p>}
           </div>
         </>
       )}
@@ -380,8 +404,7 @@ function ControlView({ roomID }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
-  const [redirectUrl, setRedirectUrl] = useState(() => localStorage.getItem('magicRedirectUrl') || 'https://instagram.com/andrewleemagic');
-  const [reviewUrl, setReviewUrl] = useState(() => localStorage.getItem('magicReviewUrl') || '');
+  const [redirectUrl, setRedirectUrl] = useState('');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
   const [customText, setCustomText] = useState('');
   
@@ -451,9 +474,7 @@ function ControlView({ roomID }) {
     localStorage.setItem('magicInjectUrl', injectUrl);
     localStorage.setItem('magicInjectKey', injectKey);
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
-    localStorage.setItem('magicRedirectUrl', redirectUrl);
-    localStorage.setItem('magicReviewUrl', reviewUrl);
-  }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, reviewUrl]);
+  }, [injectUrl, injectKey, isInjectSyncing]);
 
   useEffect(() => {
     if (isMetronomeActive) {
@@ -597,7 +618,7 @@ function ControlView({ roomID }) {
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp, true);
     };
-  }, [localMode, audienceMode, redirectUrl, reviewUrl]); 
+  }, [localMode, audienceMode, redirectUrl]); 
 
   const handleSetCustomText = () => {
     set(ref(db, `${roomID}/buttonText`), customText);
@@ -619,11 +640,11 @@ function ControlView({ roomID }) {
   };
 
   const getTargetRedirectUrl = () => {
-    return (redirectUrl && redirectUrl.trim() !== '') ? redirectUrl.trim() : DEFAULT_REDIRECT_URL;
-  };
-
-  const getTargetReviewUrl = () => {
-    return (reviewUrl && reviewUrl.trim() !== '') ? reviewUrl.trim() : DEFAULT_REVIEW_URL;
+    let finalUrl = (redirectUrl && redirectUrl.trim() !== '') ? redirectUrl.trim() : DEFAULT_REDIRECT_URL;
+    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
+      finalUrl = `https://${finalUrl}`;
+    }
+    return finalUrl;
   };
 
   const fireAudienceCommand = (cmd, isPlayback = false) => {
@@ -634,7 +655,7 @@ function ControlView({ roomID }) {
     
     let payload = `${cmd}|${Date.now()}`;
     if (cmd === 'REDIRECT') {
-      payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}|${getTargetReviewUrl()}`;
+      payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}`;
     }
     
     return set(ref(db, `${roomID}/audienceCommand`), payload).catch(err => {
@@ -644,6 +665,7 @@ function ControlView({ roomID }) {
 
   // SYNCHRONIZED AUDIENCE + MASTER REDIRECT
   const executeSynchronizedRedirect = async () => {
+    // 1. Stop all active pulsing timers so nothing overwrites the REDIRECT command
     clearTimeout(metronomeTimerRef.current);
     setIsMetronomeActive(false);
     playbackTimeoutsRef.current.forEach(clearTimeout);
@@ -653,10 +675,10 @@ function ControlView({ roomID }) {
     clearTimeout(localTimerRef.current);
     applyLocalTorch(false);
 
-    const primaryTarget = getTargetRedirectUrl();
-    const reviewTarget = getTargetReviewUrl();
+    const finalUrl = getTargetRedirectUrl();
     setRedirectStatus('FIRED!');
 
+    // 2. Wait for Firebase to confirm the audience REDIRECT write before unloading Master page
     try {
       await Promise.race([
         fireAudienceCommand('REDIRECT'),
@@ -664,7 +686,7 @@ function ControlView({ roomID }) {
       ]);
     } catch (e) {}
 
-    triggerAppAndBrowserRedirect(primaryTarget, reviewTarget);
+    window.location.replace(finalUrl);
   };
 
   const handleRecordButtonTap = () => {
@@ -889,7 +911,7 @@ function ControlView({ roomID }) {
 
     if (masterSecretClickCount.current === 3) {
       masterSecretClickCount.current = 0;
-      triggerAppAndBrowserRedirect(getTargetRedirectUrl(), getTargetReviewUrl());
+      window.location.replace(getTargetRedirectUrl());
     }
   };
 
@@ -963,24 +985,13 @@ function ControlView({ roomID }) {
       {isSettingsOpen && (
         <div className="absolute top-16 left-4 right-4 max-h-[82dvh] overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
           <div className="flex flex-col w-full">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Primary App Redirect URL (Instagram)</label>
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
             <input 
               type="text" 
               value={redirectUrl}
               onChange={(e) => setRedirectUrl(e.target.value)}
               className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
               placeholder="https://instagram.com/andrewleemagic"
-            />
-          </div>
-
-          <div className="flex flex-col w-full">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Browser Review Page URL (Safari Tab Redirect)</label>
-            <input 
-              type="text" 
-              value={reviewUrl}
-              onChange={(e) => setReviewUrl(e.target.value)}
-              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-              placeholder="https://g.page/r/..."
             />
           </div>
 
