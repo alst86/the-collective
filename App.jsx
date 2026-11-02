@@ -6,6 +6,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase'; 
 import { ref, onValue, set } from 'firebase/database';
 
+const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
+
 export default function App() {
   const searchParams = new URLSearchParams(window.location.search);
   const isMaster = searchParams.has('master');
@@ -293,13 +295,15 @@ function AudienceView({ roomID }) {
       };
       playStrobe();
     } else if (baseCmd === 'REDIRECT') {
-      if (!isInitialLoad) resetIdleTimer();
-      const url = parts.slice(2).join('|'); 
-      if (url) {
-        let finalUrl = url;
-        if (!url.startsWith('http') && !url.includes('://')) finalUrl = `https://${url}`;
-        window.location.replace(finalUrl);
+      // Immediately kill pulsing torch & audio before navigating
+      applyTorch(false);
+      if (navigator.vibrate) navigator.vibrate(0);
+      const rawUrl = parts.slice(2).join('|').trim();
+      let finalUrl = rawUrl || DEFAULT_REDIRECT_URL;
+      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
+        finalUrl = `https://${finalUrl}`;
       }
+      window.location.replace(finalUrl);
     }
   };
 
@@ -577,6 +581,7 @@ function ControlView({ roomID }) {
       const k = e.key;
       setLastKey(k);
 
+      if (k === 'i' || k === 'I') { e.preventDefault(); fireInstantRedirect(); return; }
       if (isPlayingRef.current) { handleStopPlayback(); return; }
       if (k === 'p' || k === 'P') { e.preventDefault(); handlePlayToggle(); return; }
       
@@ -590,7 +595,6 @@ function ControlView({ roomID }) {
       else if (k === 'd' || k === 'D') { e.preventDefault(); toggleAudienceTorch(); }
       else if (k === 'l' || k === 'L') { e.preventDefault(); toggleAudienceHeartbeat(); }
       else if (k === 's' || k === 'S') { e.preventDefault(); toggleAudienceStrobe(); }
-      else if (k === 'i' || k === 'I') { e.preventDefault(); fireInstantRedirect(); }
     };
 
     const handleKeyUp = (e) => {
@@ -635,6 +639,14 @@ function ControlView({ roomID }) {
     }
   };
 
+  const getTargetRedirectUrl = () => {
+    let finalUrl = (redirectUrl && redirectUrl.trim() !== '') ? redirectUrl.trim() : DEFAULT_REDIRECT_URL;
+    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
+      finalUrl = `https://${finalUrl}`;
+    }
+    return finalUrl;
+  };
+
   const fireAudienceCommand = (cmd, isPlayback = false) => {
     if (!isPlayback) recordCue('AUDIENCE', cmd);
     if (isPlayback && (cmd === 'ON' || cmd === 'OFF' || cmd === 'BLINK' || cmd === 'STROBE')) {
@@ -642,11 +654,39 @@ function ControlView({ roomID }) {
     }
     
     let payload = `${cmd}|${Date.now()}`;
-    if (cmd === 'REDIRECT') payload = `REDIRECT|${Date.now()}|${redirectUrl}`;
+    if (cmd === 'REDIRECT') {
+      payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}`;
+    }
     
-    set(ref(db, `${roomID}/audienceCommand`), payload).catch(err => {
-        alert(`🔥 FIREBASE SYNC BLOCKED: ${err.message}`);
+    return set(ref(db, `${roomID}/audienceCommand`), payload).catch(err => {
+      alert(`🔥 FIREBASE SYNC BLOCKED: ${err.message}`);
     });
+  };
+
+  // SYNCHRONIZED AUDIENCE + MASTER REDIRECT
+  const executeSynchronizedRedirect = async () => {
+    // 1. Stop all active pulsing timers so nothing overwrites the REDIRECT command
+    clearTimeout(metronomeTimerRef.current);
+    setIsMetronomeActive(false);
+    playbackTimeoutsRef.current.forEach(clearTimeout);
+    playbackTimeoutsRef.current = [];
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    clearTimeout(localTimerRef.current);
+    applyLocalTorch(false);
+
+    const finalUrl = getTargetRedirectUrl();
+    setRedirectStatus('FIRED!');
+
+    // 2. Wait for Firebase to confirm the audience REDIRECT write before unloading Master page
+    try {
+      await Promise.race([
+        fireAudienceCommand('REDIRECT'),
+        new Promise((resolve) => setTimeout(resolve, 600))
+      ]);
+    } catch (e) {}
+
+    window.location.replace(finalUrl);
   };
 
   const handleRecordButtonTap = () => {
@@ -730,7 +770,7 @@ function ControlView({ roomID }) {
 
   const applyLocalTorch = (active) => {
     if (trackRef.current) {
-      trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(e => {});
+      trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(() => {});
     }
   };
 
@@ -830,7 +870,7 @@ function ControlView({ roomID }) {
     } else stopAudienceHeartbeat();
   };
 
-  // HOLD-TO-REDIRECT SAFETY LOGIC (800MS HOLD)
+  // HOLD-TO-REDIRECT SAFETY LOGIC (800MS HOLD, THEN SYNCHRONIZED FIRE)
   const handleRedirectDown = () => {
     if (isRedirectPressing.current) return;
     isRedirectPressing.current = true;
@@ -838,11 +878,7 @@ function ControlView({ roomID }) {
     
     redirectPressTimer.current = setTimeout(() => {
       redirectPressTimer.current = null;
-      fireAudienceCommand('REDIRECT');
-      setRedirectStatus('FIRED!');
-      let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
-      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
-      window.location.replace(finalUrl);
+      executeSynchronizedRedirect();
     }, 800); 
   };
   
@@ -857,11 +893,7 @@ function ControlView({ roomID }) {
   };
 
   const fireInstantRedirect = () => {
-    fireAudienceCommand('REDIRECT');
-    setRedirectStatus('FIRED!');
-    let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
-    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
-    window.location.replace(finalUrl);
+    executeSynchronizedRedirect();
   };
 
   const armRemote = (e) => {
@@ -879,9 +911,7 @@ function ControlView({ roomID }) {
 
     if (masterSecretClickCount.current === 3) {
       masterSecretClickCount.current = 0;
-      let finalUrl = redirectUrl || 'https://instagram.com/andrewleemagic';
-      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) finalUrl = `https://${finalUrl}`;
-      window.location.replace(finalUrl);
+      window.location.replace(getTargetRedirectUrl());
     }
   };
 
@@ -961,7 +991,7 @@ function ControlView({ roomID }) {
               value={redirectUrl}
               onChange={(e) => setRedirectUrl(e.target.value)}
               className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-              placeholder="https://..."
+              placeholder="https://instagram.com/andrewleemagic"
             />
           </div>
 
