@@ -7,15 +7,16 @@ import { db } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 
 const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
-// Paste your Google / TripAdvisor / Facebook Review URL inside the quotes below:
+// Paste your permanent Feedback / Review URL inside the quotes below:
 const DEFAULT_REVIEW_URL = 'https://g.page/r/YOUR_REVIEW_LINK';
+const REVIEW_REDIRECT_DELAY_MS = 30 * 1000; // 30 seconds
 
-// Helper: Launches Instagram App first, then redirects the remaining browser tab to the Review URL
+// Launches Instagram App instantly (0s), then redirects the browser tab to the Feedback Page after 30s
 const triggerAppAndBrowserRedirect = (primaryUrl, reviewUrl) => {
   const cleanPrimary = (primaryUrl || DEFAULT_REDIRECT_URL).trim();
   const cleanReview = (reviewUrl || DEFAULT_REVIEW_URL).trim();
 
-  // Extract Instagram username if a standard instagram.com link or instagram:// link is used
+  // Extract Instagram username to trigger the native app instantly without unloading the Safari tab
   let igAppScheme = null;
   if (cleanPrimary.startsWith('instagram://')) {
     igAppScheme = cleanPrimary;
@@ -36,30 +37,46 @@ const triggerAppAndBrowserRedirect = (primaryUrl, reviewUrl) => {
     formattedPrimary = `https://${formattedPrimary}`;
   }
 
-  // If we have an Instagram app deep link AND a valid review URL, run the 2-stage split redirect
-  if (igAppScheme && formattedReview && !formattedReview.includes('YOUR_REVIEW_LINK')) {
-    let redirectedToReview = false;
-    const goToReview = () => {
-      if (redirectedToReview) return;
-      redirectedToReview = true;
-      window.location.replace(formattedReview);
-    };
-
-    // If the browser backgrounds as the native Instagram app opens, redirect the Safari tab
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        setTimeout(goToReview, 150);
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange, { once: true });
-
-    // 1. Pop open the native Instagram App
+  if (igAppScheme) {
+    // 1. INSTANT: Pop open the native Instagram App immediately
     window.location.href = igAppScheme;
 
-    // 2. Redirect the underlying Safari tab to the Review Page after 800ms
-    setTimeout(goToReview, 800);
+    // 2. AFTER 30 SECONDS: Redirect the underlying browser tab to the Feedback / Review URL
+    const targetTabUrl = (formattedReview && !formattedReview.includes('YOUR_REVIEW_LINK'))
+      ? formattedReview
+      : formattedPrimary;
+
+    const startTime = Date.now();
+    let hasRedirectedTab = false;
+
+    const redirectBrowserTab = () => {
+      if (hasRedirectedTab) return;
+      hasRedirectedTab = true;
+      window.location.replace(targetTabUrl);
+    };
+
+    // Standard 30-second timer
+    const tabTimer = setTimeout(redirectBrowserTab, REVIEW_REDIRECT_DELAY_MS);
+
+    // iOS Safari safeguard: if iOS paused background timers while Instagram was open,
+    // check elapsed time as soon as the browser tab wakes back up
+    const handleWakeCheck = () => {
+      if (document.visibilityState === 'visible') {
+        const elapsed = Date.now() - startTime;
+        if (elapsed >= REVIEW_REDIRECT_DELAY_MS) {
+          clearTimeout(tabTimer);
+          redirectBrowserTab();
+        } else {
+          clearTimeout(tabTimer);
+          setTimeout(redirectBrowserTab, REVIEW_REDIRECT_DELAY_MS - elapsed);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleWakeCheck);
+    window.addEventListener('focus', handleWakeCheck);
   } else {
-    // Standard single-URL redirect fallback
+    // Fallback if a non-Instagram primary URL is used
     window.location.replace(formattedPrimary);
   }
 };
@@ -351,7 +368,7 @@ function AudienceView({ roomID }) {
       };
       playStrobe();
     } else if (baseCmd === 'REDIRECT') {
-      // Immediately kill pulsing torch & audio before navigating
+      // Immediately kill pulsing torch & audio before launching Instagram
       applyTorch(false);
       if (navigator.vibrate) navigator.vibrate(0);
       const primaryUrl = parts[2] || DEFAULT_REDIRECT_URL;
@@ -1040,7 +1057,7 @@ function ControlView({ roomID }) {
       {isSettingsOpen && (
         <div className="absolute top-16 left-4 right-4 max-h-[82dvh] overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
           <div className="flex flex-col w-full">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Primary App Redirect URL (Instagram)</label>
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Primary App Redirect URL (Instant Instagram)</label>
             <input 
               type="text" 
               value={redirectUrl}
@@ -1051,7 +1068,7 @@ function ControlView({ roomID }) {
           </div>
 
           <div className="flex flex-col w-full">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Browser Review Page URL (Safari Tab Redirect)</label>
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Browser Review / Feedback URL (After 30s)</label>
             <input 
               type="text" 
               value={reviewUrl}
