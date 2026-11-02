@@ -7,6 +7,62 @@ import { db } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 
 const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
+// Paste your Google / TripAdvisor / Facebook Review URL inside the quotes below:
+const DEFAULT_REVIEW_URL = 'https://g.page/r/YOUR_REVIEW_LINK';
+
+// Helper: Launches Instagram App first, then redirects the remaining browser tab to the Review URL
+const triggerAppAndBrowserRedirect = (primaryUrl, reviewUrl) => {
+  const cleanPrimary = (primaryUrl || DEFAULT_REDIRECT_URL).trim();
+  const cleanReview = (reviewUrl || DEFAULT_REVIEW_URL).trim();
+
+  // Extract Instagram username if a standard instagram.com link or instagram:// link is used
+  let igAppScheme = null;
+  if (cleanPrimary.startsWith('instagram://')) {
+    igAppScheme = cleanPrimary;
+  } else if (cleanPrimary.toLowerCase().includes('instagram.com/')) {
+    const match = cleanPrimary.match(/instagram\.com\/([^/?#]+)/i);
+    if (match && match[1]) {
+      igAppScheme = `instagram://user?username=${match[1]}`;
+    }
+  }
+
+  let formattedReview = cleanReview;
+  if (formattedReview && !formattedReview.startsWith('http') && !formattedReview.includes('://')) {
+    formattedReview = `https://${formattedReview}`;
+  }
+
+  let formattedPrimary = cleanPrimary;
+  if (!formattedPrimary.startsWith('http') && !formattedPrimary.includes('://')) {
+    formattedPrimary = `https://${formattedPrimary}`;
+  }
+
+  // If we have an Instagram app deep link AND a valid review URL, run the 2-stage split redirect
+  if (igAppScheme && formattedReview && !formattedReview.includes('YOUR_REVIEW_LINK')) {
+    let redirectedToReview = false;
+    const goToReview = () => {
+      if (redirectedToReview) return;
+      redirectedToReview = true;
+      window.location.replace(formattedReview);
+    };
+
+    // If the browser backgrounds as the native Instagram app opens, redirect the Safari tab
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        setTimeout(goToReview, 150);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange, { once: true });
+
+    // 1. Pop open the native Instagram App
+    window.location.href = igAppScheme;
+
+    // 2. Redirect the underlying Safari tab to the Review Page after 800ms
+    setTimeout(goToReview, 800);
+  } else {
+    // Standard single-URL redirect fallback
+    window.location.replace(formattedPrimary);
+  }
+};
 
 export default function App() {
   const searchParams = new URLSearchParams(window.location.search);
@@ -298,12 +354,9 @@ function AudienceView({ roomID }) {
       // Immediately kill pulsing torch & audio before navigating
       applyTorch(false);
       if (navigator.vibrate) navigator.vibrate(0);
-      const rawUrl = parts.slice(2).join('|').trim();
-      let finalUrl = rawUrl || DEFAULT_REDIRECT_URL;
-      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
-        finalUrl = `https://${finalUrl}`;
-      }
-      window.location.replace(finalUrl);
+      const primaryUrl = parts[2] || DEFAULT_REDIRECT_URL;
+      const reviewUrl = parts[3] || DEFAULT_REVIEW_URL;
+      triggerAppAndBrowserRedirect(primaryUrl, reviewUrl);
     }
   };
 
@@ -404,7 +457,8 @@ function ControlView({ roomID }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
-  const [redirectUrl, setRedirectUrl] = useState('');
+  const [redirectUrl, setRedirectUrl] = useState(() => localStorage.getItem('magicRedirectUrl') || '');
+  const [reviewUrl, setReviewUrl] = useState(() => localStorage.getItem('magicReviewUrl') || '');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
   const [customText, setCustomText] = useState('');
   
@@ -474,7 +528,9 @@ function ControlView({ roomID }) {
     localStorage.setItem('magicInjectUrl', injectUrl);
     localStorage.setItem('magicInjectKey', injectKey);
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
-  }, [injectUrl, injectKey, isInjectSyncing]);
+    localStorage.setItem('magicRedirectUrl', redirectUrl);
+    localStorage.setItem('magicReviewUrl', reviewUrl);
+  }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, reviewUrl]);
 
   useEffect(() => {
     if (isMetronomeActive) {
@@ -618,7 +674,7 @@ function ControlView({ roomID }) {
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp, true);
     };
-  }, [localMode, audienceMode, redirectUrl]); 
+  }, [localMode, audienceMode, redirectUrl, reviewUrl]); 
 
   const handleSetCustomText = () => {
     set(ref(db, `${roomID}/buttonText`), customText);
@@ -640,11 +696,11 @@ function ControlView({ roomID }) {
   };
 
   const getTargetRedirectUrl = () => {
-    let finalUrl = (redirectUrl && redirectUrl.trim() !== '') ? redirectUrl.trim() : DEFAULT_REDIRECT_URL;
-    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
-      finalUrl = `https://${finalUrl}`;
-    }
-    return finalUrl;
+    return (redirectUrl && redirectUrl.trim() !== '') ? redirectUrl.trim() : DEFAULT_REDIRECT_URL;
+  };
+
+  const getTargetReviewUrl = () => {
+    return (reviewUrl && reviewUrl.trim() !== '') ? reviewUrl.trim() : DEFAULT_REVIEW_URL;
   };
 
   const fireAudienceCommand = (cmd, isPlayback = false) => {
@@ -655,7 +711,7 @@ function ControlView({ roomID }) {
     
     let payload = `${cmd}|${Date.now()}`;
     if (cmd === 'REDIRECT') {
-      payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}`;
+      payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}|${getTargetReviewUrl()}`;
     }
     
     return set(ref(db, `${roomID}/audienceCommand`), payload).catch(err => {
@@ -665,7 +721,6 @@ function ControlView({ roomID }) {
 
   // SYNCHRONIZED AUDIENCE + MASTER REDIRECT
   const executeSynchronizedRedirect = async () => {
-    // 1. Stop all active pulsing timers so nothing overwrites the REDIRECT command
     clearTimeout(metronomeTimerRef.current);
     setIsMetronomeActive(false);
     playbackTimeoutsRef.current.forEach(clearTimeout);
@@ -675,10 +730,10 @@ function ControlView({ roomID }) {
     clearTimeout(localTimerRef.current);
     applyLocalTorch(false);
 
-    const finalUrl = getTargetRedirectUrl();
+    const primaryTarget = getTargetRedirectUrl();
+    const reviewTarget = getTargetReviewUrl();
     setRedirectStatus('FIRED!');
 
-    // 2. Wait for Firebase to confirm the audience REDIRECT write before unloading Master page
     try {
       await Promise.race([
         fireAudienceCommand('REDIRECT'),
@@ -686,7 +741,7 @@ function ControlView({ roomID }) {
       ]);
     } catch (e) {}
 
-    window.location.replace(finalUrl);
+    triggerAppAndBrowserRedirect(primaryTarget, reviewTarget);
   };
 
   const handleRecordButtonTap = () => {
@@ -911,7 +966,7 @@ function ControlView({ roomID }) {
 
     if (masterSecretClickCount.current === 3) {
       masterSecretClickCount.current = 0;
-      window.location.replace(getTargetRedirectUrl());
+      triggerAppAndBrowserRedirect(getTargetRedirectUrl(), getTargetReviewUrl());
     }
   };
 
@@ -985,13 +1040,24 @@ function ControlView({ roomID }) {
       {isSettingsOpen && (
         <div className="absolute top-16 left-4 right-4 max-h-[82dvh] overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
           <div className="flex flex-col w-full">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Primary App Redirect URL (Instagram)</label>
             <input 
               type="text" 
               value={redirectUrl}
               onChange={(e) => setRedirectUrl(e.target.value)}
               className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
               placeholder="https://instagram.com/andrewleemagic"
+            />
+          </div>
+
+          <div className="flex flex-col w-full">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Browser Review Page URL (Safari Tab Redirect)</label>
+            <input 
+              type="text" 
+              value={reviewUrl}
+              onChange={(e) => setReviewUrl(e.target.value)}
+              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+              placeholder="https://g.page/r/..."
             />
           </div>
 
