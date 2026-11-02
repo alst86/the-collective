@@ -7,6 +7,50 @@ import { db } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 
 const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
+// Paste your Feedback / Review URL inside the quotes below (or set it in Settings):
+const DEFAULT_FEEDBACK_URL = 'https://www.google.com';
+const FEEDBACK_DELAY_MS = 30 * 1000; // 30 seconds
+
+// Schedules the underlying Safari/Web browser tab to redirect to the Feedback page after 30 seconds
+const scheduleFeedbackRedirect = (rawFeedbackUrl) => {
+  const cleanUrl = (rawFeedbackUrl || DEFAULT_FEEDBACK_URL).trim();
+  if (!cleanUrl) return;
+
+  let targetFeedbackUrl = cleanUrl;
+  if (!targetFeedbackUrl.startsWith('http') && !targetFeedbackUrl.includes('://')) {
+    targetFeedbackUrl = `https://${targetFeedbackUrl}`;
+  }
+
+  const startTime = Date.now();
+  let hasRedirected = false;
+
+  const goToFeedback = () => {
+    if (hasRedirected) return;
+    hasRedirected = true;
+    window.location.replace(targetFeedbackUrl);
+  };
+
+  // 1. Standard 30-second timer for the browser tab
+  const timerId = setTimeout(goToFeedback, FEEDBACK_DELAY_MS);
+
+  // 2. Mobile browser safeguard: if the OS suspended background timers while the Instagram app was open,
+  // check the elapsed time when the browser tab becomes visible again
+  const handleBrowserWake = () => {
+    if (document.visibilityState === 'visible') {
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= FEEDBACK_DELAY_MS) {
+        clearTimeout(timerId);
+        goToFeedback();
+      } else {
+        clearTimeout(timerId);
+        setTimeout(goToFeedback, FEEDBACK_DELAY_MS - elapsed);
+      }
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleBrowserWake);
+  window.addEventListener('focus', handleBrowserWake);
+};
 
 export default function App() {
   const searchParams = new URLSearchParams(window.location.search);
@@ -31,6 +75,7 @@ function AudienceView({ roomID }) {
   const videoRef = useRef(null);
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
+  const feedbackUrlRef = useRef(DEFAULT_FEEDBACK_URL);
 
   const audioCtxRef = useRef(null);
   const silentAudioRef = useRef(null);
@@ -206,6 +251,16 @@ function AudienceView({ roomID }) {
   useEffect(() => {
     const uiTimer = setTimeout(() => setUiReady(true), 300);
 
+    const feedbackRef = ref(db, `${roomID}/feedbackUrl`);
+    const unsubFeedback = onValue(feedbackRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val && String(val).trim() !== '') {
+        feedbackUrlRef.current = String(val).trim();
+      } else {
+        feedbackUrlRef.current = DEFAULT_FEEDBACK_URL;
+      }
+    });
+
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
@@ -231,6 +286,7 @@ function AudienceView({ roomID }) {
     
     return () => {
       clearTimeout(uiTimer);
+      unsubFeedback();
       unsubCommand();
       unsubText();
       clearTimeout(timerRef.current);
@@ -303,6 +359,11 @@ function AudienceView({ roomID }) {
       if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
         finalUrl = `https://${finalUrl}`;
       }
+
+      // 1. Schedule the Safari/web browser tab to redirect to the Feedback page after 30s
+      scheduleFeedbackRedirect(feedbackUrlRef.current);
+
+      // 2. Instantly redirect to Instagram
       window.location.replace(finalUrl);
     }
   };
@@ -404,7 +465,8 @@ function ControlView({ roomID }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
-  const [redirectUrl, setRedirectUrl] = useState('');
+  const [redirectUrl, setRedirectUrl] = useState(() => localStorage.getItem('magicRedirectUrl') || '');
+  const [feedbackUrl, setFeedbackUrl] = useState(() => localStorage.getItem('magicFeedbackUrl') || '');
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
   const [customText, setCustomText] = useState('');
   
@@ -474,7 +536,12 @@ function ControlView({ roomID }) {
     localStorage.setItem('magicInjectUrl', injectUrl);
     localStorage.setItem('magicInjectKey', injectKey);
     localStorage.setItem('magicInjectSyncing', JSON.stringify(isInjectSyncing));
-  }, [injectUrl, injectKey, isInjectSyncing]);
+    localStorage.setItem('magicRedirectUrl', redirectUrl);
+    localStorage.setItem('magicFeedbackUrl', feedbackUrl);
+
+    const activeFeedback = (feedbackUrl && feedbackUrl.trim() !== '') ? feedbackUrl.trim() : DEFAULT_FEEDBACK_URL;
+    set(ref(db, `${roomID}/feedbackUrl`), activeFeedback).catch(() => {});
+  }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, feedbackUrl, roomID]);
 
   useEffect(() => {
     if (isMetronomeActive) {
@@ -618,7 +685,7 @@ function ControlView({ roomID }) {
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp, true);
     };
-  }, [localMode, audienceMode, redirectUrl]); 
+  }, [localMode, audienceMode, redirectUrl, feedbackUrl]); 
 
   const handleSetCustomText = () => {
     set(ref(db, `${roomID}/buttonText`), customText);
@@ -645,6 +712,10 @@ function ControlView({ roomID }) {
       finalUrl = `https://${finalUrl}`;
     }
     return finalUrl;
+  };
+
+  const getTargetFeedbackUrl = () => {
+    return (feedbackUrl && feedbackUrl.trim() !== '') ? feedbackUrl.trim() : DEFAULT_FEEDBACK_URL;
   };
 
   const fireAudienceCommand = (cmd, isPlayback = false) => {
@@ -686,6 +757,8 @@ function ControlView({ roomID }) {
       ]);
     } catch (e) {}
 
+    // 3. Schedule the 30s browser feedback redirect & immediately launch Instagram
+    scheduleFeedbackRedirect(getTargetFeedbackUrl());
     window.location.replace(finalUrl);
   };
 
@@ -911,6 +984,7 @@ function ControlView({ roomID }) {
 
     if (masterSecretClickCount.current === 3) {
       masterSecretClickCount.current = 0;
+      scheduleFeedbackRedirect(getTargetFeedbackUrl());
       window.location.replace(getTargetRedirectUrl());
     }
   };
@@ -985,13 +1059,24 @@ function ControlView({ roomID }) {
       {isSettingsOpen && (
         <div className="absolute top-16 left-4 right-4 max-h-[82dvh] overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-50 flex flex-col space-y-4">
           <div className="flex flex-col w-full">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL</label>
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Custom Redirect URL (Instant)</label>
             <input 
               type="text" 
               value={redirectUrl}
               onChange={(e) => setRedirectUrl(e.target.value)}
               className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
               placeholder="https://instagram.com/andrewleemagic"
+            />
+          </div>
+
+          <div className="flex flex-col w-full">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Feedback / Review Page URL (After 30s)</label>
+            <input 
+              type="text" 
+              value={feedbackUrl}
+              onChange={(e) => setFeedbackUrl(e.target.value)}
+              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+              placeholder="https://g.page/r/..."
             />
           </div>
 
