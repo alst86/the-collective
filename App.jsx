@@ -11,10 +11,10 @@ const DEFAULT_FEEDBACK_URL = 'https://andrewleemagic.com/feedback';
 const FEEDBACK_DELAY_MS = 30 * 1000; // 30 seconds
 
 const EMOTIONAL_TUNING_PROMPTS = [
-  "SYNCHRONIZING HEARTBEATS...",
+  "BREATHE IN UNISON...",
   "A LOVED ONE IS BEING HELD IN MIND",
   "FEEL THEIR PRESENCE IN THE ROOM",
-  "RECEIVING THOUGHT FROM THE STAGE..."
+  "EVERY HEARTBEAT TELLS A STORY"
 ];
 
 const formatValidUrl = (rawUrl, fallbackUrl) => {
@@ -103,7 +103,7 @@ function AudienceView({ roomID }) {
   const [promptIndex, setPromptIndex] = useState(0);
   const [promptFade, setPromptFade] = useState(true);
   const [isThumbHolding, setIsThumbHolding] = useState(false);
-  const [thumbConnected, setThumbConnected] = useState(false);
+  const [thumbFocused, setThumbFocused] = useState(false);
   const thumbHoldTimerRef = useRef(null);
 
   // OPTION A STAGE FLOW:
@@ -384,7 +384,7 @@ function AudienceView({ roomID }) {
 
     clearTimeout(thumbHoldTimerRef.current);
     thumbHoldTimerRef.current = setTimeout(() => {
-      setThumbConnected(true);
+      setThumbFocused(true);
       playHeartbeatThud(true);
       if (navigator.vibrate) navigator.vibrate([50, 80, 90]);
     }, 900);
@@ -496,7 +496,7 @@ function AudienceView({ roomID }) {
     if (baseCmd === 'PHASE_1_RESET') {
       clearPhaseTimeouts();
       applyTorch(false);
-      setThumbConnected(false);
+      setThumbFocused(false);
       setStagePhase('PULSE');
     } else if (baseCmd === 'PHASE_REVEAL') {
       const passedWord = (parts[2] || '').trim();
@@ -635,9 +635,10 @@ function AudienceView({ roomID }) {
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
 
+      {/* 5-Tap Secret Master Control Gateway (Anchored at Bottom-Right Corner) */}
       <div 
         onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
-        className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
+        className="absolute bottom-0 right-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
       />
 
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
@@ -720,11 +721,11 @@ function AudienceView({ roomID }) {
             onClick={startCamera}
             className={`relative flex flex-col items-center justify-between w-full min-h-[100dvh] py-12 px-6 z-10 cursor-pointer transition-opacity duration-700 ease-in-out overflow-hidden ${uiReady ? 'opacity-100' : 'opacity-0'}`}
           >
-            {/* Top Subtle Status Whisper */}
+            {/* Top Subtle Prompt (No "Connected" Wording) */}
             <div className="flex items-center space-x-2.5 pt-2 opacity-80">
               <span className="w-1.5 h-1.5 rounded-full bg-[#d91b1b] shadow-[0_0_8px_#d91b1b] animate-pulse"></span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.38em] text-zinc-500">
-                [ Tap to Connect ]
+                [ Touch the Heart ]
               </span>
             </div>
 
@@ -768,18 +769,18 @@ function AudienceView({ roomID }) {
             {/* Bottom Subtle Permission Footnote */}
             <div className="w-full max-w-xs text-center pb-2">
               <p className="text-zinc-400 text-[9.5px] font-medium uppercase tracking-[0.26em] leading-relaxed">
-                Please allow camera access when prompted, to sync with the performance
+                Please allow camera access when prompted to join the experience
               </p>
             </div>
           </div>
         ) : (
           <>
-            {/* 1. TOP SPACE: CYCLING EMOTIONAL TUNING PROMPTS */}
+            {/* 1. TOP SPACE: CYCLING EMOTIONAL TUNING PROMPTS (NO "STAGE" OR "CONNECTED" WORDING) */}
             <div className="absolute top-16 left-0 right-0 w-full px-8 text-center pointer-events-none z-20 flex flex-col items-center">
               <div className="flex items-center space-x-2 mb-3">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
                 <span className="text-[9px] font-mono font-bold uppercase tracking-[0.3em] text-red-600/80">
-                  Live Stage Resonance
+                  Collective Resonance
                 </span>
               </div>
               <p 
@@ -824,7 +825,7 @@ function AudienceView({ roomID }) {
                 onContextMenu={(e) => e.preventDefault()}
                 className="relative flex items-center justify-center w-56 h-56 cursor-pointer touch-none z-10"
               >
-                {/* Inward-Contracting Thought Waves (Pulling Stage Energy Into the Phone) */}
+                {/* Inward-Contracting Thought Waves */}
                 <div 
                   className="absolute w-24 h-24 border border-red-600/40 rounded-full pointer-events-none"
                   style={{ animation: `inwardThoughtWave ${isThumbHolding ? '1.6s' : '3.6s'} cubic-bezier(0.2, 0.8, 0.4, 1) infinite` }}
@@ -846,24 +847,24 @@ function AudienceView({ roomID }) {
                 {/* Core Heartbeat Node */}
                 <div 
                   className={`rounded-full bg-red-600 transition-all duration-200 shadow-[0_0_25px_rgba(220,38,38,0.65)] ${
-                    isThumbHolding ? 'w-11 h-11 scale-110' : thumbConnected ? 'w-8 h-8' : 'w-7 h-7'
+                    isThumbHolding ? 'w-11 h-11 scale-110' : thumbFocused ? 'w-8 h-8' : 'w-7 h-7'
                   }`}
                 />
               </div>
 
-              {/* Telemetry & Tactile Hook Status Readout */}
+              {/* Tactile Hook Readout (Purely Emotional / Zero "Connected" Wording) */}
               <div className="mt-2 text-center pointer-events-none z-20 px-6">
-                {thumbConnected ? (
+                {thumbFocused ? (
                   <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-600 animate-pulse">
-                    ♥ Connected to Stage — Now Raise Your Phone
+                    ♥ Presence Felt — Now Raise Your Phone
                   </p>
                 ) : isThumbHolding ? (
                   <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-500">
-                    ♥ Locking Into Heartbeat...
+                    ♥ Feeling the Pulse...
                   </p>
                 ) : (
                   <p className="text-[9.5px] font-mono font-bold uppercase tracking-[0.25em] text-zinc-400">
-                    [ Hold Thumb on Pulse to Lock In ]
+                    [ Hold Thumb on Pulse to Focus ]
                   </p>
                 )}
               </div>
@@ -1469,7 +1470,7 @@ function ControlView({ roomID }) {
     }
   };
 
-  // Secret 5-tap in top-left corner of the reveal screen to return to deck during testing
+  // Secret 5-tap in bottom-right corner of the reveal screen to return to deck during testing
   const handleOverlaySecretExit = (e) => {
     e.stopPropagation();
     const now = Date.now();
@@ -1539,10 +1540,10 @@ function ControlView({ roomID }) {
           onContextMenu={(e) => e.preventDefault()}
           className="fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden select-none touch-none"
         >
-          {/* Hidden 5-tap top-left escape zone for rehearsal/testing */}
+          {/* Hidden 5-tap bottom-right escape zone for rehearsal/testing */}
           <div 
             onPointerDown={handleOverlaySecretExit}
-            className="absolute top-0 left-0 w-28 h-28 z-[95] bg-black/0 touch-none"
+            className="absolute bottom-0 right-0 w-32 h-32 z-[95] bg-black/0 touch-none"
           />
 
           {/* 2A: HYPNOTIC SPIRAL */}
