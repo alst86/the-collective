@@ -18,6 +18,64 @@ const EMOTIONAL_TUNING_PROMPTS = [
   "EVERY HEARTBEAT TELLS A STORY"
 ];
 
+// Exact Custom AL Geometric Monogram Logo
+function BrandLogoSVG({ className = "w-14 h-14" }) {
+  return (
+    <svg viewBox="0 0 200 200" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <clipPath id="alCircleClip">
+          <circle cx="100" cy="100" r="84" />
+        </clipPath>
+      </defs>
+      {/* Outer Circle Ring */}
+      <circle cx="100" cy="100" r="84" stroke="#000000" strokeWidth="17" />
+      {/* Inner AL Monogram (Diagonal 'A' + Vertical Stem + Horizontal 'L' Base) */}
+      <g clipPath="url(#alCircleClip)">
+        <path
+          d="M 20 115 L 109 26 L 109 152 L 178 152 L 178 169 L 92 169 L 92 67 L 26 133 Z"
+          fill="#000000"
+        />
+      </g>
+    </svg>
+  );
+}
+
+// True Continuous Archimedean Spiral (Seamless 360-Degree Infinite Loop)
+const HypnoticSpiralSVG = React.memo(function HypnoticSpiralSVG() {
+  const spiralPath = useMemo(() => {
+    const pitch = 56; // Distance between spiral coils (28px black band + 28px white band)
+    const b = pitch / (2 * Math.PI);
+    const maxTurns = 22;
+    const maxTheta = maxTurns * 2 * Math.PI;
+    const step = 0.09;
+    const pts = [];
+
+    for (let theta = 0; theta <= maxTheta; theta += step) {
+      const r = b * theta;
+      const x = (r * Math.cos(theta)).toFixed(1);
+      const y = (r * Math.sin(theta)).toFixed(1);
+      pts.push(`${theta === 0 ? 'M' : 'L'} ${x} ${y}`);
+    }
+    return pts.join(' ');
+  }, []);
+
+  return (
+    <svg
+      viewBox="-600 -600 1200 1200"
+      className="absolute w-[185vmax] h-[185vmax] pointer-events-none will-change-transform"
+      style={{ animation: 'continuousSpiralFlow 1.35s linear infinite' }}
+    >
+      <path
+        d={spiralPath}
+        fill="none"
+        stroke="#000000"
+        strokeWidth="28"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+});
+
 const formatValidUrl = (rawUrl, fallbackUrl) => {
   let clean = (rawUrl || fallbackUrl || '').trim();
   if (!clean) return fallbackUrl;
@@ -117,6 +175,9 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const thumbHoldTimerRef = useRef(null);
 
   const [stagePhase, setStagePhase] = useState('PULSE');
+  const [spiralVisible, setSpiralVisible] = useState(false);
+  const [badgeVisible, setBadgeVisible] = useState(false);
+  const [lettersVisible, setLettersVisible] = useState(false);
   const [convergeActive, setConvergeActive] = useState(false);
   const phaseTimeoutsRef = useRef([]);
 
@@ -149,7 +210,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
-  // If entering directly from Master QR tap, initialize camera & audio automatically
   useEffect(() => {
     if (skipEntryPrompt) {
       startCamera();
@@ -405,6 +465,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     clearTimeout(thumbHoldTimerRef.current);
   };
 
+  // PHASE 2 REVEAL WITH SMOOTH FADE-IN & FADE-OUT TRANSITIONS
   const runRevealSequence = (wordToReveal) => {
     clearPhaseTimeouts();
     clearTimeout(timerRef.current);
@@ -413,23 +474,44 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     const finalWord = (wordToReveal || kickerWordRef.current || 'JAMES').trim();
     setRevealWord(finalWord);
     setConvergeActive(false);
+    setSpiralVisible(false);
+    setBadgeVisible(false);
+    setLettersVisible(false);
 
+    // 1. Enter Spiral Stage: Fade in Center AL Badge first, then fade in the Rotating Spiral
     setStagePhase('SPIRAL');
+    const t0 = setTimeout(() => setBadgeVisible(true), 60);
+    const tSpiralIn = setTimeout(() => setSpiralVisible(true), 350);
 
+    // 2. Smoothly Fade Out Spiral & AL Badge before transitioning to black
+    const tSpiralOut = setTimeout(() => {
+      setSpiralVisible(false);
+      setBadgeVisible(false);
+    }, 4300);
+
+    // 3. Switch to Floating Letters & Smoothly Fade In
     const t1 = setTimeout(() => {
       setStagePhase('LETTERS');
-    }, 5000);
+      setTimeout(() => setLettersVisible(true), 80);
+    }, 5100);
 
+    // 4. Smoothly Fade Out Decoy Letters before Word Convergence
+    const tLettersOut = setTimeout(() => {
+      setLettersVisible(false);
+    }, 9300);
+
+    // 5. Magnetic Word Convergence
     const t2 = setTimeout(() => {
       setStagePhase('CONVERGE');
       setTimeout(() => setConvergeActive(true), 60);
     }, 10000);
 
+    // 6. Solid Locked Reveal Hold
     const t3 = setTimeout(() => {
       setStagePhase('LOCKED');
     }, 11200);
 
-    phaseTimeoutsRef.current = [t1, t2, t3];
+    phaseTimeoutsRef.current = [t0, tSpiralIn, tSpiralOut, t1, tLettersOut, t2, t3];
   };
 
   useEffect(() => {
@@ -604,16 +686,16 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   return (
-    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden select-none ${
+    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-500 overflow-hidden select-none ${
       stagePhase === 'SPIRAL' ? 'bg-white text-black' :
       (stagePhase === 'LETTERS' || stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') ? 'bg-black text-white' :
       !cameraReady ? 'bg-[#f4f4f2] text-black' :
       isFlashing ? 'bg-black text-white' : 'bg-white text-black'
     }`}>
       <style>{`
-        @keyframes tunnelFlow {
-          0% { background-size: 100px 100px; background-position: 0 0; }
-          100% { background-size: 100px 100px; background-position: 0 100px; }
+        @keyframes continuousSpiralFlow {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
         @keyframes floatLetter {
           0% { transform: translate(0px, 0px); opacity: 0.15; }
@@ -652,28 +734,28 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
       {/* ==========================================
-          PHASE 2A: CONTINUOUS FLOW INFINITE LOOP SPIRAL + LOGO
+          PHASE 2A: TRUE CONTINUOUS ARCHIMEDEAN SPIRAL + CUSTOM AL LOGO
+          Smoothly Fades In & Fades Out
          ========================================== */}
       {stagePhase === 'SPIRAL' && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-white">
-          <div 
-            className="absolute inset-0 w-full h-full"
-            style={{
-              backgroundImage: 'repeating-radial-gradient(circle at center, #000 0px, #000 24px, #fff 24px, #fff 48px)',
-              animation: 'tunnelFlow 2s linear infinite'
-            }}
-          />
-          <div className="relative z-10 w-48 h-48 rounded-full bg-white shadow-[0_0_60px_rgba(0,0,0,0.4)] flex items-center justify-center border-4 border-black">
-            <svg viewBox="0 0 500 500" className="w-28 h-28 fill-current text-black">
-              <path d="M250 25C125.74 25 25 125.74 25 250s100.74 225 225 225 225-100.74 225-225S374.26 25 250 25zm0 415c-104.93 0-190-85.07-190-190S145.07 60 250 60s190 85.07 190 190-85.07 190-190 190z" />
-              <path d="M232.5 121.3L135 253.2h43.3l54.2-74.2v176h42.5V179l54.2 74.2h43.3L267.5 121.3h-35z" />
-            </svg>
+          {/* Continuous Hypnotic Spiral with Smooth Fade-In / Fade-Out */}
+          <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-700 ease-in-out ${spiralVisible ? 'opacity-100' : 'opacity-0'}`}>
+            <HypnoticSpiralSVG />
+          </div>
+
+          {/* Soft-Shadowed White Center Disc with Custom AL Logo */}
+          <div className={`relative z-10 w-44 h-44 rounded-full bg-white shadow-[0_10px_45px_rgba(0,0,0,0.22)] flex items-center justify-center transition-all duration-700 ease-in-out ${badgeVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+            <BrandLogoSVG className="w-14 h-14" />
           </div>
         </div>
       )}
 
+      {/* ==========================================
+          PHASE 2B: FLOATING LETTER CLOUD (Smooth Fade In/Out)
+         ========================================== */}
       {stagePhase === 'LETTERS' && (
-        <div className="relative w-full min-h-[100dvh] bg-black overflow-hidden">
+        <div className={`relative w-full min-h-[100dvh] bg-black overflow-hidden transition-opacity duration-700 ease-in-out ${lettersVisible ? 'opacity-100' : 'opacity-0'}`}>
           {decoyParticles.map((p) => (
             <span
               key={p.id}
@@ -694,6 +776,9 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         </div>
       )}
 
+      {/* ==========================================
+          PHASE 2C: MAGNETIC CONVERGENCE & LOCKED NAME
+         ========================================== */}
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 overflow-hidden">
           <div className="flex items-center justify-center space-x-2 sm:space-x-3 flex-wrap">
@@ -701,6 +786,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
               <span
                 key={idx}
                 style={{
+                  opacity: convergeActive || stagePhase === 'LOCKED' ? 1 : 0,
                   transform: convergeActive || stagePhase === 'LOCKED'
                     ? 'translate(0px, 0px) scale(1)'
                     : `translate(${item.startX}px, ${item.startY}px) scale(0.85)`,
@@ -884,6 +970,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [activePhase, setActivePhase] = useState('PHASE_1');
 
   const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE');
+  const [masterSpiralVisible, setMasterSpiralVisible] = useState(false);
+  const [masterBadgeVisible, setMasterBadgeVisible] = useState(false);
+  const [masterLettersVisible, setMasterLettersVisible] = useState(false);
   const [masterConvergeActive, setMasterConvergeActive] = useState(false);
   const [masterRevealWord, setMasterRevealWord] = useState('');
   const masterPhaseTimeoutsRef = useRef([]);
@@ -1150,16 +1239,32 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     });
   };
 
+  // Synchronized Master Reveal Sequence with Smooth Fade-In & Fade-Out
   const runMasterMonitorSequence = (wordToReveal) => {
     clearMasterPhaseTimeouts();
     setMasterRevealWord(wordToReveal);
     setMasterConvergeActive(false);
+    setMasterSpiralVisible(false);
+    setMasterBadgeVisible(false);
+    setMasterLettersVisible(false);
 
     setMasterMonitorPhase('SPIRAL');
+    const t0 = setTimeout(() => setMasterBadgeVisible(true), 60);
+    const tSpiralIn = setTimeout(() => setMasterSpiralVisible(true), 350);
+
+    const tSpiralOut = setTimeout(() => {
+      setMasterSpiralVisible(false);
+      setMasterBadgeVisible(false);
+    }, 4300);
 
     const t1 = setTimeout(() => {
       setMasterMonitorPhase('LETTERS');
-    }, 5000);
+      setTimeout(() => setMasterLettersVisible(true), 80);
+    }, 5100);
+
+    const tLettersOut = setTimeout(() => {
+      setMasterLettersVisible(false);
+    }, 9300);
 
     const t2 = setTimeout(() => {
       setMasterMonitorPhase('CONVERGE');
@@ -1171,7 +1276,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       setActivePhase('PHASE_2_DONE');
     }, 11200);
 
-    masterPhaseTimeoutsRef.current = [t1, t2, t3];
+    masterPhaseTimeoutsRef.current = [t0, tSpiralIn, tSpiralOut, t1, tLettersOut, t2, t3];
   };
 
   const resetToPhase1Pulse = () => {
@@ -1453,9 +1558,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans outline-none"
     >
       <style>{`
-        @keyframes tunnelFlow {
-          0% { background-size: 100px 100px; background-position: 0 0; }
-          100% { background-size: 100px 100px; background-position: 0 100px; }
+        @keyframes continuousSpiralFlow {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
         @keyframes floatLetter {
           0% { transform: translate(0px, 0px); opacity: 0.15; }
@@ -1477,7 +1582,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
       {/* =========================================================
           QR CODE FULLSCREEN OVERLAY ON MASTER PHONE
-          Tapping the QR card immediately opens the Audience Heartbeat View!
          ========================================================= */}
       {showQrModal && (
         <div 
@@ -1518,6 +1622,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         </div>
       )}
 
+      {/* =========================================================
+          SYNCHRONIZED MASTER REVEAL OVERLAY (Smooth Fade In/Out)
+         ========================================================= */}
       {masterMonitorPhase !== 'NONE' && (
         <div 
           onPointerDown={handleRedirectDown}
@@ -1525,7 +1632,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           onPointerLeave={handleRedirectUp}
           onPointerCancel={handleRedirectUp}
           onContextMenu={(e) => e.preventDefault()}
-          className="fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden select-none touch-none"
+          className={`fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden select-none touch-none transition-colors duration-500 ${
+            masterMonitorPhase === 'SPIRAL' ? 'bg-white' : 'bg-black'
+          }`}
         >
           <div 
             onPointerDown={handleOverlaySecretExit}
@@ -1534,24 +1643,17 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
           {masterMonitorPhase === 'SPIRAL' && (
             <div className="relative flex items-center justify-center w-full h-full overflow-hidden bg-white pointer-events-none">
-              <div 
-                className="absolute inset-0 w-full h-full"
-                style={{
-                  backgroundImage: 'repeating-radial-gradient(circle at center, #000 0px, #000 24px, #fff 24px, #fff 48px)',
-                  animation: 'tunnelFlow 2s linear infinite'
-                }}
-              />
-              <div className="relative z-10 w-48 h-48 rounded-full bg-white shadow-[0_0_60px_rgba(0,0,0,0.4)] flex items-center justify-center border-4 border-black">
-                <svg viewBox="0 0 500 500" className="w-28 h-28 fill-current text-black">
-                  <path d="M250 25C125.74 25 25 125.74 25 250s100.74 225 225 225 225-100.74 225-225S374.26 25 250 25zm0 415c-104.93 0-190-85.07-190-190S145.07 60 250 60s190 85.07 190 190-85.07 190-190 190z" />
-                  <path d="M232.5 121.3L135 253.2h43.3l54.2-74.2v176h42.5V179l54.2 74.2h43.3L267.5 121.3h-35z" />
-                </svg>
+              <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-700 ease-in-out ${masterSpiralVisible ? 'opacity-100' : 'opacity-0'}`}>
+                <HypnoticSpiralSVG />
+              </div>
+              <div className={`relative z-10 w-44 h-44 rounded-full bg-white shadow-[0_10px_45px_rgba(0,0,0,0.22)] flex items-center justify-center transition-all duration-700 ease-in-out ${masterBadgeVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+                <BrandLogoSVG className="w-14 h-14" />
               </div>
             </div>
           )}
 
           {masterMonitorPhase === 'LETTERS' && (
-            <div className="relative w-full h-full bg-black overflow-hidden pointer-events-none">
+            <div className={`relative w-full h-full bg-black overflow-hidden pointer-events-none transition-opacity duration-700 ease-in-out ${masterLettersVisible ? 'opacity-100' : 'opacity-0'}`}>
               {masterDecoyParticles.map((p) => (
                 <span
                   key={p.id}
@@ -1579,6 +1681,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                   <span
                     key={idx}
                     style={{
+                      opacity: masterConvergeActive || masterMonitorPhase === 'LOCKED' ? 1 : 0,
                       transform: masterConvergeActive || masterMonitorPhase === 'LOCKED'
                         ? 'translate(0px, 0px) scale(1)'
                         : `translate(${item.startX}px, ${item.startY}px) scale(0.85)`,
@@ -1595,7 +1698,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         </div>
       )}
 
-      {/* --- TOP BAR (UNBLOCKED, SINGLE-LINE & INSTANT POINTER RESPONSE) --- */}
+      {/* --- TOP BAR --- */}
       <div className="w-full h-14 flex items-center justify-between px-3 gap-1.5 shrink-0 z-40 border-b border-zinc-900">
         <button 
           onPointerDown={handleRedirectDown}
@@ -1612,7 +1715,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           🚀 {redirectStatus}
         </button>
 
-        {/* SENSITIVE SINGLE-LINE QR BUTTON */}
         <button 
           type="button"
           onPointerDown={(e) => {
