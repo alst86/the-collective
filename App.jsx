@@ -27,9 +27,7 @@ function BrandLogoSVG({ className = "w-14 h-14" }) {
           <circle cx="100" cy="100" r="84" />
         </clipPath>
       </defs>
-      {/* Outer Circle Ring */}
       <circle cx="100" cy="100" r="84" stroke="#000000" strokeWidth="17" />
-      {/* Inner AL Monogram (Diagonal 'A' + Vertical Stem + Horizontal 'L' Base) */}
       <g clipPath="url(#alCircleClip)">
         <path
           d="M 20 115 L 109 26 L 109 152 L 178 152 L 178 169 L 92 169 L 92 67 L 26 133 Z"
@@ -43,7 +41,7 @@ function BrandLogoSVG({ className = "w-14 h-14" }) {
 // True Continuous Archimedean Spiral (Seamless 360-Degree Infinite Loop)
 const HypnoticSpiralSVG = React.memo(function HypnoticSpiralSVG() {
   const spiralPath = useMemo(() => {
-    const pitch = 56; // Distance between spiral coils (28px black band + 28px white band)
+    const pitch = 56;
     const b = pitch / (2 * Math.PI);
     const maxTurns = 22;
     const maxTheta = maxTurns * 2 * Math.PI;
@@ -465,7 +463,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     clearTimeout(thumbHoldTimerRef.current);
   };
 
-  // PHASE 2 REVEAL WITH SMOOTH FADE-IN & FADE-OUT TRANSITIONS
   const runRevealSequence = (wordToReveal) => {
     clearPhaseTimeouts();
     clearTimeout(timerRef.current);
@@ -478,35 +475,29 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     setBadgeVisible(false);
     setLettersVisible(false);
 
-    // 1. Enter Spiral Stage: Fade in Center AL Badge first, then fade in the Rotating Spiral
     setStagePhase('SPIRAL');
     const t0 = setTimeout(() => setBadgeVisible(true), 60);
     const tSpiralIn = setTimeout(() => setSpiralVisible(true), 350);
 
-    // 2. Smoothly Fade Out Spiral & AL Badge before transitioning to black
     const tSpiralOut = setTimeout(() => {
       setSpiralVisible(false);
       setBadgeVisible(false);
     }, 4300);
 
-    // 3. Switch to Floating Letters & Smoothly Fade In
     const t1 = setTimeout(() => {
       setStagePhase('LETTERS');
       setTimeout(() => setLettersVisible(true), 80);
     }, 5100);
 
-    // 4. Smoothly Fade Out Decoy Letters before Word Convergence
     const tLettersOut = setTimeout(() => {
       setLettersVisible(false);
     }, 9300);
 
-    // 5. Magnetic Word Convergence
     const t2 = setTimeout(() => {
       setStagePhase('CONVERGE');
       setTimeout(() => setConvergeActive(true), 60);
     }, 10000);
 
-    // 6. Solid Locked Reveal Hold
     const t3 = setTimeout(() => {
       setStagePhase('LOCKED');
     }, 11200);
@@ -733,27 +724,18 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
-      {/* ==========================================
-          PHASE 2A: TRUE CONTINUOUS ARCHIMEDEAN SPIRAL + CUSTOM AL LOGO
-          Smoothly Fades In & Fades Out
-         ========================================== */}
       {stagePhase === 'SPIRAL' && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-white">
-          {/* Continuous Hypnotic Spiral with Smooth Fade-In / Fade-Out */}
           <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-700 ease-in-out ${spiralVisible ? 'opacity-100' : 'opacity-0'}`}>
             <HypnoticSpiralSVG />
           </div>
 
-          {/* Soft-Shadowed White Center Disc with Custom AL Logo */}
           <div className={`relative z-10 w-44 h-44 rounded-full bg-white shadow-[0_10px_45px_rgba(0,0,0,0.22)] flex items-center justify-center transition-all duration-700 ease-in-out ${badgeVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
             <BrandLogoSVG className="w-14 h-14" />
           </div>
         </div>
       )}
 
-      {/* ==========================================
-          PHASE 2B: FLOATING LETTER CLOUD (Smooth Fade In/Out)
-         ========================================== */}
       {stagePhase === 'LETTERS' && (
         <div className={`relative w-full min-h-[100dvh] bg-black overflow-hidden transition-opacity duration-700 ease-in-out ${lettersVisible ? 'opacity-100' : 'opacity-0'}`}>
           {decoyParticles.map((p) => (
@@ -776,9 +758,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         </div>
       )}
 
-      {/* ==========================================
-          PHASE 2C: MAGNETIC CONVERGENCE & LOCKED NAME
-         ========================================== */}
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 overflow-hidden">
           <div className="flex items-center justify-center space-x-2 sm:space-x-3 flex-wrap">
@@ -969,6 +948,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [activePhase, setActivePhase] = useState('PHASE_1');
 
+  // PALM-LOCK DOUBLE-TAP STATES (Prevents accidental touches when phone is face-down in volunteer's palm)
+  const [isCuesTouchLocked, setIsCuesTouchLocked] = useState(false);
+  const isCuesTouchLockedRef = useRef(false);
+  const [cueLockConfirmArmed, setCueLockConfirmArmed] = useState(false);
+  const cueLockConfirmTimeoutRef = useRef(null);
+
   const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE');
   const [masterSpiralVisible, setMasterSpiralVisible] = useState(false);
   const [masterBadgeVisible, setMasterBadgeVisible] = useState(false);
@@ -1064,6 +1049,20 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     } catch (e) {}
   }, [roomID]);
 
+  // Listen to Firebase buttonText so Master Deck always shows the current live word
+  useEffect(() => {
+    const textRef = ref(db, `${roomID}/buttonText`);
+    const unsubText = onValue(textRef, (snapshot) => {
+      const val = snapshot.val();
+      const cleaned = val && String(val).trim() !== '' ? String(val).trim() : '';
+      if (cleaned) {
+        setPeekedWord(cleaned);
+        peekedWordRef.current = cleaned;
+      }
+    });
+    return () => unsubText();
+  }, [roomID]);
+
   useEffect(() => {
     if (!isRecording) {
       localStorage.setItem(`magicSequence_${roomID}`, JSON.stringify(recordedSequence));
@@ -1081,20 +1080,25 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     set(ref(db, `${roomID}/feedbackUrl`), activeFeedback).catch(() => {});
   }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, feedbackUrl, roomID]);
 
+  // ROBUST CACHE-BUSTED API POLLING
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
-      if (!isInjectSyncing || !injectUrl) return;
+      if (!isInjectSyncing || !injectUrl || !injectUrl.trim()) return;
       try {
+        const cleanEndpoint = injectUrl.trim();
+        const sep = cleanEndpoint.includes('?') ? '&' : '?';
+        const urlWithBust = `${cleanEndpoint}${sep}_t=${Date.now()}`;
+
         let text = "";
         try {
-          const res = await fetch(`${injectUrl}?t=${Date.now()}`);
+          const res = await fetch(urlWithBust, { cache: 'no-store' });
           if (!res.ok) throw new Error();
           text = await res.text();
         } catch (e) {
-          const targetUrl = encodeURIComponent(`${injectUrl}?t=${Date.now()}`);
-          const proxyUrl = `https://api.allorigins.win/raw?url=${targetUrl}`;
-          const res2 = await fetch(proxyUrl);
+          const targetUrl = encodeURIComponent(urlWithBust);
+          const proxyUrl = `https://api.allorigins.win/raw?url=${targetUrl}&_t=${Date.now()}`;
+          const res2 = await fetch(proxyUrl, { cache: 'no-store' });
           text = await res2.text();
         }
 
@@ -1102,27 +1106,40 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         try {
           const json = JSON.parse(text);
           const keyToPoll = injectKey.trim() || 'peek';
-          if (json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
+          if (json && json[keyToPoll] !== undefined && json[keyToPoll] !== null) {
             word = String(json[keyToPoll]).trim();
+          } else if (json && json.data && json.data[keyToPoll] !== undefined) {
+            word = String(json.data[keyToPoll]).trim();
+          } else if (typeof json === 'string') {
+            word = json.trim();
           }
-        } catch(e) {}
+        } catch (e) {
+          // If API returns raw plain text instead of JSON
+          const rawText = (text || '').trim();
+          if (rawText && !rawText.startsWith('<') && rawText.length < 60) {
+            word = rawText;
+          }
+        }
 
-        if (word && word !== lastInjectRef.current) {
-          lastInjectRef.current = word;
+        if (word) {
           setPeekedWord(word);
           peekedWordRef.current = word;
-          set(ref(db, `${roomID}/buttonText`), word);
+          if (word !== lastInjectRef.current) {
+            lastInjectRef.current = word;
+            set(ref(db, `${roomID}/buttonText`), word);
+          }
         }
       } catch (e) {}
     };
 
     if (isInjectSyncing && injectUrl) {
       executeMasterPoll();
-      timer = setInterval(executeMasterPoll, 2000); 
+      timer = setInterval(executeMasterPoll, 1500); 
     }
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
+  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK (Works even when touch buttons are Palm-Locked!)
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
@@ -1155,9 +1172,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       if (isPlayingRef.current) { handleStopPlayback(); return; }
       if (k === 'p' || k === 'P') { e.preventDefault(); handlePlayToggle(); return; }
       
-      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') { e.preventDefault(); handleLocalDown(); }
+      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') { e.preventDefault(); handleLocalDown(true); }
       else if (k === 'ArrowRight') { e.preventDefault(); startLocalHeartbeat(); }
-      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') { e.preventDefault(); handleAudienceDown(); }
+      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') { e.preventDefault(); handleAudienceDown(true); }
       else if (k === 'ArrowLeft') { e.preventDefault(); startAudienceHeartbeat(); }
       else if (k === 'u' || k === 'U') { e.preventDefault(); toggleLocalTorch(); }
       else if (k === 'r' || k === 'R') { e.preventDefault(); toggleLocalHeartbeat(); }
@@ -1173,8 +1190,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       if (isTypingInSettings) return;
 
       const k = e.key;
-      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') { e.preventDefault(); handleLocalUp(); }
-      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') { e.preventDefault(); handleAudienceUp(); }
+      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') { e.preventDefault(); handleLocalUp(true); }
+      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') { e.preventDefault(); handleAudienceUp(true); }
       else if (k === 'ArrowRight') { e.preventDefault(); stopLocalHeartbeat(); }
       else if (k === 'ArrowLeft') { e.preventDefault(); stopAudienceHeartbeat(); }
     };
@@ -1185,21 +1202,42 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     return () => {
       clearInterval(focusInterval);
       clearTimeout(recConfirmTimeoutRef.current);
+      clearTimeout(cueLockConfirmTimeoutRef.current);
       clearMasterPhaseTimeouts();
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp, true);
     };
   }, [localMode, audienceMode, redirectUrl, feedbackUrl]); 
 
+  // 2X-TAP PALM LOCK TOGGLE HANDLER (Just like the REC button)
+  const handleCueLockButtonTap = () => {
+    if (!cueLockConfirmArmed) {
+      setCueLockConfirmArmed(true);
+      clearTimeout(cueLockConfirmTimeoutRef.current);
+      cueLockConfirmTimeoutRef.current = setTimeout(() => {
+        setCueLockConfirmArmed(false);
+      }, 1500);
+      return;
+    }
+
+    clearTimeout(cueLockConfirmTimeoutRef.current);
+    setCueLockConfirmArmed(false);
+    const nextLockedState = !isCuesTouchLockedRef.current;
+    isCuesTouchLockedRef.current = nextLockedState;
+    setIsCuesTouchLocked(nextLockedState);
+  };
+
   const handleSetCustomText = () => {
     set(ref(db, `${roomID}/buttonText`), customText);
     setPeekedWord(customText);
     peekedWordRef.current = customText;
+    lastInjectRef.current = customText;
   };
   const handleClearCustomText = () => {
     setCustomText('');
     setPeekedWord('');
     peekedWordRef.current = '';
+    lastInjectRef.current = '';
     set(ref(db, `${roomID}/buttonText`), '');
   };
 
@@ -1239,7 +1277,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     });
   };
 
-  // Synchronized Master Reveal Sequence with Smooth Fade-In & Fade-Out
   const runMasterMonitorSequence = (wordToReveal) => {
     clearMasterPhaseTimeouts();
     setMasterRevealWord(wordToReveal);
@@ -1451,7 +1488,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   };
   const toggleLocalStrobe = () => localMode === 'STROBE' ? turnLocalOff() : startLocalStrobe();
 
-  const handleLocalDown = () => {
+  const handleLocalDown = (fromRemote = false) => {
+    if (!fromRemote && isCuesTouchLockedRef.current) return;
     if (isLocalPressing.current) return;
     isLocalPressing.current = true;
     localPressTimer.current = setTimeout(() => {
@@ -1460,7 +1498,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }, 400); 
   };
   
-  const handleLocalUp = () => {
+  const handleLocalUp = (fromRemote = false) => {
+    if (!fromRemote && isCuesTouchLockedRef.current) return;
     if (!isLocalPressing.current) return;
     isLocalPressing.current = false;
     if (localPressTimer.current) {
@@ -1481,7 +1520,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const startAudienceStrobe = () => { setAudienceMode('STROBE'); fireAudienceCommand('STROBE'); };
   const toggleAudienceStrobe = () => audienceMode === 'STROBE' ? turnAudienceOff() : startAudienceStrobe();
 
-  const handleAudienceDown = () => {
+  const handleAudienceDown = (fromRemote = false) => {
+    if (!fromRemote && isCuesTouchLockedRef.current) return;
     if (isAudiencePressing.current) return;
     isAudiencePressing.current = true;
     audiencePressTimer.current = setTimeout(() => {
@@ -1490,7 +1530,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }, 400);
   };
   
-  const handleAudienceUp = () => {
+  const handleAudienceUp = (fromRemote = false) => {
+    if (!fromRemote && isCuesTouchLockedRef.current) return;
     if (!isAudiencePressing.current) return;
     isAudiencePressing.current = false;
     if (audiencePressTimer.current) {
@@ -1698,15 +1739,15 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         </div>
       )}
 
-      {/* --- TOP BAR --- */}
-      <div className="w-full h-14 flex items-center justify-between px-3 gap-1.5 shrink-0 z-40 border-b border-zinc-900">
+      {/* --- TOP BAR (UNCROWDED: REDIRECT, QR, SETTINGS) --- */}
+      <div className="w-full h-14 flex items-center justify-between px-4 gap-2 shrink-0 z-40 border-b border-zinc-900">
         <button 
           onPointerDown={handleRedirectDown}
           onPointerUp={handleRedirectUp}
           onPointerLeave={handleRedirectUp}
           onPointerCancel={handleRedirectUp}
           onContextMenu={(e) => e.preventDefault()}
-          className={`px-2.5 py-2 rounded-full border text-[9px] font-bold tracking-wider whitespace-nowrap shrink-0 transition-colors ${
+          className={`px-3.5 py-2 rounded-full border text-[9px] font-bold tracking-widest whitespace-nowrap shrink-0 transition-colors ${
             redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
             : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
             : 'bg-zinc-950 border-zinc-800 text-zinc-400'
@@ -1721,25 +1762,10 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             e.stopPropagation();
             setShowQrModal(true);
           }}
-          className="px-3 py-2 rounded-full border text-[9px] font-extrabold tracking-widest whitespace-nowrap shrink-0 bg-zinc-900 border-zinc-700 text-white active:scale-95 active:bg-zinc-700 transition-all cursor-pointer"
+          className="px-4 py-2 rounded-full border text-[9px] font-extrabold tracking-widest whitespace-nowrap shrink-0 bg-zinc-900 border-zinc-700 text-white active:scale-95 active:bg-zinc-700 transition-all cursor-pointer"
         >
-          🔳 QR
+          🔳 SHOW QR
         </button>
-
-        <div className="flex-1 flex justify-center items-center min-w-0">
-          {peekedWord ? (
-            <div className="flex items-center space-x-1.5 bg-green-900/20 border border-green-500/50 px-2.5 py-1.5 rounded-full max-w-full">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e] shrink-0"></div>
-              <span className="text-[9px] font-mono text-green-400 font-bold tracking-wider uppercase truncate">
-                LIVE: {peekedWord}
-              </span>
-            </div>
-          ) : (
-            <span className="text-[9px] font-mono text-zinc-700 font-bold tracking-widest uppercase truncate">
-              NO KICKER
-            </span>
-          )}
-        </div>
 
         <button 
           type="button"
@@ -1747,7 +1773,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             e.stopPropagation();
             setIsSettingsOpen((prev) => !prev);
           }}
-          className={`px-2.5 py-2 rounded-full border text-[9px] font-bold tracking-wider whitespace-nowrap shrink-0 transition-colors ${
+          className={`px-3.5 py-2 rounded-full border text-[9px] font-bold tracking-widest whitespace-nowrap shrink-0 transition-colors ${
             isSettingsOpen ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500'
           }`}
         >
@@ -1850,9 +1876,10 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       )}
 
       {/* --- MAIN CONTROL SCREEN --- */}
-      <div className="flex-1 flex flex-col items-center w-full min-h-0 pt-3 pb-4 z-10 px-4 space-y-2.5">
+      <div className="flex-1 flex flex-col items-center w-full min-h-0 pt-2.5 pb-3 z-10 px-4 space-y-2">
         
-        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 flex items-center justify-between shrink-0">
+        {/* 1. CHOREOGRAPHY CONTROLS */}
+        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between shrink-0">
           <div className="flex flex-col pr-2">
             <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase whitespace-nowrap">Choreography ({roomID})</span>
             <span className="text-xs font-mono text-zinc-300 mt-0.5">{recordedSequence.length} Cues Saved</span>
@@ -1888,7 +1915,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </div>
         </div>
 
-        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 grid grid-cols-2 gap-2 shrink-0">
+        {/* 2. OPTION A STAGE PROGRESSION BAR */}
+        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2 grid grid-cols-2 gap-2 shrink-0">
           <button
             onClick={resetToPhase1Pulse}
             className={`w-full py-2.5 px-2 rounded-lg text-[10px] font-bold tracking-wider uppercase border transition-colors truncate ${
@@ -1918,12 +1946,58 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </button>
         </div>
 
+        {/* 3. FULL-WIDTH LIVE API PEEK DISPLAY + 2X-TAP PALM LOCK SWITCH */}
+        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between gap-2 shrink-0">
+          {/* Live API Peek Readout */}
+          <div className="flex items-center space-x-2.5 min-w-0 flex-1 bg-black/60 border border-zinc-800/90 px-3 py-2 rounded-lg">
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+              peekedWord ? 'bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]' : 'bg-zinc-700'
+            }`} />
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+                Live API Peek
+              </span>
+              <span className={`text-sm font-mono font-black tracking-widest uppercase truncate ${
+                peekedWord ? 'text-green-400' : 'text-zinc-600'
+              }`}>
+                {peekedWord || 'WAITING FOR PEEK...'}
+              </span>
+            </div>
+          </div>
+
+          {/* 2x-Tap Palm Lock Toggle Switch (Just like REC button) */}
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              handleCueLockButtonTap();
+            }}
+            className={`px-3 py-2.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-colors border whitespace-nowrap shrink-0 ${
+              cueLockConfirmArmed
+                ? 'bg-amber-600 border-amber-400 text-white animate-pulse'
+                : isCuesTouchLocked
+                  ? 'bg-red-950/80 border-red-500 text-red-300 shadow-[0_0_12px_rgba(220,38,38,0.25)]'
+                  : 'bg-zinc-950 border-zinc-800 text-zinc-400'
+            }`}
+          >
+            {cueLockConfirmArmed
+              ? '⚠️ TAP 2X'
+              : isCuesTouchLocked
+                ? '🔒 PALM LOCKED'
+                : '🔓 LOCK CUES'}
+          </button>
+        </div>
+
+        {/* 4. LOCAL CUE & MASTER CUE (AUDIENCE) CONTROLS */}
         <div className="flex-1 w-full flex items-center justify-center">
-          <div className="w-full grid grid-cols-2 gap-4 items-center">
+          <div className={`w-full grid grid-cols-2 gap-4 items-center transition-opacity duration-200 ${
+            isCuesTouchLocked ? 'opacity-45' : 'opacity-100'
+          }`}>
             
+            {/* LOCAL CUE */}
             <div className="flex flex-col items-center w-full">
               <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-1">LOCAL CUE</div>
-              <div className="text-xs mb-3">
+              <div className="text-xs mb-2.5">
                 <span className="text-zinc-400">State: </span>
                 <span className={
                   localMode === 'OFF' ? 'text-red-500 font-bold' : 
@@ -1935,12 +2009,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 </span>
               </div>
               <button
-                onPointerDown={handleLocalDown}
-                onPointerUp={handleLocalUp}
-                onPointerLeave={handleLocalUp}
-                onPointerCancel={handleLocalUp}
+                onPointerDown={() => handleLocalDown(false)}
+                onPointerUp={() => handleLocalUp(false)}
+                onPointerLeave={() => handleLocalUp(false)}
+                onPointerCancel={() => handleLocalUp(false)}
                 onContextMenu={(e) => e.preventDefault()}
-                className={`w-36 h-36 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+                className={`w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
                   localMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
                   localMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_25px_rgba(255,255,255,0.2)]' :
                   localMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_25px_rgba(250,204,21,0.3)]' :
@@ -1948,12 +2022,16 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 }`}
               >
                 <span className="font-bold tracking-widest text-xs uppercase">
-                  {localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : localMode === 'STROBE' ? 'STROBING' : 'PULSING'}
+                  {isCuesTouchLocked ? '🔒 LOCKED' : localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : localMode === 'STROBE' ? 'STROBING' : 'PULSING'}
                 </span>
               </button>
-              <div className="mt-4 flex">
+              <div className="mt-3 flex">
                 <button 
-                  onPointerDown={(e) => { e.preventDefault(); toggleLocalStrobe(); }}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    if (isCuesTouchLockedRef.current) return;
+                    toggleLocalStrobe();
+                  }}
                   className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
                 >
                   ⚡ STROBE (e)
@@ -1961,9 +2039,10 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               </div>
             </div>
 
+            {/* MASTER CUE (AUDIENCE) */}
             <div className="flex flex-col items-center w-full">
               <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-1 text-center">MASTER CUE (AUDIENCE)</div>
-              <div className="text-xs mb-3">
+              <div className="text-xs mb-2.5">
                 <span className="text-zinc-400">State: </span>
                 <span className={
                   audienceMode === 'OFF' ? 'text-red-500 font-bold' : 
@@ -1975,12 +2054,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 </span>
               </div>
               <button
-                onPointerDown={handleAudienceDown}
-                onPointerUp={handleAudienceUp}
-                onPointerLeave={handleAudienceUp}
-                onPointerCancel={handleAudienceUp}
+                onPointerDown={() => handleAudienceDown(false)}
+                onPointerUp={() => handleAudienceUp(false)}
+                onPointerLeave={() => handleAudienceUp(false)}
+                onPointerCancel={() => handleAudienceUp(false)}
                 onContextMenu={(e) => e.preventDefault()}
-                className={`w-36 h-36 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+                className={`w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
                   audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
                   audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_25px_rgba(255,255,255,0.2)]' :
                   audienceMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_25px_rgba(250,204,21,0.3)]' :
@@ -1988,12 +2067,16 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 }`}
               >
                 <span className="font-bold tracking-widest text-xs uppercase">
-                  {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : audienceMode === 'STROBE' ? 'STROBING' : 'PULSING'}
+                  {isCuesTouchLocked ? '🔒 LOCKED' : audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : audienceMode === 'STROBE' ? 'STROBING' : 'PULSING'}
                 </span>
               </button>
-              <div className="mt-4 flex">
+              <div className="mt-3 flex">
                 <button 
-                  onPointerDown={(e) => { e.preventDefault(); toggleAudienceStrobe(); }}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    if (isCuesTouchLockedRef.current) return;
+                    toggleAudienceStrobe();
+                  }}
                   className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
                 >
                   ⚡ STROBE (s)
@@ -2006,6 +2089,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
       </div>
 
+      {/* --- STATUS FOOTER --- */}
       <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col items-center px-4 pt-3 pb-8 z-20 space-y-1">
         <div className="text-[10px] font-bold uppercase tracking-widest text-green-500">
           🟢 FLIC REMOTE LOCKED (ALWAYS ON)
