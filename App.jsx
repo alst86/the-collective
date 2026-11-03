@@ -584,10 +584,11 @@ function AudienceView({ roomID }) {
       !cameraReady ? 'bg-[#f4f4f2] text-black' :
       isFlashing ? 'bg-black text-white' : 'bg-white text-black'
     }`}>
+      {/* Keyframes for Continuous Flow Infinite Loop & Floating Letters */}
       <style>{`
-        @keyframes spinHypnotic {
-          0% { transform: scale(1) rotate(0deg); }
-          100% { transform: scale(1.15) rotate(360deg); }
+        @keyframes tunnelFlow {
+          0% { background-size: 100px 100px; background-position: 0 0; }
+          100% { background-size: 100px 100px; background-position: 0 100px; }
         }
         @keyframes floatLetter {
           0% { transform: translate(0px, 0px); opacity: 0.15; }
@@ -624,19 +625,25 @@ function AudienceView({ roomID }) {
 
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
+      {/* ==========================================
+          PHASE 2A: CONTINUOUS FLOW INFINITE LOOP SPIRAL + LOGO
+         ========================================== */}
       {stagePhase === 'SPIRAL' && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-white">
+          {/* Continuous Infinite Tunnel Loop Background */}
           <div 
-            className="absolute w-[180vmax] h-[180vmax] rounded-full"
+            className="absolute inset-0 w-full h-full"
             style={{
-              background: 'repeating-radial-gradient(circle, #000 0px, #000 22px, #fff 22px, #fff 44px)',
-              animation: 'spinHypnotic 4s linear infinite'
+              backgroundImage: 'repeating-radial-gradient(circle at center, #000 0px, #000 24px, #fff 24px, #fff 48px)',
+              animation: 'tunnelFlow 2s linear infinite'
             }}
           />
-          <div className="relative z-10 w-44 h-44 rounded-full bg-white shadow-[0_0_50px_rgba(0,0,0,0.35)] flex items-center justify-center">
-            <div className="w-16 h-16 rounded-full border-[3.5px] border-black flex items-center justify-center font-black text-black text-2xl tracking-tighter">
-              AL
-            </div>
+          {/* Center Logo Badge */}
+          <div className="relative z-10 w-48 h-48 rounded-full bg-white shadow-[0_0_60px_rgba(0,0,0,0.4)] flex items-center justify-center border-4 border-black">
+            <svg viewBox="0 0 500 500" className="w-28 h-28 fill-current text-black">
+              <path d="M250 25C125.74 25 25 125.74 25 250s100.74 225 225 225 225-100.74 225-225S374.26 25 250 25zm0 415c-104.93 0-190-85.07-190-190S145.07 60 250 60s190 85.07 190 190-85.07 190-190 190z" />
+              <path d="M232.5 121.3L135 253.2h43.3l54.2-74.2v176h42.5V179l54.2 74.2h43.3L267.5 121.3h-35z" />
+            </svg>
           </div>
         </div>
       )}
@@ -847,7 +854,7 @@ function ControlView({ roomID }) {
   const trackRef = useRef(null);
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [showQrModal, setShowQrModal] = useState(false); // Controls QR Code view on Master phone
+  const [showQrModal, setShowQrModal] = useState(false);
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [activePhase, setActivePhase] = useState('PHASE_1');
@@ -1437,9 +1444,9 @@ function ControlView({ roomID }) {
       className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans outline-none"
     >
       <style>{`
-        @keyframes spinHypnotic {
-          0% { transform: scale(1) rotate(0deg); }
-          100% { transform: scale(1.15) rotate(360deg); }
+        @keyframes tunnelFlow {
+          0% { background-size: 100px 100px; background-position: 0 0; }
+          100% { background-size: 100px 100px; background-position: 0 100px; }
         }
         @keyframes floatLetter {
           0% { transform: translate(0px, 0px); opacity: 0.15; }
@@ -1464,17 +1471,22 @@ function ControlView({ roomID }) {
         className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-14 z-[100] bg-black/0 touch-none"
       />
 
-      {/* QR CODE MODAL OVERLAY ON MASTER PHONE */}
       {showQrModal && (
         <div 
           onClick={() => setShowQrModal(false)}
           className="fixed inset-0 z-[95] bg-black/90 flex flex-col items-center justify-center p-6 cursor-pointer select-none"
         >
-          <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center max-w-xs w-full text-black">
+          <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowQrModal(false);
+              window.location.href = APP_QR_URL;
+            }}
+            className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center max-w-xs w-full text-black cursor-pointer hover:scale-105 transition-transform"
+          >
             <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 mb-4">
               Scan to Join Experience
             </span>
-            {/* Embedded SVG QR Code for app.andrewleemagic.com */}
             <div className="bg-white p-2 border-2 border-zinc-200 rounded-xl mb-4 flex items-center justify-center">
               <img 
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(APP_QR_URL)}`} 
@@ -1485,8 +1497,8 @@ function ControlView({ roomID }) {
             <span className="text-xs font-mono font-bold text-zinc-700 tracking-wider mb-2">
               {APP_QR_URL}
             </span>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-red-600 animate-pulse mt-2">
-              [ Tap QR Code to Enter Audience View ]
+            <span className="text-[9px] font-bold uppercase tracking-widest text-red-600 animate-pulse mt-2 text-center">
+              [ Tap QR Code to Open Audience View ]
             </span>
           </div>
         </div>
@@ -1509,16 +1521,17 @@ function ControlView({ roomID }) {
           {masterMonitorPhase === 'SPIRAL' && (
             <div className="relative flex items-center justify-center w-full h-full overflow-hidden bg-white pointer-events-none">
               <div 
-                className="absolute w-[180vmax] h-[180vmax] rounded-full"
+                className="absolute inset-0 w-full h-full"
                 style={{
-                  background: 'repeating-radial-gradient(circle, #000 0px, #000 22px, #fff 22px, #fff 44px)',
-                  animation: 'spinHypnotic 4s linear infinite'
+                  backgroundImage: 'repeating-radial-gradient(circle at center, #000 0px, #000 24px, #fff 24px, #fff 48px)',
+                  animation: 'tunnelFlow 2s linear infinite'
                 }}
               />
-              <div className="relative z-10 w-44 h-44 rounded-full bg-white shadow-[0_0_50px_rgba(0,0,0,0.35)] flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full border-[3.5px] border-black flex items-center justify-center font-black text-black text-2xl tracking-tighter">
-                  AL
-                </div>
+              <div className="relative z-10 w-48 h-48 rounded-full bg-white shadow-[0_0_60px_rgba(0,0,0,0.4)] flex items-center justify-center border-4 border-black">
+                <svg viewBox="0 0 500 500" className="w-28 h-28 fill-current text-black">
+                  <path d="M250 25C125.74 25 25 125.74 25 250s100.74 225 225 225 225-100.74 225-225S374.26 25 250 25zm0 415c-104.93 0-190-85.07-190-190S145.07 60 250 60s190 85.07 190 190-85.07 190-190 190z" />
+                  <path d="M232.5 121.3L135 253.2h43.3l54.2-74.2v176h42.5V179l54.2 74.2h43.3L267.5 121.3h-35z" />
+                </svg>
               </div>
             </div>
           )}
@@ -1585,7 +1598,6 @@ function ControlView({ roomID }) {
           🚀 {redirectStatus}
         </button>
 
-        {/* QR CODE TOGGLE BUTTON */}
         <button 
           onClick={() => setShowQrModal(true)}
           className="px-3 py-1.5 rounded-full border text-[9px] font-bold tracking-widest bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-zinc-600 transition-colors"
@@ -1714,7 +1726,6 @@ function ControlView({ roomID }) {
       {/* --- MAIN CONTROL SCREEN --- */}
       <div className="flex-1 flex flex-col items-center w-full min-h-0 pt-3 pb-4 z-10 px-4 space-y-2.5">
         
-        {/* 1. CHOREOGRAPHY CONTROLS (PINNED DIRECTLY BELOW TOP BAR) */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 flex items-center justify-between shrink-0">
           <div className="flex flex-col pr-2">
             <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase whitespace-nowrap">Choreography ({roomID})</span>
@@ -1751,7 +1762,6 @@ function ControlView({ roomID }) {
           </div>
         </div>
 
-        {/* 2. OPTION A STAGE PROGRESSION BAR (PROPORTIONAL 2-COLUMN GRID) */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 grid grid-cols-2 gap-2 shrink-0">
           <button
             onClick={resetToPhase1Pulse}
@@ -1782,11 +1792,9 @@ function ControlView({ roomID }) {
           </button>
         </div>
 
-        {/* 3. LOCAL CUE & MASTER CUE (AUDIENCE) CONTROLS (CENTERED IN REMAINING SPACE) */}
         <div className="flex-1 w-full flex items-center justify-center">
           <div className="w-full grid grid-cols-2 gap-4 items-center">
             
-            {/* LOCAL CUE */}
             <div className="flex flex-col items-center w-full">
               <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-1">LOCAL CUE</div>
               <div className="text-xs mb-3">
@@ -1827,7 +1835,6 @@ function ControlView({ roomID }) {
               </div>
             </div>
 
-            {/* MASTER CUE (AUDIENCE) */}
             <div className="flex flex-col items-center w-full">
               <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-1 text-center">MASTER CUE (AUDIENCE)</div>
               <div className="text-xs mb-3">
@@ -1873,7 +1880,6 @@ function ControlView({ roomID }) {
 
       </div>
 
-      {/* --- STATUS FOOTER --- */}
       <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col items-center px-4 pt-3 pb-8 z-20 space-y-1">
         <div className="text-[10px] font-bold uppercase tracking-widest text-green-500">
           🟢 FLIC REMOTE LOCKED (ALWAYS ON)
