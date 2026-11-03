@@ -7,8 +7,7 @@ import { db } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 
 const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
-// Paste your Feedback / Review URL inside the quotes below (or set it in Settings):
-const DEFAULT_FEEDBACK_URL = 'https://www.google.com';
+const DEFAULT_FEEDBACK_URL = 'https://andrewleemagic.com/feedback';
 const FEEDBACK_DELAY_MS = 30 * 1000; // 30 seconds
 
 // Schedules the underlying Safari/Web browser tab to redirect to the Feedback page after 30 seconds
@@ -33,8 +32,8 @@ const scheduleFeedbackRedirect = (rawFeedbackUrl) => {
   // 1. Standard 30-second timer for the browser tab
   const timerId = setTimeout(goToFeedback, FEEDBACK_DELAY_MS);
 
-  // 2. Mobile browser safeguard: if the OS suspended background timers while the Instagram app was open,
-  // check the elapsed time when the browser tab becomes visible again
+  // 2. Mobile browser safeguard: if iOS suspended background timers while the Instagram app was open,
+  // check elapsed time as soon as the user returns to the browser tab
   const handleBrowserWake = () => {
     if (document.visibilityState === 'visible') {
       const elapsed = Date.now() - startTime;
@@ -49,6 +48,7 @@ const scheduleFeedbackRedirect = (rawFeedbackUrl) => {
   };
 
   document.addEventListener('visibilitychange', handleBrowserWake);
+  window.addEventListener('pageshow', handleBrowserWake);
   window.addEventListener('focus', handleBrowserWake);
 };
 
@@ -75,6 +75,7 @@ function AudienceView({ roomID }) {
   const videoRef = useRef(null);
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
+  const isRedirectingRef = useRef(false);
   const feedbackUrlRef = useRef(DEFAULT_FEEDBACK_URL);
 
   const audioCtxRef = useRef(null);
@@ -146,6 +147,7 @@ function AudienceView({ roomID }) {
   };
 
   const playHeartbeatThud = (isSecondBeat = false) => {
+    if (isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
@@ -241,6 +243,7 @@ function AudienceView({ roomID }) {
   };
 
   const applyTorch = async (active) => {
+    if (isRedirectingRef.current && active) return;
     setIsFlashing(active); 
     if (!trackRef.current) return;
     try {
@@ -311,24 +314,29 @@ function AudienceView({ roomID }) {
     const baseCmd = parts[0];
     
     if (baseCmd === 'ON') {
+      isRedirectingRef.current = false;
       applyTorch(true);
     } else if (baseCmd === 'OFF') {
       applyTorch(false);
       if (!isInitialLoad) resetIdleTimer();
     } else if (baseCmd === 'STRIKE_LUB') {
+      isRedirectingRef.current = false;
       applyTorch(true);
       playHeartbeatThud(false);
       if (navigator.vibrate) navigator.vibrate(100);
       timerRef.current = setTimeout(() => applyTorch(false), 140);
     } else if (baseCmd === 'STRIKE_DUB') {
+      isRedirectingRef.current = false;
       applyTorch(true);
       playHeartbeatThud(true);
       if (navigator.vibrate) navigator.vibrate(70);
       timerRef.current = setTimeout(() => applyTorch(false), 110);
     } else if (baseCmd === 'BLINK') {
+      isRedirectingRef.current = false;
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
       const playHeartbeat = () => {
+        if (isRedirectingRef.current) return;
         const duration = pattern[step];
         const isOn = (step === 0 || step === 2); 
         applyTorch(isOn);
@@ -343,7 +351,9 @@ function AudienceView({ roomID }) {
       };
       playHeartbeat();
     } else if (baseCmd === 'STROBE') {
+      isRedirectingRef.current = false;
       const playStrobe = () => {
+        if (isRedirectingRef.current) return;
         const isOn = Math.random() > 0.5; 
         applyTorch(isOn);
         const randomDelay = Math.floor(Math.random() * 90) + 60;
@@ -351,17 +361,32 @@ function AudienceView({ roomID }) {
       };
       playStrobe();
     } else if (baseCmd === 'REDIRECT') {
-      // Immediately kill pulsing torch & audio before navigating
-      applyTorch(false);
+      // Lock state so no pulse timer can interrupt the redirect
+      isRedirectingRef.current = true;
+      clearTimeout(timerRef.current);
+      setIsFlashing(false);
+
+      // Release camera torch & audio session cleanly so mobile OS transitions immediately
+      if (trackRef.current) {
+        try {
+          trackRef.current.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+          trackRef.current.stop();
+        } catch (e) {}
+      }
+      if (silentAudioRef.current) {
+        try { silentAudioRef.current.pause(); } catch (e) {}
+      }
       if (navigator.vibrate) navigator.vibrate(0);
-      const rawUrl = parts.slice(2).join('|').trim();
+
+      const rawUrl = (parts[2] || '').trim();
+      const passedFeedbackUrl = (parts[3] || '').trim();
       let finalUrl = rawUrl || DEFAULT_REDIRECT_URL;
       if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
         finalUrl = `https://${finalUrl}`;
       }
 
-      // 1. Schedule the Safari/web browser tab to redirect to the Feedback page after 30s
-      scheduleFeedbackRedirect(feedbackUrlRef.current);
+      // 1. Schedule the Safari/web browser tab to redirect to https://andrewleemagic.com/feedback after 30s
+      scheduleFeedbackRedirect(passedFeedbackUrl || feedbackUrlRef.current);
 
       // 2. Instantly redirect to Instagram
       window.location.replace(finalUrl);
@@ -466,7 +491,7 @@ function ControlView({ roomID }) {
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [redirectUrl, setRedirectUrl] = useState(() => localStorage.getItem('magicRedirectUrl') || '');
-  const [feedbackUrl, setFeedbackUrl] = useState(() => localStorage.getItem('magicFeedbackUrl') || '');
+  const [feedbackUrl, setFeedbackUrl] = useState(() => localStorage.getItem('magicFeedbackUrl') || DEFAULT_FEEDBACK_URL);
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
   const [customText, setCustomText] = useState('');
   
@@ -481,13 +506,6 @@ function ControlView({ roomID }) {
   const [lastKey, setLastKey] = useState('NONE'); 
   const hiddenInputRef = useRef(null);
   const deckContainerRef = useRef(null);
-
-  // RHYTHMIC CUEPAD STATES
-  const [displayBpm, setDisplayBpm] = useState(72);
-  const [activeBpm, setActiveBpm] = useState(72);
-  const [isMetronomeActive, setIsMetronomeActive] = useState(false);
-  const metronomeTimerRef = useRef(null);
-  const tapTimesRef = useRef([]);
 
   // CHOREOGRAPHY & DOUBLE-TAP REC STATES
   const [isRecording, setIsRecording] = useState(false);
@@ -544,40 +562,6 @@ function ControlView({ roomID }) {
   }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, feedbackUrl, roomID]);
 
   useEffect(() => {
-    if (isMetronomeActive) {
-      const intervalMs = (60 / activeBpm) * 1000;
-      let beat = 0;
-      const runMetronome = () => {
-        fireAudienceCommand(beat % 2 === 0 ? 'STRIKE_LUB' : 'STRIKE_DUB', false);
-        beat++;
-        metronomeTimerRef.current = setTimeout(runMetronome, intervalMs);
-      };
-      runMetronome();
-    } else {
-      clearTimeout(metronomeTimerRef.current);
-    }
-    return () => clearTimeout(metronomeTimerRef.current);
-  }, [isMetronomeActive, activeBpm]);
-
-  const handleTapTempo = () => {
-    const now = Date.now();
-    tapTimesRef.current.push(now);
-    if (tapTimesRef.current.length > 4) tapTimesRef.current.shift();
-    if (tapTimesRef.current.length > 1) {
-      const intervals = [];
-      for (let i = 1; i < tapTimesRef.current.length; i++) {
-        intervals.push(tapTimesRef.current[i] - tapTimesRef.current[i - 1]);
-      }
-      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      const calculatedBpm = Math.round(60000 / avgInterval);
-      if (calculatedBpm >= 40 && calculatedBpm <= 200) {
-        setDisplayBpm(calculatedBpm);
-        setActiveBpm(calculatedBpm);
-      }
-    }
-  };
-
-  useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
       if (!isInjectSyncing || !injectUrl) return;
@@ -628,9 +612,6 @@ function ControlView({ roomID }) {
       const activeEl = document.activeElement;
       const isTypingInSettings = activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'text' && activeEl !== hiddenInputRef.current;
       if (!isTypingInSettings) {
-        if (activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'range') {
-          activeEl.blur();
-        }
         if (hiddenInputRef.current) {
           hiddenInputRef.current.focus({ preventScroll: true });
         }
@@ -726,7 +707,7 @@ function ControlView({ roomID }) {
     
     let payload = `${cmd}|${Date.now()}`;
     if (cmd === 'REDIRECT') {
-      payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}`;
+      payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}|${getTargetFeedbackUrl()}`;
     }
     
     return set(ref(db, `${roomID}/audienceCommand`), payload).catch(err => {
@@ -737,28 +718,29 @@ function ControlView({ roomID }) {
   // SYNCHRONIZED AUDIENCE + MASTER REDIRECT
   const executeSynchronizedRedirect = async () => {
     // 1. Stop all active pulsing timers so nothing overwrites the REDIRECT command
-    clearTimeout(metronomeTimerRef.current);
-    setIsMetronomeActive(false);
     playbackTimeoutsRef.current.forEach(clearTimeout);
     playbackTimeoutsRef.current = [];
     setIsPlaying(false);
     isPlayingRef.current = false;
     clearTimeout(localTimerRef.current);
     applyLocalTorch(false);
+    setAudienceMode('OFF');
 
     const finalUrl = getTargetRedirectUrl();
+    const targetFeedback = getTargetFeedbackUrl();
     setRedirectStatus('FIRED!');
 
-    // 2. Wait for Firebase to confirm the audience REDIRECT write before unloading Master page
+    // 2. Wait for Firebase to confirm the audience REDIRECT write + 250ms broadcast cushion
     try {
       await Promise.race([
         fireAudienceCommand('REDIRECT'),
-        new Promise((resolve) => setTimeout(resolve, 600))
+        new Promise((resolve) => setTimeout(resolve, 800))
       ]);
+      await new Promise((resolve) => setTimeout(resolve, 250));
     } catch (e) {}
 
     // 3. Schedule the 30s browser feedback redirect & immediately launch Instagram
-    scheduleFeedbackRedirect(getTargetFeedbackUrl());
+    scheduleFeedbackRedirect(targetFeedback);
     window.location.replace(finalUrl);
   };
 
@@ -835,7 +817,6 @@ function ControlView({ roomID }) {
     playbackTimeoutsRef.current = [];
     setIsPlaying(false);
     isPlayingRef.current = false;
-    setIsMetronomeActive(false);
     setAudienceMode('OFF');
     set(ref(db, `${roomID}/audienceCommand`), `OFF|${Date.now()}`);
     turnLocalOff(true); 
@@ -984,8 +965,7 @@ function ControlView({ roomID }) {
 
     if (masterSecretClickCount.current === 3) {
       masterSecretClickCount.current = 0;
-      scheduleFeedbackRedirect(getTargetFeedbackUrl());
-      window.location.replace(getTargetRedirectUrl());
+      executeSynchronizedRedirect();
     }
   };
 
@@ -1076,7 +1056,7 @@ function ControlView({ roomID }) {
               value={feedbackUrl}
               onChange={(e) => setFeedbackUrl(e.target.value)}
               className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-              placeholder="https://g.page/r/..."
+              placeholder="https://andrewleemagic.com/feedback"
             />
           </div>
 
@@ -1152,10 +1132,10 @@ function ControlView({ roomID }) {
       )}
 
       {/* --- MAIN CONTROL SCREEN --- */}
-      <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-2 z-10 px-4">
+      <div className="flex-1 flex flex-col justify-evenly items-center w-full min-h-0 py-4 z-10 px-4">
         
         {/* 1. CHOREOGRAPHY CONTROLS */}
-        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 flex items-center justify-between">
+        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-3.5 flex items-center justify-between shrink-0">
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Choreography ({roomID})</span>
             <span className="text-xs font-mono text-zinc-300 mt-0.5">{recordedSequence.length} Cues Saved</span>
@@ -1191,67 +1171,13 @@ function ControlView({ roomID }) {
           </div>
         </div>
 
-        {/* 2. RHYTHMIC CUEPAD / TEMPO CONTROLS */}
-        <div className="w-full h-[132px] bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 flex flex-col justify-between shrink-0">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase truncate mr-2">Rhythmic Cuepad (Live Tempo)</span>
-            <div className="flex items-center space-x-2 shrink-0">
-              <span className="text-xs font-mono font-bold text-red-500 whitespace-nowrap">{displayBpm} BPM</span>
-              <button 
-                onClick={handleTapTempo}
-                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-[9px] font-bold tracking-widest rounded border border-zinc-700 text-white uppercase whitespace-nowrap"
-              >
-                Tap Tempo
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <input 
-              type="range" 
-              min="40" 
-              max="160" 
-              value={displayBpm} 
-              onChange={(e) => setDisplayBpm(Number(e.target.value))}
-              onMouseUp={(e) => { setActiveBpm(displayBpm); e.target.blur(); }}
-              onTouchEnd={(e) => { setActiveBpm(displayBpm); e.target.blur(); }}
-              className="flex-1 accent-red-600 bg-zinc-800 h-1.5 rounded-lg appearance-none cursor-pointer"
-            />
-            <button 
-              onClick={() => setIsMetronomeActive(!isMetronomeActive)}
-              className={`px-3 py-1.5 rounded text-[9px] font-bold tracking-widest uppercase border transition-colors whitespace-nowrap ${
-                isMetronomeActive 
-                  ? 'bg-red-600 border-red-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.5)] animate-pulse'
-                  : 'bg-zinc-950 border-zinc-800 text-zinc-400'
-              }`}
-            >
-              {isMetronomeActive ? '■ STOP PULSE' : '▶ AUTO PULSE'}
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button 
-              onClick={() => fireAudienceCommand('STRIKE_LUB')}
-              className="py-1.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform"
-            >
-              💥 LUB (Thud)
-            </button>
-            <button 
-              onClick={() => fireAudienceCommand('STRIKE_DUB')}
-              className="py-1.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-300 active:scale-95 transition-transform"
-            >
-              💥 DUB (Snap)
-            </button>
-          </div>
-        </div>
-
-        {/* 3. LOCAL CUE & MASTER CUE (AUDIENCE) CONTROLS */}
-        <div className="w-full grid grid-cols-2 gap-3 items-center pt-1">
+        {/* 2. LOCAL CUE & MASTER CUE (AUDIENCE) CONTROLS */}
+        <div className="w-full grid grid-cols-2 gap-4 items-center">
           
           {/* LOCAL CUE */}
           <div className="flex flex-col items-center w-full">
-            <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-0.5">LOCAL CUE</div>
-            <div className="text-xs mb-2">
+            <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-1">LOCAL CUE</div>
+            <div className="text-xs mb-3">
               <span className="text-zinc-400">State: </span>
               <span className={
                 localMode === 'OFF' ? 'text-red-500 font-bold' : 
@@ -1268,21 +1194,21 @@ function ControlView({ roomID }) {
               onPointerLeave={handleLocalUp}
               onPointerCancel={handleLocalUp}
               onContextMenu={(e) => e.preventDefault()}
-              className={`w-28 h-28 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+              className={`w-36 h-36 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
                 localMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
                 localMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_25px_rgba(255,255,255,0.2)]' :
                 localMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_25px_rgba(250,204,21,0.3)]' :
                 'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_25px_rgba(220,38,38,0.3)]'
               }`}
             >
-              <span className="font-bold tracking-widest text-[10px] uppercase">
+              <span className="font-bold tracking-widest text-xs uppercase">
                 {localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : localMode === 'STROBE' ? 'STROBING' : 'PULSING'}
               </span>
             </button>
-            <div className="mt-2.5 flex">
+            <div className="mt-4 flex">
               <button 
                 onPointerDown={(e) => { e.preventDefault(); toggleLocalStrobe(); }}
-                className={`px-3.5 py-1.5 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+                className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
               >
                 ⚡ STROBE (e)
               </button>
@@ -1291,8 +1217,8 @@ function ControlView({ roomID }) {
 
           {/* MASTER CUE (AUDIENCE) */}
           <div className="flex flex-col items-center w-full">
-            <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-0.5 text-center">MASTER CUE (AUDIENCE)</div>
-            <div className="text-xs mb-2">
+            <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-1 text-center">MASTER CUE (AUDIENCE)</div>
+            <div className="text-xs mb-3">
               <span className="text-zinc-400">State: </span>
               <span className={
                 audienceMode === 'OFF' ? 'text-red-500 font-bold' : 
@@ -1309,21 +1235,21 @@ function ControlView({ roomID }) {
               onPointerLeave={handleAudienceUp}
               onPointerCancel={handleAudienceUp}
               onContextMenu={(e) => e.preventDefault()}
-              className={`w-28 h-28 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+              className={`w-36 h-36 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
                 audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
                 audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_25px_rgba(255,255,255,0.2)]' :
                 audienceMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_25px_rgba(250,204,21,0.3)]' :
                 'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_25px_rgba(220,38,38,0.3)]'
               }`}
             >
-              <span className="font-bold tracking-widest text-[10px] uppercase">
+              <span className="font-bold tracking-widest text-xs uppercase">
                 {audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : audienceMode === 'STROBE' ? 'STROBING' : 'PULSING'}
               </span>
             </button>
-            <div className="mt-2.5 flex">
+            <div className="mt-4 flex">
               <button 
                 onPointerDown={(e) => { e.preventDefault(); toggleAudienceStrobe(); }}
-                className={`px-3.5 py-1.5 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+                className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
               >
                 ⚡ STROBE (s)
               </button>
