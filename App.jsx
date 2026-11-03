@@ -8,6 +8,7 @@ import { ref, onValue, set } from 'firebase/database';
 
 const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
 const DEFAULT_FEEDBACK_URL = 'https://andrewleemagic.com/feedback';
+const APP_QR_URL = 'https://app.andrewleemagic.com';
 const FEEDBACK_DELAY_MS = 30 * 1000; // 30 seconds
 
 const EMOTIONAL_TUNING_PROMPTS = [
@@ -51,11 +52,8 @@ const executeGuaranteedRedirect = (rawPrimaryUrl, rawFeedbackUrl, isAudience = t
     window.location.replace(finalFeedbackUrl);
   };
 
-  // 1. Standard 30-second timer (if the OS opened the native Instagram app and kept this tab alive)
   const timerId = setTimeout(goToFeedback, FEEDBACK_DELAY_MS);
 
-  // 2. Wake / Return listener: if iOS paused timers while the native Instagram app was in focus,
-  // check elapsed time the moment the user returns to Safari/Chrome
   const handleBrowserWake = () => {
     if (document.visibilityState === 'visible') {
       const elapsed = Date.now() - startTime;
@@ -73,14 +71,12 @@ const executeGuaranteedRedirect = (rawPrimaryUrl, rawFeedbackUrl, isAudience = t
   window.addEventListener('pageshow', handleBrowserWake);
   window.addEventListener('focus', handleBrowserWake);
 
-  // 3. Fire immediate navigation to Instagram (opens native app via Universal Link or loads web profile)
   window.location.href = finalPrimaryUrl;
 };
 
 export default function App() {
   const searchParams = new URLSearchParams(window.location.search);
   const isMaster = searchParams.has('master');
-  // Defaults to 'v2-stage' so V2 never collides with your V1 'main-stage'
   const roomID = searchParams.get('room') || 'v2-stage';
 
   return isMaster ? <ControlView roomID={roomID} /> : <AudienceView roomID={roomID} />;
@@ -99,15 +95,12 @@ function AudienceView({ roomID }) {
   const [revealWord, setRevealWord] = useState('');
   const [uiReady, setUiReady] = useState(false);
 
-  // PHASE 1 EMOTIONAL TUNING & TACTILE HOOK STATES
   const [promptIndex, setPromptIndex] = useState(0);
   const [promptFade, setPromptFade] = useState(true);
   const [isThumbHolding, setIsThumbHolding] = useState(false);
   const [thumbFocused, setThumbFocused] = useState(false);
   const thumbHoldTimerRef = useRef(null);
 
-  // OPTION A STAGE FLOW:
-  // 'PULSE' (Phase 1: Word hidden) -> 'SPIRAL' -> 'LETTERS' -> 'CONVERGE' -> 'LOCKED' (Stays locked on revealed name)
   const [stagePhase, setStagePhase] = useState('PULSE');
   const [convergeActive, setConvergeActive] = useState(false);
   const phaseTimeoutsRef = useRef([]);
@@ -124,7 +117,7 @@ function AudienceView({ roomID }) {
 
   const idleTimerRef = useRef(null);
   const IDLE_TIMEOUT_MS = 180 * 1000; 
-  const IDLE_FALLBACK_URL = ""; // Deadman's switch disabled by default
+  const IDLE_FALLBACK_URL = ""; 
 
   const clearPhaseTimeouts = () => {
     phaseTimeoutsRef.current.forEach(clearTimeout);
@@ -141,7 +134,6 @@ function AudienceView({ roomID }) {
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
-  // Cycle the top emotional tuning prompts every 4.5 seconds during Phase 1
   useEffect(() => {
     if (!cameraReady || stagePhase !== 'PULSE') return;
     const interval = setInterval(() => {
@@ -154,7 +146,6 @@ function AudienceView({ roomID }) {
     return () => clearInterval(interval);
   }, [cameraReady, stagePhase]);
 
-  // Pre-generate floating decoy letter particles for Phase 2 letter cloud
   const decoyParticles = useMemo(() => {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     return Array.from({ length: 28 }).map((_, i) => ({
@@ -170,7 +161,6 @@ function AudienceView({ roomID }) {
     }));
   }, []);
 
-  // Pre-generate scatter offsets for the target word convergence
   const targetChars = useMemo(() => {
     const clean = (revealWord || kickerWord || 'JAMES').trim().toUpperCase();
     return clean.split('').map((ch, idx) => {
@@ -184,7 +174,6 @@ function AudienceView({ roomID }) {
     });
   }, [revealWord, kickerWord]);
 
-  // Check if spectator is returning to this tab after a redirect (e.g., via Back button or bfcache)
   useEffect(() => {
     const checkPendingFeedbackRedirect = () => {
       try {
@@ -374,7 +363,6 @@ function AudienceView({ roomID }) {
     } catch (err) {}
   };
 
-  // Tactile Thumb-Hold Handlers on the Center Pulse Node
   const handleThumbDown = (e) => {
     e.stopPropagation();
     unlockAudio();
@@ -395,7 +383,6 @@ function AudienceView({ roomID }) {
     clearTimeout(thumbHoldTimerRef.current);
   };
 
-  // PHASE 2 REVEAL SEQUENCE: SPIRAL (5s) -> LETTERS (5s) -> CONVERGE (1.2s) -> LOCKED INDEFINITELY
   const runRevealSequence = (wordToReveal) => {
     clearPhaseTimeouts();
     clearTimeout(timerRef.current);
@@ -405,21 +392,17 @@ function AudienceView({ roomID }) {
     setRevealWord(finalWord);
     setConvergeActive(false);
 
-    // 1. Hypnotic Spiral + AL Badge (0.0s -> 5.0s)
     setStagePhase('SPIRAL');
 
-    // 2. Floating Decoy Letter Cloud (5.0s -> 10.0s)
     const t1 = setTimeout(() => {
       setStagePhase('LETTERS');
     }, 5000);
 
-    // 3. Magnetic Word Convergence (10.0s -> 11.2s)
     const t2 = setTimeout(() => {
       setStagePhase('CONVERGE');
       setTimeout(() => setConvergeActive(true), 60);
     }, 10000);
 
-    // 4. Solid Locked Reveal Hold (11.2s -> Stays locked on screen until Redirect)
     const t3 = setTimeout(() => {
       setStagePhase('LOCKED');
     }, 11200);
@@ -601,7 +584,6 @@ function AudienceView({ roomID }) {
       !cameraReady ? 'bg-[#f4f4f2] text-black' :
       isFlashing ? 'bg-black text-white' : 'bg-white text-black'
     }`}>
-      {/* Keyframes for Entry Heartbeat, Inward Thought Waves, Hypnotic Spiral & Floating Letter Cloud */}
       <style>{`
         @keyframes spinHypnotic {
           0% { transform: scale(1) rotate(0deg); }
@@ -635,7 +617,6 @@ function AudienceView({ roomID }) {
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
 
-      {/* 5-Tap Secret Master Control Gateway (Anchored at Bottom-Right Corner) */}
       <div 
         onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
         className="absolute bottom-0 right-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
@@ -643,9 +624,6 @@ function AudienceView({ roomID }) {
 
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
-      {/* ==========================================
-          PHASE 2A: HYPNOTIC SPIRAL + AL LOGO (5s)
-         ========================================== */}
       {stagePhase === 'SPIRAL' && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-white">
           <div 
@@ -663,9 +641,6 @@ function AudienceView({ roomID }) {
         </div>
       )}
 
-      {/* ==========================================
-          PHASE 2B: FLOATING LETTER CLOUD (5s)
-         ========================================== */}
       {stagePhase === 'LETTERS' && (
         <div className="relative w-full min-h-[100dvh] bg-black overflow-hidden">
           {decoyParticles.map((p) => (
@@ -688,9 +663,6 @@ function AudienceView({ roomID }) {
         </div>
       )}
 
-      {/* ==========================================
-          PHASE 2C: MAGNETIC CONVERGENCE & LOCKED NAME
-         ========================================== */}
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 overflow-hidden">
           <div className="flex items-center justify-center space-x-2 sm:space-x-3 flex-wrap">
@@ -712,16 +684,12 @@ function AudienceView({ roomID }) {
         </div>
       )}
 
-      {/* ==========================================
-          PHASE 1: ARTISTIC RED HEART ENTRY -> COLLECTIVE TUNING & PULSE
-         ========================================== */}
       {stagePhase === 'PULSE' && (
         !cameraReady ? (
           <div 
             onClick={startCamera}
             className={`relative flex flex-col items-center justify-between w-full min-h-[100dvh] py-12 px-6 z-10 cursor-pointer transition-opacity duration-700 ease-in-out overflow-hidden ${uiReady ? 'opacity-100' : 'opacity-0'}`}
           >
-            {/* Top Subtle Prompt (No "Connected" Wording) */}
             <div className="flex items-center space-x-2.5 pt-2 opacity-80">
               <span className="w-1.5 h-1.5 rounded-full bg-[#d91b1b] shadow-[0_0_8px_#d91b1b] animate-pulse"></span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.38em] text-zinc-500">
@@ -729,9 +697,7 @@ function AudienceView({ roomID }) {
               </span>
             </div>
 
-            {/* Centerpiece: Screen-Filling Red Heart with Subtle Artistic Typography Inside */}
             <div className="relative flex items-center justify-center w-full my-auto">
-              {/* Soft Ambient Aura Rings */}
               <div 
                 className="absolute w-[92vw] max-w-[420px] aspect-square rounded-full bg-red-600/10 blur-2xl pointer-events-none"
                 style={{ animation: 'subtleAura 3.6s ease-in-out infinite' }}
@@ -741,7 +707,6 @@ function AudienceView({ roomID }) {
                 style={{ animation: 'subtleAura 2.2s ease-in-out infinite' }}
               />
 
-              {/* Massive Breathing Red Heart */}
               <div 
                 className="relative flex items-center justify-center w-[88vw] max-w-[390px] aspect-square transition-transform active:scale-95"
                 style={{ animation: 'artisticHeartbeat 2.2s infinite ease-in-out' }}
@@ -753,7 +718,6 @@ function AudienceView({ roomID }) {
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                 </svg>
 
-                {/* Subtle Editorial Typography Carefully Placed Over the Heart's Center */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pb-5 px-8 text-center pointer-events-none">
                   <span className="text-[9px] font-medium uppercase tracking-[0.42em] text-white/75 mb-2">
                     Begin
@@ -766,7 +730,6 @@ function AudienceView({ roomID }) {
               </div>
             </div>
 
-            {/* Bottom Subtle Permission Footnote */}
             <div className="w-full max-w-xs text-center pb-2">
               <p className="text-zinc-400 text-[9.5px] font-medium uppercase tracking-[0.26em] leading-relaxed">
                 Please allow camera access when prompted to join the experience
@@ -775,7 +738,6 @@ function AudienceView({ roomID }) {
           </div>
         ) : (
           <>
-            {/* 1. TOP SPACE: CYCLING EMOTIONAL TUNING PROMPTS (NO "STAGE" OR "CONNECTED" WORDING) */}
             <div className="absolute top-16 left-0 right-0 w-full px-8 text-center pointer-events-none z-20 flex flex-col items-center">
               <div className="flex items-center space-x-2 mb-3">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
@@ -792,10 +754,7 @@ function AudienceView({ roomID }) {
               </p>
             </div>
 
-            {/* 2. CENTER NODE: INCOMING THOUGHT WAVES, LIVE ECG LINE & TACTILE THUMB HOOK */}
             <div className="flex-1 flex flex-col items-center justify-center w-full relative">
-              
-              {/* Minimalist Live ECG Heartbeat Line Behind the Dot */}
               <div className="absolute inset-x-0 flex items-center justify-center pointer-events-none overflow-hidden">
                 <svg 
                   viewBox="0 0 400 100" 
@@ -816,7 +775,6 @@ function AudienceView({ roomID }) {
                 </svg>
               </div>
 
-              {/* Interactive Tactile Center Target */}
               <div 
                 onPointerDown={handleThumbDown}
                 onPointerUp={handleThumbUp}
@@ -825,7 +783,6 @@ function AudienceView({ roomID }) {
                 onContextMenu={(e) => e.preventDefault()}
                 className="relative flex items-center justify-center w-56 h-56 cursor-pointer touch-none z-10"
               >
-                {/* Inward-Contracting Thought Waves */}
                 <div 
                   className="absolute w-24 h-24 border border-red-600/40 rounded-full pointer-events-none"
                   style={{ animation: `inwardThoughtWave ${isThumbHolding ? '1.6s' : '3.6s'} cubic-bezier(0.2, 0.8, 0.4, 1) infinite` }}
@@ -839,12 +796,10 @@ function AudienceView({ roomID }) {
                   style={{ animation: `inwardThoughtWave ${isThumbHolding ? '1.6s' : '3.6s'} cubic-bezier(0.2, 0.8, 0.4, 1) infinite 2.4s` }}
                 />
 
-                {/* Tactile Ripple When Thumb Holds the Center */}
                 {isThumbHolding && (
                   <div className="absolute w-32 h-32 rounded-full bg-red-600/20 animate-ping pointer-events-none" />
                 )}
 
-                {/* Core Heartbeat Node */}
                 <div 
                   className={`rounded-full bg-red-600 transition-all duration-200 shadow-[0_0_25px_rgba(220,38,38,0.65)] ${
                     isThumbHolding ? 'w-11 h-11 scale-110' : thumbFocused ? 'w-8 h-8' : 'w-7 h-7'
@@ -852,7 +807,6 @@ function AudienceView({ roomID }) {
                 />
               </div>
 
-              {/* Tactile Hook Readout (Purely Emotional / Zero "Connected" Wording) */}
               <div className="mt-2 text-center pointer-events-none z-20 px-6">
                 {thumbFocused ? (
                   <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-600 animate-pulse">
@@ -870,7 +824,6 @@ function AudienceView({ roomID }) {
               </div>
             </div>
 
-            {/* 3. BOTTOM TEXT: OPTION 2 (HOLD UP YOUR PHONE + LET THEIR MEMORY FILL THE ROOM) */}
             <div className="absolute bottom-14 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 space-y-2.5">
               <h1 className="text-[26px] sm:text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
                 Hold up your<br/>phone
@@ -894,12 +847,12 @@ function ControlView({ roomID }) {
   const trackRef = useRef(null);
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false); // Controls QR Code view on Master phone
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
-  const [activePhase, setActivePhase] = useState('PHASE_1'); // 'PHASE_1' | 'REVEALING' | 'PHASE_2_DONE'
+  const [activePhase, setActivePhase] = useState('PHASE_1');
 
-  // SYNCHRONIZED REVEAL SCREEN STATES ON MAGICIAN'S PHONE
-  const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE'); // 'NONE' | 'SPIRAL' | 'LETTERS' | 'CONVERGE' | 'LOCKED'
+  const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE');
   const [masterConvergeActive, setMasterConvergeActive] = useState(false);
   const [masterRevealWord, setMasterRevealWord] = useState('');
   const masterPhaseTimeoutsRef = useRef([]);
@@ -922,7 +875,6 @@ function ControlView({ roomID }) {
   const hiddenInputRef = useRef(null);
   const deckContainerRef = useRef(null);
 
-  // CHOREOGRAPHY & DOUBLE-TAP REC STATES
   const [isRecording, setIsRecording] = useState(false);
   const isRecordingRef = useRef(false);
   const [recConfirmArmed, setRecConfirmArmed] = useState(false);
@@ -947,11 +899,9 @@ function ControlView({ roomID }) {
 
   const masterSecretClickCount = useRef(0);
   const masterSecretLastClickTime = useRef(0);
-
   const overlayExitClickCount = useRef(0);
   const overlayExitLastClickTime = useRef(0);
 
-  // Decoy letter particles for Magician's synchronized screen
   const masterDecoyParticles = useMemo(() => {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     return Array.from({ length: 28 }).map((_, i) => ({
@@ -967,7 +917,6 @@ function ControlView({ roomID }) {
     }));
   }, []);
 
-  // Target character scatter offsets for Magician's synchronized screen
   const masterTargetChars = useMemo(() => {
     const clean = (masterRevealWord || peekedWord || customText || 'JAMES').trim().toUpperCase();
     return clean.split('').map((ch, idx) => {
@@ -1014,7 +963,6 @@ function ControlView({ roomID }) {
     set(ref(db, `${roomID}/feedbackUrl`), activeFeedback).catch(() => {});
   }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, feedbackUrl, roomID]);
 
-  // SILENT API CATCH
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
@@ -1057,7 +1005,6 @@ function ControlView({ roomID }) {
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
-  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
@@ -1173,27 +1120,22 @@ function ControlView({ roomID }) {
     });
   };
 
-  // Runs the identical visual reveal on the Magician's Master phone and stays locked on the name
   const runMasterMonitorSequence = (wordToReveal) => {
     clearMasterPhaseTimeouts();
     setMasterRevealWord(wordToReveal);
     setMasterConvergeActive(false);
 
-    // 1. Hypnotic Spiral + AL Badge (0.0s -> 5.0s)
     setMasterMonitorPhase('SPIRAL');
 
-    // 2. Floating Decoy Letter Cloud (5.0s -> 10.0s)
     const t1 = setTimeout(() => {
       setMasterMonitorPhase('LETTERS');
     }, 5000);
 
-    // 3. Magnetic Word Convergence (10.0s -> 11.2s)
     const t2 = setTimeout(() => {
       setMasterMonitorPhase('CONVERGE');
       setTimeout(() => setMasterConvergeActive(true), 60);
     }, 10000);
 
-    // 4. Solid Locked Reveal Hold (11.2s -> Stays locked on screen; hold anywhere to redirect)
     const t3 = setTimeout(() => {
       setMasterMonitorPhase('LOCKED');
       setActivePhase('PHASE_2_DONE');
@@ -1202,7 +1144,6 @@ function ControlView({ roomID }) {
     masterPhaseTimeoutsRef.current = [t1, t2, t3];
   };
 
-  // OPTION A PHASE CONTROLLERS
   const resetToPhase1Pulse = () => {
     clearMasterPhaseTimeouts();
     setMasterMonitorPhase('NONE');
@@ -1219,7 +1160,6 @@ function ControlView({ roomID }) {
     runMasterMonitorSequence(wordToBroadcast);
   };
 
-  // SYNCHRONIZED AUDIENCE + MASTER REDIRECT (PHASE 3)
   const executeSynchronizedRedirect = async () => {
     clearMasterPhaseTimeouts();
     playbackTimeoutsRef.current.forEach(clearTimeout);
@@ -1425,7 +1365,6 @@ function ControlView({ roomID }) {
     } else stopAudienceHeartbeat();
   };
 
-  // HOLD-TO-REDIRECT SAFETY LOGIC (800MS HOLD, THEN SYNCHRONIZED FIRE)
   const handleRedirectDown = () => {
     if (isRedirectPressing.current) return;
     isRedirectPressing.current = true;
@@ -1470,7 +1409,6 @@ function ControlView({ roomID }) {
     }
   };
 
-  // Secret 5-tap in bottom-right corner of the reveal screen to return to deck during testing
   const handleOverlaySecretExit = (e) => {
     e.stopPropagation();
     const now = Date.now();
@@ -1498,7 +1436,6 @@ function ControlView({ roomID }) {
       onClick={armRemote}
       className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans outline-none"
     >
-      {/* Keyframes for Synchronized Reveal */}
       <style>{`
         @keyframes spinHypnotic {
           0% { transform: scale(1) rotate(0deg); }
@@ -1527,10 +1464,34 @@ function ControlView({ roomID }) {
         className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-14 z-[100] bg-black/0 touch-none"
       />
 
-      {/* =========================================================
-          SYNCHRONIZED REVEAL ON MAGICIAN'S PHONE (NO PILL / STAYS LOCKED)
-          Holding anywhere on this screen for 800ms fires the synchronized redirect!
-         ========================================================= */}
+      {/* QR CODE MODAL OVERLAY ON MASTER PHONE */}
+      {showQrModal && (
+        <div 
+          onClick={() => setShowQrModal(false)}
+          className="fixed inset-0 z-[95] bg-black/90 flex flex-col items-center justify-center p-6 cursor-pointer select-none"
+        >
+          <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center max-w-xs w-full text-black">
+            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 mb-4">
+              Scan to Join Experience
+            </span>
+            {/* Embedded SVG QR Code for app.andrewleemagic.com */}
+            <div className="bg-white p-2 border-2 border-zinc-200 rounded-xl mb-4 flex items-center justify-center">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(APP_QR_URL)}`} 
+                alt="App QR Code"
+                className="w-48 h-48 object-contain"
+              />
+            </div>
+            <span className="text-xs font-mono font-bold text-zinc-700 tracking-wider mb-2">
+              {APP_QR_URL}
+            </span>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-red-600 animate-pulse mt-2">
+              [ Tap QR Code to Enter Audience View ]
+            </span>
+          </div>
+        </div>
+      )}
+
       {masterMonitorPhase !== 'NONE' && (
         <div 
           onPointerDown={handleRedirectDown}
@@ -1540,13 +1501,11 @@ function ControlView({ roomID }) {
           onContextMenu={(e) => e.preventDefault()}
           className="fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden select-none touch-none"
         >
-          {/* Hidden 5-tap bottom-right escape zone for rehearsal/testing */}
           <div 
             onPointerDown={handleOverlaySecretExit}
             className="absolute bottom-0 right-0 w-32 h-32 z-[95] bg-black/0 touch-none"
           />
 
-          {/* 2A: HYPNOTIC SPIRAL */}
           {masterMonitorPhase === 'SPIRAL' && (
             <div className="relative flex items-center justify-center w-full h-full overflow-hidden bg-white pointer-events-none">
               <div 
@@ -1564,7 +1523,6 @@ function ControlView({ roomID }) {
             </div>
           )}
 
-          {/* 2B: FLOATING LETTER CLOUD */}
           {masterMonitorPhase === 'LETTERS' && (
             <div className="relative w-full h-full bg-black overflow-hidden pointer-events-none">
               {masterDecoyParticles.map((p) => (
@@ -1587,7 +1545,6 @@ function ControlView({ roomID }) {
             </div>
           )}
 
-          {/* 2C: MAGNETIC WORD CONVERGENCE & LOCKED NAME */}
           {(masterMonitorPhase === 'CONVERGE' || masterMonitorPhase === 'LOCKED') && (
             <div className="relative flex items-center justify-center w-full h-full bg-black px-4 overflow-hidden pointer-events-none">
               <div className="flex items-center justify-center space-x-2 sm:space-x-3 flex-wrap">
@@ -1628,12 +1585,19 @@ function ControlView({ roomID }) {
           🚀 {redirectStatus}
         </button>
 
-        {/* --- LIVE KICKER BROADCAST INDICATOR --- */}
-        <div className="flex-1 flex justify-center items-center">
+        {/* QR CODE TOGGLE BUTTON */}
+        <button 
+          onClick={() => setShowQrModal(true)}
+          className="px-3 py-1.5 rounded-full border text-[9px] font-bold tracking-widest bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-zinc-600 transition-colors"
+        >
+          🔳 SHOW QR
+        </button>
+
+        <div className="flex-1 flex justify-center items-center px-2">
           {peekedWord ? (
             <div className="flex items-center space-x-2 bg-green-900/20 border border-green-500/50 px-3 py-1 rounded-full">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]"></div>
-              <span className="text-[9px] font-mono text-green-400 font-bold tracking-widest uppercase truncate max-w-[120px]">
+              <span className="text-[9px] font-mono text-green-400 font-bold tracking-widest uppercase truncate max-w-[100px]">
                 LIVE: {peekedWord}
               </span>
             </div>
