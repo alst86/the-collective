@@ -10,30 +10,45 @@ const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
 const DEFAULT_FEEDBACK_URL = 'https://andrewleemagic.com/feedback';
 const FEEDBACK_DELAY_MS = 30 * 1000; // 30 seconds
 
-// Schedules the underlying Safari/Web browser tab to redirect to the Feedback page after 30 seconds
-const scheduleFeedbackRedirect = (rawFeedbackUrl) => {
-  const cleanUrl = (rawFeedbackUrl || DEFAULT_FEEDBACK_URL).trim();
-  if (!cleanUrl) return;
+const formatValidUrl = (rawUrl, fallbackUrl) => {
+  let clean = (rawUrl || fallbackUrl || '').trim();
+  if (!clean) return fallbackUrl;
+  if (!clean.startsWith('http') && !clean.includes('://')) {
+    clean = `https://${clean}`;
+  }
+  return clean;
+};
 
-  let targetFeedbackUrl = cleanUrl;
-  if (!targetFeedbackUrl.startsWith('http') && !targetFeedbackUrl.includes('://')) {
-    targetFeedbackUrl = `https://${targetFeedbackUrl}`;
+// Arms both a 30-second live tab timer AND a one-time sessionStorage return trap
+const executeGuaranteedRedirect = (rawPrimaryUrl, rawFeedbackUrl, isAudience = true) => {
+  const finalPrimaryUrl = formatValidUrl(rawPrimaryUrl, DEFAULT_REDIRECT_URL);
+  const finalFeedbackUrl = formatValidUrl(rawFeedbackUrl, DEFAULT_FEEDBACK_URL);
+  const startTime = Date.now();
+
+  if (isAudience) {
+    try {
+      sessionStorage.setItem('pulseRedirectTimestamp', String(startTime));
+      sessionStorage.setItem('pulseFeedbackUrl', finalFeedbackUrl);
+    } catch (e) {}
   }
 
-  const startTime = Date.now();
-  let hasRedirected = false;
+  let hasRedirectedToFeedback = false;
 
   const goToFeedback = () => {
-    if (hasRedirected) return;
-    hasRedirected = true;
-    window.location.replace(targetFeedbackUrl);
+    if (hasRedirectedToFeedback) return;
+    hasRedirectedToFeedback = true;
+    try {
+      sessionStorage.removeItem('pulseRedirectTimestamp');
+      sessionStorage.removeItem('pulseFeedbackUrl');
+    } catch (e) {}
+    window.location.replace(finalFeedbackUrl);
   };
 
-  // 1. Standard 30-second timer for the browser tab
+  // 1. Standard 30-second timer (if the OS opened the native Instagram app and kept this tab alive)
   const timerId = setTimeout(goToFeedback, FEEDBACK_DELAY_MS);
 
-  // 2. Mobile browser safeguard: if iOS suspended background timers while the Instagram app was open,
-  // check elapsed time as soon as the user returns to the browser tab
+  // 2. Wake / Return listener: if iOS paused timers while the native Instagram app was in focus,
+  // check elapsed time the moment the user returns to Safari/Chrome
   const handleBrowserWake = () => {
     if (document.visibilityState === 'visible') {
       const elapsed = Date.now() - startTime;
@@ -50,6 +65,9 @@ const scheduleFeedbackRedirect = (rawFeedbackUrl) => {
   document.addEventListener('visibilitychange', handleBrowserWake);
   window.addEventListener('pageshow', handleBrowserWake);
   window.addEventListener('focus', handleBrowserWake);
+
+  // 3. Fire immediate navigation to Instagram (opens native app via Universal Link or loads web profile)
+  window.location.href = finalPrimaryUrl;
 };
 
 export default function App() {
@@ -94,6 +112,42 @@ function AudienceView({ roomID }) {
   
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
+
+  // Check if spectator is returning to this tab after a redirect (e.g., via Back button or bfcache)
+  useEffect(() => {
+    const checkPendingFeedbackRedirect = () => {
+      try {
+        const savedTime = Number(sessionStorage.getItem('pulseRedirectTimestamp') || 0);
+        const savedUrl = sessionStorage.getItem('pulseFeedbackUrl') || DEFAULT_FEEDBACK_URL;
+        if (!savedTime) return;
+
+        const elapsed = Date.now() - savedTime;
+        // Expire stale flags older than 5 minutes so future tests/shows are never affected
+        if (elapsed > 5 * 60 * 1000) {
+          sessionStorage.removeItem('pulseRedirectTimestamp');
+          sessionStorage.removeItem('pulseFeedbackUrl');
+          return;
+        }
+
+        if (elapsed >= FEEDBACK_DELAY_MS) {
+          sessionStorage.removeItem('pulseRedirectTimestamp');
+          sessionStorage.removeItem('pulseFeedbackUrl');
+          window.location.replace(savedUrl);
+        } else if (elapsed >= 2000) {
+          // Returned to tab before 30s finished: wait the remaining seconds, then redirect to feedback
+          setTimeout(() => {
+            sessionStorage.removeItem('pulseRedirectTimestamp');
+            sessionStorage.removeItem('pulseFeedbackUrl');
+            window.location.replace(savedUrl);
+          }, FEEDBACK_DELAY_MS - elapsed);
+        }
+      } catch (e) {}
+    };
+
+    checkPendingFeedbackRedirect();
+    window.addEventListener('pageshow', checkPendingFeedbackRedirect);
+    return () => window.removeEventListener('pageshow', checkPendingFeedbackRedirect);
+  }, []);
 
   const unlockAudio = () => {
     try {
@@ -380,16 +434,12 @@ function AudienceView({ roomID }) {
 
       const rawUrl = (parts[2] || '').trim();
       const passedFeedbackUrl = (parts[3] || '').trim();
-      let finalUrl = rawUrl || DEFAULT_REDIRECT_URL;
-      if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
-        finalUrl = `https://${finalUrl}`;
-      }
 
-      // 1. Schedule the Safari/web browser tab to redirect to https://andrewleemagic.com/feedback after 30s
-      scheduleFeedbackRedirect(passedFeedbackUrl || feedbackUrlRef.current);
-
-      // 2. Instantly redirect to Instagram
-      window.location.replace(finalUrl);
+      executeGuaranteedRedirect(
+        rawUrl || DEFAULT_REDIRECT_URL,
+        passedFeedbackUrl || feedbackUrlRef.current,
+        true
+      );
     }
   };
 
@@ -688,15 +738,11 @@ function ControlView({ roomID }) {
   };
 
   const getTargetRedirectUrl = () => {
-    let finalUrl = (redirectUrl && redirectUrl.trim() !== '') ? redirectUrl.trim() : DEFAULT_REDIRECT_URL;
-    if (!finalUrl.startsWith('http') && !finalUrl.includes('://')) {
-      finalUrl = `https://${finalUrl}`;
-    }
-    return finalUrl;
+    return formatValidUrl(redirectUrl, DEFAULT_REDIRECT_URL);
   };
 
   const getTargetFeedbackUrl = () => {
-    return (feedbackUrl && feedbackUrl.trim() !== '') ? feedbackUrl.trim() : DEFAULT_FEEDBACK_URL;
+    return formatValidUrl(feedbackUrl, DEFAULT_FEEDBACK_URL);
   };
 
   const fireAudienceCommand = (cmd, isPlayback = false) => {
@@ -730,18 +776,17 @@ function ControlView({ roomID }) {
     const targetFeedback = getTargetFeedbackUrl();
     setRedirectStatus('FIRED!');
 
-    // 2. Wait for Firebase to confirm the audience REDIRECT write + 250ms broadcast cushion
+    // 2. Wait for Firebase server confirmation + 300ms broadcast cushion so all spectators fire in sync
     try {
       await Promise.race([
         fireAudienceCommand('REDIRECT'),
-        new Promise((resolve) => setTimeout(resolve, 800))
+        new Promise((resolve) => setTimeout(resolve, 1000))
       ]);
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 300));
     } catch (e) {}
 
     // 3. Schedule the 30s browser feedback redirect & immediately launch Instagram
-    scheduleFeedbackRedirect(targetFeedback);
-    window.location.replace(finalUrl);
+    executeGuaranteedRedirect(finalUrl, targetFeedback, false);
   };
 
   const handleRecordButtonTap = () => {
