@@ -634,7 +634,7 @@ function AudienceView({ roomID }) {
          ========================================== */}
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 overflow-hidden">
-          <div className="flex items-center justify-center space-x-2 sm:space-x-3">
+          <div className="flex items-center justify-center space-x-2 sm:space-x-3 flex-wrap">
             {targetChars.map((item, idx) => (
               <span
                 key={idx}
@@ -730,6 +730,12 @@ function ControlView({ roomID }) {
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [activePhase, setActivePhase] = useState('PHASE_1'); // 'PHASE_1' | 'REVEALING' | 'PHASE_2_DONE'
 
+  // MASTER LIVE MONITOR STATES (Lets Magician watch the Spiral -> Letters -> Word formation in sync)
+  const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE'); // 'NONE' | 'SPIRAL' | 'LETTERS' | 'CONVERGE' | 'LOCKED'
+  const [masterConvergeActive, setMasterConvergeActive] = useState(false);
+  const [masterRevealWord, setMasterRevealWord] = useState('');
+  const masterPhaseTimeoutsRef = useRef([]);
+
   const [redirectUrl, setRedirectUrl] = useState(() => localStorage.getItem('magicRedirectUrl') || '');
   const [feedbackUrl, setFeedbackUrl] = useState(() => localStorage.getItem('magicFeedbackUrl') || DEFAULT_FEEDBACK_URL);
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
@@ -774,6 +780,41 @@ function ControlView({ roomID }) {
   const masterSecretClickCount = useRef(0);
   const masterSecretLastClickTime = useRef(0);
 
+  // Decoy letter particles for Master Monitor
+  const masterDecoyParticles = useMemo(() => {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return Array.from({ length: 28 }).map((_, i) => ({
+      id: i,
+      char: alphabet[Math.floor(Math.random() * alphabet.length)],
+      left: `${6 + Math.floor(Math.random() * 84)}%`,
+      top: `${8 + Math.floor(Math.random() * 82)}%`,
+      size: `${1.5 + (i % 4) * 0.9}rem`,
+      opacity: 0.15 + (i % 5) * 0.16,
+      dx: `${(i % 2 === 0 ? 1 : -1) * (20 + (i * 7) % 45)}px`,
+      dy: `${(i % 3 === 0 ? -1 : 1) * (25 + (i * 11) % 50)}px`,
+      duration: `${3.2 + (i % 4) * 0.8}s`,
+    }));
+  }, []);
+
+  // Target character scatter offsets for Master Monitor word convergence
+  const masterTargetChars = useMemo(() => {
+    const clean = (masterRevealWord || peekedWord || customText || 'JAMES').trim().toUpperCase();
+    return clean.split('').map((ch, idx) => {
+      const angle = (idx * 137.5) * (Math.PI / 180);
+      const radius = 90 + (idx % 3) * 45;
+      return {
+        ch,
+        startX: Math.round(Math.cos(angle) * radius),
+        startY: Math.round(Math.sin(angle) * radius * 1.4),
+      };
+    });
+  }, [masterRevealWord, peekedWord, customText]);
+
+  const clearMasterPhaseTimeouts = () => {
+    masterPhaseTimeoutsRef.current.forEach(clearTimeout);
+    masterPhaseTimeoutsRef.current = [];
+  };
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`magicSequence_${roomID}`);
@@ -802,7 +843,7 @@ function ControlView({ roomID }) {
     set(ref(db, `${roomID}/feedbackUrl`), activeFeedback).catch(() => {});
   }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, feedbackUrl, roomID]);
 
-  // SILENT API CATCH (Polls impression pad and shows LIVE: [WORD] on Master Deck while keeping it hidden on audience phones until Phase 2)
+  // SILENT API CATCH
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
@@ -907,6 +948,7 @@ function ControlView({ roomID }) {
     return () => {
       clearInterval(focusInterval);
       clearTimeout(recConfirmTimeoutRef.current);
+      clearMasterPhaseTimeouts();
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp, true);
     };
@@ -960,22 +1002,61 @@ function ControlView({ roomID }) {
     });
   };
 
+  // Runs the synchronized visual reveal on the Magician's Master screen
+  const runMasterMonitorSequence = (wordToReveal) => {
+    clearMasterPhaseTimeouts();
+    setMasterRevealWord(wordToReveal);
+    setMasterConvergeActive(false);
+
+    // 1. Hypnotic Spiral + AL Badge (0.0s -> 5.0s)
+    setMasterMonitorPhase('SPIRAL');
+
+    // 2. Floating Decoy Letter Cloud (5.0s -> 10.0s)
+    const t1 = setTimeout(() => {
+      setMasterMonitorPhase('LETTERS');
+    }, 5000);
+
+    // 3. Magnetic Word Convergence (10.0s -> 11.2s)
+    const t2 = setTimeout(() => {
+      setMasterMonitorPhase('CONVERGE');
+      setTimeout(() => setMasterConvergeActive(true), 60);
+    }, 10000);
+
+    // 4. Solid Locked Reveal Hold (11.2s -> 13.8s)
+    const t3 = setTimeout(() => {
+      setMasterMonitorPhase('LOCKED');
+    }, 11200);
+
+    // 5. Return to Master Control Deck when reveal finishes (13.8s)
+    const t4 = setTimeout(() => {
+      setMasterMonitorPhase('NONE');
+      setActivePhase('PHASE_2_DONE');
+    }, 13800);
+
+    masterPhaseTimeoutsRef.current = [t1, t2, t3, t4];
+  };
+
   // OPTION A PHASE CONTROLLERS
   const resetToPhase1Pulse = () => {
+    clearMasterPhaseTimeouts();
+    setMasterMonitorPhase('NONE');
     setActivePhase('PHASE_1');
     setAudienceMode('OFF');
     fireAudienceCommand('PHASE_1_RESET');
   };
 
   const triggerPhase2Reveal = () => {
+    const wordToBroadcast = (peekedWordRef.current || customText || 'JAMES').trim();
     setActivePhase('REVEALING');
     setAudienceMode('OFF');
     fireAudienceCommand('PHASE_REVEAL');
-    setTimeout(() => setActivePhase('PHASE_2_DONE'), 13800);
+    runMasterMonitorSequence(wordToBroadcast);
   };
 
   // SYNCHRONIZED AUDIENCE + MASTER REDIRECT (PHASE 3)
   const executeSynchronizedRedirect = async () => {
+    clearMasterPhaseTimeouts();
+    setMasterMonitorPhase('NONE');
     playbackTimeoutsRef.current.forEach(clearTimeout);
     playbackTimeoutsRef.current = [];
     setIsPlaying(false);
@@ -1233,6 +1314,19 @@ function ControlView({ roomID }) {
       onClick={armRemote}
       className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans outline-none"
     >
+      {/* Keyframes for Master Reveal Monitor */}
+      <style>{`
+        @keyframes spinHypnotic {
+          0% { transform: scale(1) rotate(0deg); }
+          100% { transform: scale(1.15) rotate(360deg); }
+        }
+        @keyframes floatLetter {
+          0% { transform: translate(0px, 0px); opacity: 0.15; }
+          50% { transform: translate(var(--dx), var(--dy)); opacity: 0.85; }
+          100% { transform: translate(calc(var(--dx) * -0.6), calc(var(--dy) * 0.6)); opacity: 0.2; }
+        }
+      `}</style>
+
       <input 
         ref={hiddenInputRef}
         type="text"
@@ -1248,6 +1342,87 @@ function ControlView({ roomID }) {
         onPointerDown={handleMasterSecretClick}
         className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-14 z-[100] bg-black/0 touch-none"
       />
+
+      {/* =========================================================
+          SYNCHRONIZED MASTER REVEAL MONITOR OVERLAY
+          Shows the exact Spiral -> Letters -> Word formation on the Magician's phone
+         ========================================================= */}
+      {masterMonitorPhase !== 'NONE' && (
+        <div 
+          onClick={() => setMasterMonitorPhase('NONE')}
+          className="fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden cursor-pointer select-none"
+        >
+          {/* Subtle Top Pill so Magician can minimize back to deck anytime */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[95] bg-zinc-900/80 border border-zinc-700/80 px-3 py-1 rounded-full backdrop-blur-sm">
+            <span className="text-[9px] font-mono text-zinc-300 font-bold tracking-widest uppercase">
+              👁️ MASTER MONITOR • TAP TO MINIMIZE
+            </span>
+          </div>
+
+          {/* 2A: HYPNOTIC SPIRAL */}
+          {masterMonitorPhase === 'SPIRAL' && (
+            <div className="relative flex items-center justify-center w-full h-full overflow-hidden bg-white">
+              <div 
+                className="absolute w-[180vmax] h-[180vmax] rounded-full"
+                style={{
+                  background: 'repeating-radial-gradient(circle, #000 0px, #000 22px, #fff 22px, #fff 44px)',
+                  animation: 'spinHypnotic 4s linear infinite'
+                }}
+              />
+              <div className="relative z-10 w-44 h-44 rounded-full bg-white shadow-[0_0_50px_rgba(0,0,0,0.35)] flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full border-[3.5px] border-black flex items-center justify-center font-black text-black text-2xl tracking-tighter">
+                  AL
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2B: FLOATING LETTER CLOUD */}
+          {masterMonitorPhase === 'LETTERS' && (
+            <div className="relative w-full h-full bg-black overflow-hidden">
+              {masterDecoyParticles.map((p) => (
+                <span
+                  key={p.id}
+                  style={{
+                    left: p.left,
+                    top: p.top,
+                    fontSize: p.size,
+                    opacity: p.opacity,
+                    '--dx': p.dx,
+                    '--dy': p.dy,
+                    animation: `floatLetter ${p.duration} ease-in-out infinite alternate`,
+                  }}
+                  className="absolute font-sans font-bold text-white select-none pointer-events-none"
+                >
+                  {p.char}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* 2C: MAGNETIC WORD CONVERGENCE & LOCKED NAME */}
+          {(masterMonitorPhase === 'CONVERGE' || masterMonitorPhase === 'LOCKED') && (
+            <div className="relative flex items-center justify-center w-full h-full bg-black px-4 overflow-hidden">
+              <div className="flex items-center justify-center space-x-2 sm:space-x-3 flex-wrap">
+                {masterTargetChars.map((item, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      transform: masterConvergeActive || masterMonitorPhase === 'LOCKED'
+                        ? 'translate(0px, 0px) scale(1)'
+                        : `translate(${item.startX}px, ${item.startY}px) scale(0.85)`,
+                      transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
+                    }}
+                    className="text-white font-black text-5xl sm:text-6xl uppercase tracking-widest inline-block"
+                  >
+                    {item.ch}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* --- TOP BAR --- */}
       <div className="w-full h-14 flex items-center justify-between px-4 shrink-0 z-40 border-b border-zinc-900">
@@ -1425,22 +1600,22 @@ function ControlView({ roomID }) {
           </div>
         </div>
 
-        {/* 2. OPTION A STAGE PROGRESSION BAR (PHASE 1 PULSE -> PHASE 2 NAME REVEAL) */}
-        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between space-x-2 shrink-0">
+        {/* 2. OPTION A STAGE PROGRESSION BAR (PROPORTIONAL 2-COLUMN GRID) */}
+        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 grid grid-cols-2 gap-2 shrink-0">
           <button
             onClick={resetToPhase1Pulse}
-            className={`px-3 py-2 rounded-lg text-[9px] font-bold tracking-widest uppercase border transition-colors whitespace-nowrap ${
+            className={`w-full py-2.5 px-2 rounded-lg text-[10px] font-bold tracking-wider uppercase border transition-colors truncate ${
               activePhase === 'PHASE_1'
                 ? 'bg-zinc-800 border-zinc-500 text-white'
                 : 'bg-zinc-950 border-zinc-800 text-zinc-500'
             }`}
           >
-            🔴 Phase 1 (Hide Name)
+            🔴 Phase 1 (Hide)
           </button>
 
           <button
             onClick={triggerPhase2Reveal}
-            className={`flex-1 py-2 rounded-lg text-[10px] font-black tracking-widest uppercase border transition-colors whitespace-nowrap ${
+            className={`w-full py-2.5 px-2 rounded-lg text-[10px] font-black tracking-wider uppercase border transition-colors truncate ${
               activePhase === 'REVEALING'
                 ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_15px_rgba(147,51,234,0.5)] animate-pulse'
                 : activePhase === 'PHASE_2_DONE'
@@ -1448,7 +1623,11 @@ function ControlView({ roomID }) {
                   : 'bg-purple-950/60 border-purple-500/70 text-purple-200'
             }`}
           >
-            {activePhase === 'REVEALING' ? '🌀 REVEALING NAME...' : activePhase === 'PHASE_2_DONE' ? '✓ NAME REVEALED [G]' : '🌀 TRIGGER PHASE 2 REVEAL [G]'}
+            {activePhase === 'REVEALING'
+              ? '🌀 REVEALING...'
+              : activePhase === 'PHASE_2_DONE'
+                ? `✓ ${peekedWord || customText || 'REVEALED'} [G]`
+                : '🌀 REVEAL NAME [G]'}
           </button>
         </div>
 
