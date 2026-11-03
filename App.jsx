@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 // ==========================================
 // FIREBASE SETUP
@@ -73,13 +73,14 @@ const executeGuaranteedRedirect = (rawPrimaryUrl, rawFeedbackUrl, isAudience = t
 export default function App() {
   const searchParams = new URLSearchParams(window.location.search);
   const isMaster = searchParams.has('master');
-  const roomID = searchParams.get('room') || 'main-stage';
+  // Defaults to 'v2-stage' so V2 never collides with your V1 'main-stage'
+  const roomID = searchParams.get('room') || 'v2-stage';
 
   return isMaster ? <ControlView roomID={roomID} /> : <AudienceView roomID={roomID} />;
 }
 
 // ==========================================
-// AUDIENCE VIEW (Spectator's Phone)
+// AUDIENCE VIEW (Spectator's Phone - Option A)
 // ==========================================
 function AudienceView({ roomID }) {
   const [cameraReady, setCameraReady] = useState(false);
@@ -87,7 +88,16 @@ function AudienceView({ roomID }) {
   const [dbStatus, setDbStatus] = useState('waiting'); 
   
   const [kickerWord, setKickerWord] = useState('');
+  const kickerWordRef = useRef('');
+  const [revealWord, setRevealWord] = useState('');
+  const [isWordRevealed, setIsWordRevealed] = useState(false);
   const [uiReady, setUiReady] = useState(false);
+
+  // OPTION A STAGE FLOW:
+  // 'PULSE' (Phase 1: Word hidden) -> 'SPIRAL' -> 'LETTERS' -> 'CONVERGE' -> 'LOCKED' -> 'PULSE' (Phase 2: Word visible)
+  const [stagePhase, setStagePhase] = useState('PULSE');
+  const [convergeActive, setConvergeActive] = useState(false);
+  const phaseTimeoutsRef = useRef([]);
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
@@ -101,7 +111,12 @@ function AudienceView({ roomID }) {
 
   const idleTimerRef = useRef(null);
   const IDLE_TIMEOUT_MS = 180 * 1000; 
-  const IDLE_FALLBACK_URL = ""; 
+  const IDLE_FALLBACK_URL = ""; // Deadman's switch disabled by default
+
+  const clearPhaseTimeouts = () => {
+    phaseTimeoutsRef.current.forEach(clearTimeout);
+    phaseTimeoutsRef.current = [];
+  };
 
   const resetIdleTimer = () => {
     clearTimeout(idleTimerRef.current);
@@ -113,6 +128,36 @@ function AudienceView({ roomID }) {
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
 
+  // Pre-generate floating decoy letter particles for Phase 2 letter cloud
+  const decoyParticles = useMemo(() => {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return Array.from({ length: 28 }).map((_, i) => ({
+      id: i,
+      char: alphabet[Math.floor(Math.random() * alphabet.length)],
+      left: `${6 + Math.floor(Math.random() * 84)}%`,
+      top: `${8 + Math.floor(Math.random() * 82)}%`,
+      size: `${1.5 + (i % 4) * 0.9}rem`,
+      opacity: 0.15 + (i % 5) * 0.16,
+      dx: `${(i % 2 === 0 ? 1 : -1) * (20 + (i * 7) % 45)}px`,
+      dy: `${(i % 3 === 0 ? -1 : 1) * (25 + (i * 11) % 50)}px`,
+      duration: `${3.2 + (i % 4) * 0.8}s`,
+    }));
+  }, []);
+
+  // Pre-generate scatter offsets for the target word convergence
+  const targetChars = useMemo(() => {
+    const clean = (revealWord || kickerWord || 'JAMES').trim().toUpperCase();
+    return clean.split('').map((ch, idx) => {
+      const angle = (idx * 137.5) * (Math.PI / 180);
+      const radius = 90 + (idx % 3) * 45;
+      return {
+        ch,
+        startX: Math.round(Math.cos(angle) * radius),
+        startY: Math.round(Math.sin(angle) * radius * 1.4),
+      };
+    });
+  }, [revealWord, kickerWord]);
+
   // Check if spectator is returning to this tab after a redirect (e.g., via Back button or bfcache)
   useEffect(() => {
     const checkPendingFeedbackRedirect = () => {
@@ -122,7 +167,6 @@ function AudienceView({ roomID }) {
         if (!savedTime) return;
 
         const elapsed = Date.now() - savedTime;
-        // Expire stale flags older than 5 minutes so future tests/shows are never affected
         if (elapsed > 5 * 60 * 1000) {
           sessionStorage.removeItem('pulseRedirectTimestamp');
           sessionStorage.removeItem('pulseFeedbackUrl');
@@ -134,7 +178,6 @@ function AudienceView({ roomID }) {
           sessionStorage.removeItem('pulseFeedbackUrl');
           window.location.replace(savedUrl);
         } else if (elapsed >= 2000) {
-          // Returned to tab before 30s finished: wait the remaining seconds, then redirect to feedback
           setTimeout(() => {
             sessionStorage.removeItem('pulseRedirectTimestamp');
             sessionStorage.removeItem('pulseFeedbackUrl');
@@ -305,6 +348,44 @@ function AudienceView({ roomID }) {
     } catch (err) {}
   };
 
+  // PHASE 2 REVEAL SEQUENCE: SPIRAL (5s) -> LETTERS (5s) -> CONVERGE & LOCK (3.8s) -> PULSE WITH NAME REVEALED
+  const runRevealSequence = (wordToReveal) => {
+    clearPhaseTimeouts();
+    clearTimeout(timerRef.current);
+    applyTorch(false);
+
+    const finalWord = (wordToReveal || kickerWordRef.current || 'JAMES').trim();
+    setRevealWord(finalWord);
+    setConvergeActive(false);
+
+    // 1. Hypnotic Spiral + AL Badge (0.0s -> 5.0s)
+    setStagePhase('SPIRAL');
+
+    // 2. Floating Decoy Letter Cloud (5.0s -> 10.0s)
+    const t1 = setTimeout(() => {
+      setStagePhase('LETTERS');
+    }, 5000);
+
+    // 3. Magnetic Word Convergence (10.0s -> 11.2s)
+    const t2 = setTimeout(() => {
+      setStagePhase('CONVERGE');
+      setTimeout(() => setConvergeActive(true), 60);
+    }, 10000);
+
+    // 4. Solid Locked Reveal Hold (11.2s -> 13.8s)
+    const t3 = setTimeout(() => {
+      setStagePhase('LOCKED');
+    }, 11200);
+
+    // 5. Return to Pulse View with the Name Unlocked & Displayed at Top (13.8s)
+    const t4 = setTimeout(() => {
+      setIsWordRevealed(true);
+      setStagePhase('PULSE');
+    }, 13800);
+
+    phaseTimeoutsRef.current = [t1, t2, t3, t4];
+  };
+
   useEffect(() => {
     const uiTimer = setTimeout(() => setUiReady(true), 300);
 
@@ -318,6 +399,14 @@ function AudienceView({ roomID }) {
       }
     });
 
+    const textRef = ref(db, `${roomID}/buttonText`);
+    const unsubText = onValue(textRef, (snapshot) => {
+      const val = snapshot.val();
+      const cleaned = val && val.trim() !== '' ? val.trim() : '';
+      setKickerWord(cleaned);
+      kickerWordRef.current = cleaned;
+    });
+
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
@@ -329,20 +418,15 @@ function AudienceView({ roomID }) {
         
         if (isInitialLoad) {
           initialLoadRef.current = false;
-          if (baseCmd === 'REDIRECT') return; 
+          if (baseCmd === 'REDIRECT' || baseCmd === 'PHASE_REVEAL') return; 
         }
         handleCommand(command, isInitialLoad);
       }
     }, () => { setDbStatus('error'); });
-
-    const textRef = ref(db, `${roomID}/buttonText`);
-    const unsubText = onValue(textRef, (snapshot) => {
-      const val = snapshot.val();
-      setKickerWord(val && val.trim() !== '' ? val : '');
-    });
     
     return () => {
       clearTimeout(uiTimer);
+      clearPhaseTimeouts();
       unsubFeedback();
       unsubCommand();
       unsubText();
@@ -367,26 +451,38 @@ function AudienceView({ roomID }) {
     const parts = safeCommand.split('|');
     const baseCmd = parts[0];
     
-    if (baseCmd === 'ON') {
+    if (baseCmd === 'PHASE_1_RESET') {
+      clearPhaseTimeouts();
+      applyTorch(false);
+      setIsWordRevealed(false);
+      setStagePhase('PULSE');
+    } else if (baseCmd === 'PHASE_REVEAL') {
+      const passedWord = (parts[2] || '').trim();
+      runRevealSequence(passedWord);
+    } else if (baseCmd === 'ON') {
       isRedirectingRef.current = false;
+      setStagePhase('PULSE');
       applyTorch(true);
     } else if (baseCmd === 'OFF') {
       applyTorch(false);
       if (!isInitialLoad) resetIdleTimer();
     } else if (baseCmd === 'STRIKE_LUB') {
       isRedirectingRef.current = false;
+      setStagePhase('PULSE');
       applyTorch(true);
       playHeartbeatThud(false);
       if (navigator.vibrate) navigator.vibrate(100);
       timerRef.current = setTimeout(() => applyTorch(false), 140);
     } else if (baseCmd === 'STRIKE_DUB') {
       isRedirectingRef.current = false;
+      setStagePhase('PULSE');
       applyTorch(true);
       playHeartbeatThud(true);
       if (navigator.vibrate) navigator.vibrate(70);
       timerRef.current = setTimeout(() => applyTorch(false), 110);
     } else if (baseCmd === 'BLINK') {
       isRedirectingRef.current = false;
+      setStagePhase('PULSE');
       const pattern = [100, 150, 100, 650]; 
       let step = 0;
       const playHeartbeat = () => {
@@ -406,6 +502,7 @@ function AudienceView({ roomID }) {
       playHeartbeat();
     } else if (baseCmd === 'STROBE') {
       isRedirectingRef.current = false;
+      setStagePhase('PULSE');
       const playStrobe = () => {
         if (isRedirectingRef.current) return;
         const isOn = Math.random() > 0.5; 
@@ -415,12 +512,11 @@ function AudienceView({ roomID }) {
       };
       playStrobe();
     } else if (baseCmd === 'REDIRECT') {
-      // Lock state so no pulse timer can interrupt the redirect
       isRedirectingRef.current = true;
+      clearPhaseTimeouts();
       clearTimeout(timerRef.current);
       setIsFlashing(false);
 
-      // Release camera torch & audio session cleanly so mobile OS transitions immediately
       if (trackRef.current) {
         try {
           trackRef.current.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
@@ -456,21 +552,112 @@ function AudienceView({ roomID }) {
     }
   };
 
+  const displayedName = kickerWord || revealWord;
+
   return (
-    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden ${isFlashing ? 'bg-black text-white' : 'bg-white text-black'}`}>
+    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden select-none ${
+      stagePhase === 'SPIRAL' ? 'bg-white text-black' :
+      (stagePhase === 'LETTERS' || stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') ? 'bg-black text-white' :
+      isFlashing ? 'bg-black text-white' : 'bg-white text-black'
+    }`}>
+      {/* Keyframes for Phase 2 Hypnotic Spiral & Floating Letter Cloud */}
+      <style>{`
+        @keyframes spinHypnotic {
+          0% { transform: scale(1) rotate(0deg); }
+          100% { transform: scale(1.15) rotate(360deg); }
+        }
+        @keyframes floatLetter {
+          0% { transform: translate(0px, 0px); opacity: 0.15; }
+          50% { transform: translate(var(--dx), var(--dy)); opacity: 0.85; }
+          100% { transform: translate(calc(var(--dx) * -0.6), calc(var(--dy) * 0.6)); opacity: 0.2; }
+        }
+      `}</style>
+
       <div className="absolute top-4 left-4 z-50 opacity-20">
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
 
+      <div 
+        onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
+        className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
+      />
+
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
-      {!cameraReady ? (
-        <>
+      {/* ==========================================
+          PHASE 2A: HYPNOTIC SPIRAL + AL LOGO (5s)
+         ========================================== */}
+      {stagePhase === 'SPIRAL' && (
+        <div className="relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-white">
           <div 
-            onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
-            className="absolute top-0 left-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
+            className="absolute w-[180vmax] h-[180vmax] rounded-full"
+            style={{
+              background: 'repeating-radial-gradient(circle, #000 0px, #000 22px, #fff 22px, #fff 44px)',
+              animation: 'spinHypnotic 4s linear infinite'
+            }}
           />
+          <div className="relative z-10 w-44 h-44 rounded-full bg-white shadow-[0_0_50px_rgba(0,0,0,0.35)] flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full border-[3.5px] border-black flex items-center justify-center font-black text-black text-2xl tracking-tighter">
+              AL
+            </div>
+          </div>
+        </div>
+      )}
 
+      {/* ==========================================
+          PHASE 2B: FLOATING LETTER CLOUD (5s)
+         ========================================== */}
+      {stagePhase === 'LETTERS' && (
+        <div className="relative w-full min-h-[100dvh] bg-black overflow-hidden">
+          {decoyParticles.map((p) => (
+            <span
+              key={p.id}
+              style={{
+                left: p.left,
+                top: p.top,
+                fontSize: p.size,
+                opacity: p.opacity,
+                '--dx': p.dx,
+                '--dy': p.dy,
+                animation: `floatLetter ${p.duration} ease-in-out infinite alternate`,
+              }}
+              className="absolute font-sans font-bold text-white select-none pointer-events-none"
+            >
+              {p.char}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* ==========================================
+          PHASE 2C: MAGNETIC CONVERGENCE & REVEAL (3.8s)
+         ========================================== */}
+      {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
+        <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 overflow-hidden">
+          <div className="flex items-center justify-center space-x-2 sm:space-x-3">
+            {targetChars.map((item, idx) => (
+              <span
+                key={idx}
+                style={{
+                  transform: convergeActive || stagePhase === 'LOCKED'
+                    ? 'translate(0px, 0px) scale(1)'
+                    : `translate(${item.startX}px, ${item.startY}px) scale(0.85)`,
+                  transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
+                }}
+                className="text-white font-black text-5xl sm:text-6xl uppercase tracking-widest inline-block"
+              >
+                {item.ch}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          PHASE 1 (PULSE FIRST) & POST-REVEAL PULSE
+         ========================================== */}
+      {stagePhase === 'PULSE' && (
+        !cameraReady ? (
           <div 
             onClick={startCamera}
             className={`flex flex-col items-center justify-center w-full min-h-[100dvh] max-w-md px-6 z-10 cursor-pointer transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}
@@ -495,43 +682,44 @@ function AudienceView({ roomID }) {
               </p>
             </div>
           </div>
-        </>
-      ) : (
-        <>
-          <div className={`absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 transition-opacity duration-500 ${kickerWord ? 'opacity-100' : 'opacity-0'}`}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              You are currently focusing on
-            </p>
-            <span className="uppercase text-4xl font-black mt-3 mb-3 block tracking-widest drop-shadow-sm">
-              {kickerWord}
-            </span>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Do not break concentration
-            </p>
-          </div>
-
-          <div className="flex-1 flex flex-col items-center justify-center w-full pointer-events-none">
-            <div className="relative flex items-center justify-center">
-              <div className="w-6 h-6 bg-red-600 rounded-full drop-shadow-md"></div>
-              <div className="absolute w-24 h-24 border-2 border-red-600 rounded-full animate-ping opacity-30"></div>
-              <div className="absolute w-48 h-48 border border-red-600 rounded-full opacity-10" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
-              <div className="absolute w-72 h-72 border border-red-600 rounded-full opacity-5" style={{ animation: 'ping 4s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
+        ) : (
+          <>
+            {/* In Option A, the thought-of name stays hidden during Phase 1 and only appears after Phase 2 Reveal */}
+            <div className={`absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 transition-opacity duration-500 ${(isWordRevealed && displayedName) ? 'opacity-100' : 'opacity-0'}`}>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+                You are currently focusing on
+              </p>
+              <span className="uppercase text-4xl font-black mt-3 mb-3 block tracking-widest drop-shadow-sm">
+                {displayedName}
+              </span>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+                Do not break concentration
+              </p>
             </div>
-          </div>
 
-          <div className="absolute bottom-16 left-0 right-0 w-full text-center px-4 pointer-events-none z-20">
-            <h1 className="text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
-              Hold up your<br/>phone
-            </h1>
-          </div>
-        </>
+            <div className="flex-1 flex flex-col items-center justify-center w-full pointer-events-none">
+              <div className="relative flex items-center justify-center">
+                <div className="w-6 h-6 bg-red-600 rounded-full drop-shadow-md"></div>
+                <div className="absolute w-24 h-24 border-2 border-red-600 rounded-full animate-ping opacity-30"></div>
+                <div className="absolute w-48 h-48 border border-red-600 rounded-full opacity-10" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
+                <div className="absolute w-72 h-72 border border-red-600 rounded-full opacity-5" style={{ animation: 'ping 4s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
+              </div>
+            </div>
+
+            <div className="absolute bottom-16 left-0 right-0 w-full text-center px-4 pointer-events-none z-20">
+              <h1 className="text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
+                Hold up your<br/>phone
+              </h1>
+            </div>
+          </>
+        )
       )}
     </div>
   );
 }
 
 // ==========================================
-// SHOW CONTROL VIEW (Your Master Deck)
+// SHOW CONTROL VIEW (Your Master Deck - Option A)
 // ==========================================
 function ControlView({ roomID }) {
   const [isReady, setIsReady] = useState(false);
@@ -540,6 +728,8 @@ function ControlView({ roomID }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [localMode, setLocalMode] = useState('OFF');
   const [audienceMode, setAudienceMode] = useState('OFF');
+  const [activePhase, setActivePhase] = useState('PHASE_1'); // 'PHASE_1' | 'REVEALING' | 'PHASE_2_DONE'
+
   const [redirectUrl, setRedirectUrl] = useState(() => localStorage.getItem('magicRedirectUrl') || '');
   const [feedbackUrl, setFeedbackUrl] = useState(() => localStorage.getItem('magicFeedbackUrl') || DEFAULT_FEEDBACK_URL);
   const [redirectStatus, setRedirectStatus] = useState('HOLD TO REDIRECT');
@@ -552,6 +742,7 @@ function ControlView({ roomID }) {
     return saved !== null ? JSON.parse(saved) : true; 
   });
   const [peekedWord, setPeekedWord] = useState('');
+  const peekedWordRef = useRef('');
   const lastInjectRef = useRef('');
   const [lastKey, setLastKey] = useState('NONE'); 
   const hiddenInputRef = useRef(null);
@@ -611,6 +802,7 @@ function ControlView({ roomID }) {
     set(ref(db, `${roomID}/feedbackUrl`), activeFeedback).catch(() => {});
   }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, feedbackUrl, roomID]);
 
+  // SILENT API CATCH (Polls impression pad and shows LIVE: [WORD] on Master Deck while keeping it hidden on audience phones until Phase 2)
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
@@ -640,6 +832,7 @@ function ControlView({ roomID }) {
         if (word && word !== lastInjectRef.current) {
           lastInjectRef.current = word;
           setPeekedWord(word);
+          peekedWordRef.current = word;
           set(ref(db, `${roomID}/buttonText`), word);
         }
       } catch (e) {}
@@ -680,6 +873,7 @@ function ControlView({ roomID }) {
       setLastKey(k);
 
       if (k === 'i' || k === 'I') { e.preventDefault(); fireInstantRedirect(); return; }
+      if (k === 'g' || k === 'G') { e.preventDefault(); triggerPhase2Reveal(); return; }
       if (isPlayingRef.current) { handleStopPlayback(); return; }
       if (k === 'p' || k === 'P') { e.preventDefault(); handlePlayToggle(); return; }
       
@@ -721,10 +915,12 @@ function ControlView({ roomID }) {
   const handleSetCustomText = () => {
     set(ref(db, `${roomID}/buttonText`), customText);
     setPeekedWord(customText);
+    peekedWordRef.current = customText;
   };
   const handleClearCustomText = () => {
     setCustomText('');
     setPeekedWord('');
+    peekedWordRef.current = '';
     set(ref(db, `${roomID}/buttonText`), '');
   };
 
@@ -754,6 +950,9 @@ function ControlView({ roomID }) {
     let payload = `${cmd}|${Date.now()}`;
     if (cmd === 'REDIRECT') {
       payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}|${getTargetFeedbackUrl()}`;
+    } else if (cmd === 'PHASE_REVEAL') {
+      const wordToBroadcast = peekedWordRef.current || customText || 'JAMES';
+      payload = `PHASE_REVEAL|${Date.now()}|${wordToBroadcast}`;
     }
     
     return set(ref(db, `${roomID}/audienceCommand`), payload).catch(err => {
@@ -761,9 +960,22 @@ function ControlView({ roomID }) {
     });
   };
 
-  // SYNCHRONIZED AUDIENCE + MASTER REDIRECT
+  // OPTION A PHASE CONTROLLERS
+  const resetToPhase1Pulse = () => {
+    setActivePhase('PHASE_1');
+    setAudienceMode('OFF');
+    fireAudienceCommand('PHASE_1_RESET');
+  };
+
+  const triggerPhase2Reveal = () => {
+    setActivePhase('REVEALING');
+    setAudienceMode('OFF');
+    fireAudienceCommand('PHASE_REVEAL');
+    setTimeout(() => setActivePhase('PHASE_2_DONE'), 13800);
+  };
+
+  // SYNCHRONIZED AUDIENCE + MASTER REDIRECT (PHASE 3)
   const executeSynchronizedRedirect = async () => {
-    // 1. Stop all active pulsing timers so nothing overwrites the REDIRECT command
     playbackTimeoutsRef.current.forEach(clearTimeout);
     playbackTimeoutsRef.current = [];
     setIsPlaying(false);
@@ -776,7 +988,6 @@ function ControlView({ roomID }) {
     const targetFeedback = getTargetFeedbackUrl();
     setRedirectStatus('FIRED!');
 
-    // 2. Wait for Firebase server confirmation + 300ms broadcast cushion so all spectators fire in sync
     try {
       await Promise.race([
         fireAudienceCommand('REDIRECT'),
@@ -785,7 +996,6 @@ function ControlView({ roomID }) {
       await new Promise((resolve) => setTimeout(resolve, 300));
     } catch (e) {}
 
-    // 3. Schedule the 30s browser feedback redirect & immediately launch Instagram
     executeGuaranteedRedirect(finalUrl, targetFeedback, false);
   };
 
@@ -1014,7 +1224,7 @@ function ControlView({ roomID }) {
     }
   };
 
-  if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Master Deck...</div>;
+  if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Collective V2 Deck...</div>;
 
   return (
     <div 
@@ -1155,13 +1365,11 @@ function ControlView({ roomID }) {
               <div className="flex justify-between text-zinc-300"><span>Strobe</span><span className="text-yellow-400 font-bold">[E]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Strobe</span><span className="text-yellow-400 font-bold">[S]</span></div>
 
-              <div className="flex justify-between text-zinc-400"><span>Tap/Hold</span><span>[↑ / Vol+]</span></div>
-              <div className="flex justify-between text-zinc-400"><span>Tap/Hold</span><span>[↓ / Vol-]</span></div>
-
               <div className="col-span-2 h-px bg-zinc-800 my-0.5"></div>
 
+              <div className="flex justify-between text-zinc-300"><span>Phase 2 Reveal</span><span className="text-purple-400 font-bold">[G]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Play / Stop Seq</span><span className="text-green-400 font-bold">[P]</span></div>
-              <div className="flex justify-between text-zinc-300"><span>Instant Redirect</span><span className="text-red-500 font-bold">[I]</span></div>
+              <div className="flex justify-between text-zinc-300 col-span-2"><span>Phase 3 Redirect</span><span className="text-red-500 font-bold">[I]</span></div>
             </div>
           </div>
 
@@ -1178,7 +1386,7 @@ function ControlView({ roomID }) {
       )}
 
       {/* --- MAIN CONTROL SCREEN --- */}
-      <div className="flex-1 flex flex-col items-center w-full min-h-0 pt-3 pb-4 z-10 px-4">
+      <div className="flex-1 flex flex-col items-center w-full min-h-0 pt-3 pb-4 z-10 px-4 space-y-2.5">
         
         {/* 1. CHOREOGRAPHY CONTROLS (PINNED DIRECTLY BELOW TOP BAR) */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 flex items-center justify-between shrink-0">
@@ -1217,7 +1425,34 @@ function ControlView({ roomID }) {
           </div>
         </div>
 
-        {/* 2. LOCAL CUE & MASTER CUE (AUDIENCE) CONTROLS (CENTERED IN REMAINING SPACE) */}
+        {/* 2. OPTION A STAGE PROGRESSION BAR (PHASE 1 PULSE -> PHASE 2 NAME REVEAL) */}
+        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between space-x-2 shrink-0">
+          <button
+            onClick={resetToPhase1Pulse}
+            className={`px-3 py-2 rounded-lg text-[9px] font-bold tracking-widest uppercase border transition-colors whitespace-nowrap ${
+              activePhase === 'PHASE_1'
+                ? 'bg-zinc-800 border-zinc-500 text-white'
+                : 'bg-zinc-950 border-zinc-800 text-zinc-500'
+            }`}
+          >
+            🔴 Phase 1 (Hide Name)
+          </button>
+
+          <button
+            onClick={triggerPhase2Reveal}
+            className={`flex-1 py-2 rounded-lg text-[10px] font-black tracking-widest uppercase border transition-colors whitespace-nowrap ${
+              activePhase === 'REVEALING'
+                ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_15px_rgba(147,51,234,0.5)] animate-pulse'
+                : activePhase === 'PHASE_2_DONE'
+                  ? 'bg-green-900/40 border-green-500 text-green-300'
+                  : 'bg-purple-950/60 border-purple-500/70 text-purple-200'
+            }`}
+          >
+            {activePhase === 'REVEALING' ? '🌀 REVEALING NAME...' : activePhase === 'PHASE_2_DONE' ? '✓ NAME REVEALED [G]' : '🌀 TRIGGER PHASE 2 REVEAL [G]'}
+          </button>
+        </div>
+
+        {/* 3. LOCAL CUE & MASTER CUE (AUDIENCE) CONTROLS (CENTERED IN REMAINING SPACE) */}
         <div className="flex-1 w-full flex items-center justify-center">
           <div className="w-full grid grid-cols-2 gap-4 items-center">
             
