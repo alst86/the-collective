@@ -76,17 +76,32 @@ const executeGuaranteedRedirect = (rawPrimaryUrl, rawFeedbackUrl, isAudience = t
 
 export default function App() {
   const searchParams = new URLSearchParams(window.location.search);
-  const isMaster = searchParams.has('master');
+  const [isMasterView, setIsMasterView] = useState(() => searchParams.has('master'));
+  const [skipEntryPrompt, setSkipEntryPrompt] = useState(false);
   const roomID = searchParams.get('room') || 'v2-stage';
 
-  return isMaster ? <ControlView roomID={roomID} /> : <AudienceView roomID={roomID} />;
+  return isMasterView ? (
+    <ControlView 
+      roomID={roomID} 
+      onSwitchToHeartbeatView={() => {
+        setSkipEntryPrompt(true);
+        setIsMasterView(false);
+      }}
+    />
+  ) : (
+    <AudienceView 
+      roomID={roomID} 
+      skipEntryPrompt={skipEntryPrompt}
+      onEnterMaster={() => setIsMasterView(true)}
+    />
+  );
 }
 
 // ==========================================
 // AUDIENCE VIEW (Spectator's Phone - Option A)
 // ==========================================
-function AudienceView({ roomID }) {
-  const [cameraReady, setCameraReady] = useState(false);
+function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
+  const [cameraReady, setCameraReady] = useState(skipEntryPrompt);
   const [isFlashing, setIsFlashing] = useState(false); 
   const [dbStatus, setDbStatus] = useState('waiting'); 
   
@@ -133,6 +148,13 @@ function AudienceView({ roomID }) {
   
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
+
+  // If entering directly from Master QR tap, initialize camera & audio automatically
+  useEffect(() => {
+    if (skipEntryPrompt) {
+      startCamera();
+    }
+  }, [skipEntryPrompt]);
 
   useEffect(() => {
     if (!cameraReady || stagePhase !== 'PULSE') return;
@@ -572,8 +594,12 @@ function AudienceView({ roomID }) {
 
     if (secretClickCount.current === 5) {
       secretClickCount.current = 0;
-      const separator = window.location.search ? '&' : '?';
-      window.location.href = window.location.pathname + window.location.search + separator + 'master=true';
+      if (onEnterMaster) {
+        onEnterMaster();
+      } else {
+        const separator = window.location.search ? '&' : '?';
+        window.location.href = window.location.pathname + window.location.search + separator + 'master=true';
+      }
     }
   };
 
@@ -584,7 +610,6 @@ function AudienceView({ roomID }) {
       !cameraReady ? 'bg-[#f4f4f2] text-black' :
       isFlashing ? 'bg-black text-white' : 'bg-white text-black'
     }`}>
-      {/* Keyframes for Continuous Flow Infinite Loop & Floating Letters */}
       <style>{`
         @keyframes tunnelFlow {
           0% { background-size: 100px 100px; background-position: 0 0; }
@@ -618,6 +643,7 @@ function AudienceView({ roomID }) {
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
 
+      {/* 5-Tap Bottom-Right Secret Gateway to Master Control */}
       <div 
         onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
         className="absolute bottom-0 right-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
@@ -630,7 +656,6 @@ function AudienceView({ roomID }) {
          ========================================== */}
       {stagePhase === 'SPIRAL' && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-white">
-          {/* Continuous Infinite Tunnel Loop Background */}
           <div 
             className="absolute inset-0 w-full h-full"
             style={{
@@ -638,7 +663,6 @@ function AudienceView({ roomID }) {
               animation: 'tunnelFlow 2s linear infinite'
             }}
           />
-          {/* Center Logo Badge */}
           <div className="relative z-10 w-48 h-48 rounded-full bg-white shadow-[0_0_60px_rgba(0,0,0,0.4)] flex items-center justify-center border-4 border-black">
             <svg viewBox="0 0 500 500" className="w-28 h-28 fill-current text-black">
               <path d="M250 25C125.74 25 25 125.74 25 250s100.74 225 225 225 225-100.74 225-225S374.26 25 250 25zm0 415c-104.93 0-190-85.07-190-190S145.07 60 250 60s190 85.07 190 190-85.07 190-190 190z" />
@@ -849,7 +873,7 @@ function AudienceView({ roomID }) {
 // ==========================================
 // SHOW CONTROL VIEW (Your Master Deck - Option A)
 // ==========================================
-function ControlView({ roomID }) {
+function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [isReady, setIsReady] = useState(false);
   const trackRef = useRef(null);
   
@@ -904,8 +928,6 @@ function ControlView({ roomID }) {
   const redirectPressTimer = useRef(null);
   const isRedirectPressing = useRef(false);
 
-  const masterSecretClickCount = useRef(0);
-  const masterSecretLastClickTime = useRef(0);
   const overlayExitClickCount = useRef(0);
   const overlayExitLastClickTime = useRef(0);
 
@@ -1040,6 +1062,7 @@ function ControlView({ roomID }) {
 
       if (k === 'i' || k === 'I') { e.preventDefault(); fireInstantRedirect(); return; }
       if (k === 'g' || k === 'G') { e.preventDefault(); triggerPhase2Reveal(); return; }
+      if (k === 'q' || k === 'Q') { e.preventDefault(); setShowQrModal((prev) => !prev); return; }
       if (isPlayingRef.current) { handleStopPlayback(); return; }
       if (k === 'p' || k === 'P') { e.preventDefault(); handlePlayToggle(); return; }
       
@@ -1402,20 +1425,6 @@ function ControlView({ roomID }) {
     if (hiddenInputRef.current) hiddenInputRef.current.focus({ preventScroll: true });
   };
 
-  const handleMasterSecretClick = (e) => {
-    e.stopPropagation(); 
-    const currentTime = new Date().getTime();
-    const timeSinceLastClick = currentTime - masterSecretLastClickTime.current;
-    if (timeSinceLastClick < 500) { masterSecretClickCount.current += 1; } 
-    else { masterSecretClickCount.current = 1; }
-    masterSecretLastClickTime.current = currentTime;
-
-    if (masterSecretClickCount.current === 3) {
-      masterSecretClickCount.current = 0;
-      executeSynchronizedRedirect();
-    }
-  };
-
   const handleOverlaySecretExit = (e) => {
     e.stopPropagation();
     const now = Date.now();
@@ -1466,41 +1475,46 @@ function ControlView({ roomID }) {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
-      <div 
-        onPointerDown={handleMasterSecretClick}
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-14 z-[100] bg-black/0 touch-none"
-      />
-
+      {/* =========================================================
+          QR CODE FULLSCREEN OVERLAY ON MASTER PHONE
+          Tapping the QR card immediately opens the Audience Heartbeat View!
+         ========================================================= */}
       {showQrModal && (
         <div 
-          onClick={() => setShowQrModal(false)}
-          className="fixed inset-0 z-[95] bg-black/90 flex flex-col items-center justify-center p-6 cursor-pointer select-none"
+          onPointerDown={() => setShowQrModal(false)}
+          className="fixed inset-0 z-[110] bg-black/95 flex flex-col items-center justify-center p-6 cursor-pointer select-none touch-none"
         >
           <div 
-            onClick={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation();
               setShowQrModal(false);
-              window.location.href = APP_QR_URL;
+              if (onSwitchToHeartbeatView) {
+                onSwitchToHeartbeatView();
+              }
             }}
-            className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center max-w-xs w-full text-black cursor-pointer hover:scale-105 transition-transform"
+            className="bg-white p-7 rounded-3xl shadow-[0_0_60px_rgba(255,255,255,0.18)] flex flex-col items-center max-w-xs w-full text-black cursor-pointer active:scale-95 transition-transform"
           >
-            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-500 mb-4">
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.28em] text-zinc-500 mb-4">
               Scan to Join Experience
             </span>
-            <div className="bg-white p-2 border-2 border-zinc-200 rounded-xl mb-4 flex items-center justify-center">
+            <div className="bg-white p-2 border-2 border-zinc-200 rounded-2xl mb-4 flex items-center justify-center">
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(APP_QR_URL)}`} 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(APP_QR_URL)}`} 
                 alt="App QR Code"
-                className="w-48 h-48 object-contain"
+                className="w-56 h-56 object-contain pointer-events-none"
               />
             </div>
-            <span className="text-xs font-mono font-bold text-zinc-700 tracking-wider mb-2">
-              {APP_QR_URL}
+            <span className="text-xs font-mono font-bold text-zinc-800 tracking-wider mb-2">
+              {APP_QR_URL.replace('https://', '')}
             </span>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-red-600 animate-pulse mt-2 text-center">
-              [ Tap QR Code to Open Audience View ]
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-red-600 animate-pulse mt-2 text-center">
+              [ Tap QR Code to Open Heartbeat View ]
             </span>
           </div>
+
+          <span className="mt-6 text-[10px] font-mono uppercase tracking-[0.25em] text-zinc-500">
+            Tap outside card to return to Master Deck
+          </span>
         </div>
       )}
 
@@ -1581,15 +1595,15 @@ function ControlView({ roomID }) {
         </div>
       )}
 
-      {/* --- TOP BAR --- */}
-      <div className="w-full h-14 flex items-center justify-between px-4 shrink-0 z-40 border-b border-zinc-900">
+      {/* --- TOP BAR (UNBLOCKED, SINGLE-LINE & INSTANT POINTER RESPONSE) --- */}
+      <div className="w-full h-14 flex items-center justify-between px-3 gap-1.5 shrink-0 z-40 border-b border-zinc-900">
         <button 
           onPointerDown={handleRedirectDown}
           onPointerUp={handleRedirectUp}
           onPointerLeave={handleRedirectUp}
           onPointerCancel={handleRedirectUp}
           onContextMenu={(e) => e.preventDefault()}
-          className={`px-3 py-1.5 rounded-full border text-[9px] font-bold tracking-widest transition-colors ${
+          className={`px-2.5 py-2 rounded-full border text-[9px] font-bold tracking-wider whitespace-nowrap shrink-0 transition-colors ${
             redirectStatus === 'FIRED!' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
             : redirectStatus === 'HOLDING...' ? 'bg-zinc-700 border-zinc-500 text-white' 
             : 'bg-zinc-950 border-zinc-800 text-zinc-400'
@@ -1598,31 +1612,40 @@ function ControlView({ roomID }) {
           🚀 {redirectStatus}
         </button>
 
+        {/* SENSITIVE SINGLE-LINE QR BUTTON */}
         <button 
-          onClick={() => setShowQrModal(true)}
-          className="px-3 py-1.5 rounded-full border text-[9px] font-bold tracking-widest bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-zinc-600 transition-colors"
+          type="button"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            setShowQrModal(true);
+          }}
+          className="px-3 py-2 rounded-full border text-[9px] font-extrabold tracking-widest whitespace-nowrap shrink-0 bg-zinc-900 border-zinc-700 text-white active:scale-95 active:bg-zinc-700 transition-all cursor-pointer"
         >
-          🔳 SHOW QR
+          🔳 QR
         </button>
 
-        <div className="flex-1 flex justify-center items-center px-2">
+        <div className="flex-1 flex justify-center items-center min-w-0">
           {peekedWord ? (
-            <div className="flex items-center space-x-2 bg-green-900/20 border border-green-500/50 px-3 py-1 rounded-full">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]"></div>
-              <span className="text-[9px] font-mono text-green-400 font-bold tracking-widest uppercase truncate max-w-[100px]">
+            <div className="flex items-center space-x-1.5 bg-green-900/20 border border-green-500/50 px-2.5 py-1.5 rounded-full max-w-full">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e] shrink-0"></div>
+              <span className="text-[9px] font-mono text-green-400 font-bold tracking-wider uppercase truncate">
                 LIVE: {peekedWord}
               </span>
             </div>
           ) : (
-            <span className="text-[9px] font-mono text-zinc-700 font-bold tracking-widest uppercase">
+            <span className="text-[9px] font-mono text-zinc-700 font-bold tracking-widest uppercase truncate">
               NO KICKER
             </span>
           )}
         </div>
 
         <button 
-          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-          className={`px-3 py-1.5 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${
+          type="button"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            setIsSettingsOpen((prev) => !prev);
+          }}
+          className={`px-2.5 py-2 rounded-full border text-[9px] font-bold tracking-wider whitespace-nowrap shrink-0 transition-colors ${
             isSettingsOpen ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500'
           }`}
         >
@@ -1707,14 +1730,15 @@ function ControlView({ roomID }) {
 
               <div className="flex justify-between text-zinc-300"><span>Phase 2 Reveal</span><span className="text-purple-400 font-bold">[G]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Play / Stop Seq</span><span className="text-green-400 font-bold">[P]</span></div>
-              <div className="flex justify-between text-zinc-300 col-span-2"><span>Phase 3 Redirect</span><span className="text-red-500 font-bold">[I]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Toggle QR Code</span><span className="text-zinc-200 font-bold">[Q]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Phase 3 Redirect</span><span className="text-red-500 font-bold">[I]</span></div>
             </div>
           </div>
 
           <div className="w-full h-px bg-zinc-800 my-1"></div>
           <button 
             onClick={() => {
-              window.location.href = window.location.pathname + '?room=' + roomID;
+              if (onSwitchToHeartbeatView) onSwitchToHeartbeatView();
             }}
             className="w-full py-3 rounded bg-zinc-800 border border-zinc-600 text-white font-bold text-[10px] tracking-widest transition-colors flex justify-center items-center"
           >
