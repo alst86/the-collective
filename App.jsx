@@ -90,11 +90,10 @@ function AudienceView({ roomID }) {
   const [kickerWord, setKickerWord] = useState('');
   const kickerWordRef = useRef('');
   const [revealWord, setRevealWord] = useState('');
-  const [isWordRevealed, setIsWordRevealed] = useState(false);
   const [uiReady, setUiReady] = useState(false);
 
   // OPTION A STAGE FLOW:
-  // 'PULSE' (Phase 1: Word hidden) -> 'SPIRAL' -> 'LETTERS' -> 'CONVERGE' -> 'LOCKED' -> 'PULSE' (Phase 2: Word visible)
+  // 'PULSE' (Phase 1: Word hidden) -> 'SPIRAL' -> 'LETTERS' -> 'CONVERGE' -> 'LOCKED' (Stays locked on revealed name)
   const [stagePhase, setStagePhase] = useState('PULSE');
   const [convergeActive, setConvergeActive] = useState(false);
   const phaseTimeoutsRef = useRef([]);
@@ -348,7 +347,7 @@ function AudienceView({ roomID }) {
     } catch (err) {}
   };
 
-  // PHASE 2 REVEAL SEQUENCE: SPIRAL (5s) -> LETTERS (5s) -> CONVERGE & LOCK (3.8s) -> PULSE WITH NAME REVEALED
+  // PHASE 2 REVEAL SEQUENCE: SPIRAL (5s) -> LETTERS (5s) -> CONVERGE (1.2s) -> LOCKED INDEFINITELY
   const runRevealSequence = (wordToReveal) => {
     clearPhaseTimeouts();
     clearTimeout(timerRef.current);
@@ -372,18 +371,12 @@ function AudienceView({ roomID }) {
       setTimeout(() => setConvergeActive(true), 60);
     }, 10000);
 
-    // 4. Solid Locked Reveal Hold (11.2s -> 13.8s)
+    // 4. Solid Locked Reveal Hold (11.2s -> Stays locked on screen until Redirect)
     const t3 = setTimeout(() => {
       setStagePhase('LOCKED');
     }, 11200);
 
-    // 5. Return to Pulse View with the Name Unlocked & Displayed at Top (13.8s)
-    const t4 = setTimeout(() => {
-      setIsWordRevealed(true);
-      setStagePhase('PULSE');
-    }, 13800);
-
-    phaseTimeoutsRef.current = [t1, t2, t3, t4];
+    phaseTimeoutsRef.current = [t1, t2, t3];
   };
 
   useEffect(() => {
@@ -454,7 +447,6 @@ function AudienceView({ roomID }) {
     if (baseCmd === 'PHASE_1_RESET') {
       clearPhaseTimeouts();
       applyTorch(false);
-      setIsWordRevealed(false);
       setStagePhase('PULSE');
     } else if (baseCmd === 'PHASE_REVEAL') {
       const passedWord = (parts[2] || '').trim();
@@ -552,8 +544,6 @@ function AudienceView({ roomID }) {
     }
   };
 
-  const displayedName = kickerWord || revealWord;
-
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden select-none ${
       stagePhase === 'SPIRAL' ? 'bg-white text-black' :
@@ -630,7 +620,7 @@ function AudienceView({ roomID }) {
       )}
 
       {/* ==========================================
-          PHASE 2C: MAGNETIC CONVERGENCE & REVEAL (3.8s)
+          PHASE 2C: MAGNETIC CONVERGENCE & LOCKED NAME
          ========================================== */}
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 overflow-hidden">
@@ -654,7 +644,7 @@ function AudienceView({ roomID }) {
       )}
 
       {/* ==========================================
-          PHASE 1 (PULSE FIRST) & POST-REVEAL PULSE
+          PHASE 1: PULSING LIGHTS FIRST
          ========================================== */}
       {stagePhase === 'PULSE' && (
         !cameraReady ? (
@@ -684,19 +674,6 @@ function AudienceView({ roomID }) {
           </div>
         ) : (
           <>
-            {/* In Option A, the thought-of name stays hidden during Phase 1 and only appears after Phase 2 Reveal */}
-            <div className={`absolute top-24 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 transition-opacity duration-500 ${(isWordRevealed && displayedName) ? 'opacity-100' : 'opacity-0'}`}>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                You are currently focusing on
-              </p>
-              <span className="uppercase text-4xl font-black mt-3 mb-3 block tracking-widest drop-shadow-sm">
-                {displayedName}
-              </span>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                Do not break concentration
-              </p>
-            </div>
-
             <div className="flex-1 flex flex-col items-center justify-center w-full pointer-events-none">
               <div className="relative flex items-center justify-center">
                 <div className="w-6 h-6 bg-red-600 rounded-full drop-shadow-md"></div>
@@ -730,7 +707,7 @@ function ControlView({ roomID }) {
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [activePhase, setActivePhase] = useState('PHASE_1'); // 'PHASE_1' | 'REVEALING' | 'PHASE_2_DONE'
 
-  // MASTER LIVE MONITOR STATES (Lets Magician watch the Spiral -> Letters -> Word formation in sync)
+  // SYNCHRONIZED REVEAL SCREEN STATES ON MAGICIAN'S PHONE
   const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE'); // 'NONE' | 'SPIRAL' | 'LETTERS' | 'CONVERGE' | 'LOCKED'
   const [masterConvergeActive, setMasterConvergeActive] = useState(false);
   const [masterRevealWord, setMasterRevealWord] = useState('');
@@ -780,7 +757,10 @@ function ControlView({ roomID }) {
   const masterSecretClickCount = useRef(0);
   const masterSecretLastClickTime = useRef(0);
 
-  // Decoy letter particles for Master Monitor
+  const overlayExitClickCount = useRef(0);
+  const overlayExitLastClickTime = useRef(0);
+
+  // Decoy letter particles for Magician's synchronized screen
   const masterDecoyParticles = useMemo(() => {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     return Array.from({ length: 28 }).map((_, i) => ({
@@ -796,7 +776,7 @@ function ControlView({ roomID }) {
     }));
   }, []);
 
-  // Target character scatter offsets for Master Monitor word convergence
+  // Target character scatter offsets for Magician's synchronized screen
   const masterTargetChars = useMemo(() => {
     const clean = (masterRevealWord || peekedWord || customText || 'JAMES').trim().toUpperCase();
     return clean.split('').map((ch, idx) => {
@@ -1002,7 +982,7 @@ function ControlView({ roomID }) {
     });
   };
 
-  // Runs the synchronized visual reveal on the Magician's Master screen
+  // Runs the identical visual reveal on the Magician's Master phone and stays locked on the name
   const runMasterMonitorSequence = (wordToReveal) => {
     clearMasterPhaseTimeouts();
     setMasterRevealWord(wordToReveal);
@@ -1022,18 +1002,13 @@ function ControlView({ roomID }) {
       setTimeout(() => setMasterConvergeActive(true), 60);
     }, 10000);
 
-    // 4. Solid Locked Reveal Hold (11.2s -> 13.8s)
+    // 4. Solid Locked Reveal Hold (11.2s -> Stays locked on screen; hold anywhere to redirect)
     const t3 = setTimeout(() => {
       setMasterMonitorPhase('LOCKED');
+      setActivePhase('PHASE_2_DONE');
     }, 11200);
 
-    // 5. Return to Master Control Deck when reveal finishes (13.8s)
-    const t4 = setTimeout(() => {
-      setMasterMonitorPhase('NONE');
-      setActivePhase('PHASE_2_DONE');
-    }, 13800);
-
-    masterPhaseTimeoutsRef.current = [t1, t2, t3, t4];
+    masterPhaseTimeoutsRef.current = [t1, t2, t3];
   };
 
   // OPTION A PHASE CONTROLLERS
@@ -1056,7 +1031,6 @@ function ControlView({ roomID }) {
   // SYNCHRONIZED AUDIENCE + MASTER REDIRECT (PHASE 3)
   const executeSynchronizedRedirect = async () => {
     clearMasterPhaseTimeouts();
-    setMasterMonitorPhase('NONE');
     playbackTimeoutsRef.current.forEach(clearTimeout);
     playbackTimeoutsRef.current = [];
     setIsPlaying(false);
@@ -1305,6 +1279,25 @@ function ControlView({ roomID }) {
     }
   };
 
+  // Secret 5-tap in top-left corner of the reveal screen to return to deck during testing
+  const handleOverlaySecretExit = (e) => {
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - overlayExitLastClickTime.current < 500) {
+      overlayExitClickCount.current += 1;
+    } else {
+      overlayExitClickCount.current = 1;
+    }
+    overlayExitLastClickTime.current = now;
+
+    if (overlayExitClickCount.current === 5) {
+      overlayExitClickCount.current = 0;
+      handleRedirectUp();
+      clearMasterPhaseTimeouts();
+      setMasterMonitorPhase('NONE');
+    }
+  };
+
   if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Collective V2 Deck...</div>;
 
   return (
@@ -1314,7 +1307,7 @@ function ControlView({ roomID }) {
       onClick={armRemote}
       className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans outline-none"
     >
-      {/* Keyframes for Master Reveal Monitor */}
+      {/* Keyframes for Synchronized Reveal */}
       <style>{`
         @keyframes spinHypnotic {
           0% { transform: scale(1) rotate(0deg); }
@@ -1344,24 +1337,27 @@ function ControlView({ roomID }) {
       />
 
       {/* =========================================================
-          SYNCHRONIZED MASTER REVEAL MONITOR OVERLAY
-          Shows the exact Spiral -> Letters -> Word formation on the Magician's phone
+          SYNCHRONIZED REVEAL ON MAGICIAN'S PHONE (NO PILL / STAYS LOCKED)
+          Holding anywhere on this screen for 800ms fires the synchronized redirect!
          ========================================================= */}
       {masterMonitorPhase !== 'NONE' && (
         <div 
-          onClick={() => setMasterMonitorPhase('NONE')}
-          className="fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden cursor-pointer select-none"
+          onPointerDown={handleRedirectDown}
+          onPointerUp={handleRedirectUp}
+          onPointerLeave={handleRedirectUp}
+          onPointerCancel={handleRedirectUp}
+          onContextMenu={(e) => e.preventDefault()}
+          className="fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden select-none touch-none"
         >
-          {/* Subtle Top Pill so Magician can minimize back to deck anytime */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[95] bg-zinc-900/80 border border-zinc-700/80 px-3 py-1 rounded-full backdrop-blur-sm">
-            <span className="text-[9px] font-mono text-zinc-300 font-bold tracking-widest uppercase">
-              👁️ MASTER MONITOR • TAP TO MINIMIZE
-            </span>
-          </div>
+          {/* Hidden 5-tap top-left escape zone for rehearsal/testing */}
+          <div 
+            onPointerDown={handleOverlaySecretExit}
+            className="absolute top-0 left-0 w-28 h-28 z-[95] bg-black/0 touch-none"
+          />
 
           {/* 2A: HYPNOTIC SPIRAL */}
           {masterMonitorPhase === 'SPIRAL' && (
-            <div className="relative flex items-center justify-center w-full h-full overflow-hidden bg-white">
+            <div className="relative flex items-center justify-center w-full h-full overflow-hidden bg-white pointer-events-none">
               <div 
                 className="absolute w-[180vmax] h-[180vmax] rounded-full"
                 style={{
@@ -1379,7 +1375,7 @@ function ControlView({ roomID }) {
 
           {/* 2B: FLOATING LETTER CLOUD */}
           {masterMonitorPhase === 'LETTERS' && (
-            <div className="relative w-full h-full bg-black overflow-hidden">
+            <div className="relative w-full h-full bg-black overflow-hidden pointer-events-none">
               {masterDecoyParticles.map((p) => (
                 <span
                   key={p.id}
@@ -1402,7 +1398,7 @@ function ControlView({ roomID }) {
 
           {/* 2C: MAGNETIC WORD CONVERGENCE & LOCKED NAME */}
           {(masterMonitorPhase === 'CONVERGE' || masterMonitorPhase === 'LOCKED') && (
-            <div className="relative flex items-center justify-center w-full h-full bg-black px-4 overflow-hidden">
+            <div className="relative flex items-center justify-center w-full h-full bg-black px-4 overflow-hidden pointer-events-none">
               <div className="flex items-center justify-center space-x-2 sm:space-x-3 flex-wrap">
                 {masterTargetChars.map((item, idx) => (
                   <span
@@ -1610,7 +1606,7 @@ function ControlView({ roomID }) {
                 : 'bg-zinc-950 border-zinc-800 text-zinc-500'
             }`}
           >
-            🔴 Phase 1 (Hide)
+            🔴 Phase 1 (Pulse)
           </button>
 
           <button
@@ -1626,7 +1622,7 @@ function ControlView({ roomID }) {
             {activePhase === 'REVEALING'
               ? '🌀 REVEALING...'
               : activePhase === 'PHASE_2_DONE'
-                ? `✓ ${peekedWord || customText || 'REVEALED'} [G]`
+                ? `✓ ${peekedWord || customText || 'LOCKED'} [G]`
                 : '🌀 REVEAL NAME [G]'}
           </button>
         </div>
