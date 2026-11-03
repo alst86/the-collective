@@ -10,6 +10,13 @@ const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
 const DEFAULT_FEEDBACK_URL = 'https://andrewleemagic.com/feedback';
 const FEEDBACK_DELAY_MS = 30 * 1000; // 30 seconds
 
+const EMOTIONAL_TUNING_PROMPTS = [
+  "SYNCHRONIZING HEARTBEATS...",
+  "A LOVED ONE IS BEING HELD IN MIND",
+  "FEEL THEIR PRESENCE IN THE ROOM",
+  "RECEIVING THOUGHT FROM THE STAGE..."
+];
+
 const formatValidUrl = (rawUrl, fallbackUrl) => {
   let clean = (rawUrl || fallbackUrl || '').trim();
   if (!clean) return fallbackUrl;
@@ -92,6 +99,13 @@ function AudienceView({ roomID }) {
   const [revealWord, setRevealWord] = useState('');
   const [uiReady, setUiReady] = useState(false);
 
+  // PHASE 1 EMOTIONAL TUNING & TACTILE HOOK STATES
+  const [promptIndex, setPromptIndex] = useState(0);
+  const [promptFade, setPromptFade] = useState(true);
+  const [isThumbHolding, setIsThumbHolding] = useState(false);
+  const [thumbConnected, setThumbConnected] = useState(false);
+  const thumbHoldTimerRef = useRef(null);
+
   // OPTION A STAGE FLOW:
   // 'PULSE' (Phase 1: Word hidden) -> 'SPIRAL' -> 'LETTERS' -> 'CONVERGE' -> 'LOCKED' (Stays locked on revealed name)
   const [stagePhase, setStagePhase] = useState('PULSE');
@@ -126,6 +140,19 @@ function AudienceView({ roomID }) {
   
   const secretClickCount = useRef(0);
   const secretLastClickTime = useRef(0);
+
+  // Cycle the top emotional tuning prompts every 4.5 seconds during Phase 1
+  useEffect(() => {
+    if (!cameraReady || stagePhase !== 'PULSE') return;
+    const interval = setInterval(() => {
+      setPromptFade(false);
+      setTimeout(() => {
+        setPromptIndex((prev) => (prev + 1) % EMOTIONAL_TUNING_PROMPTS.length);
+        setPromptFade(true);
+      }, 400);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [cameraReady, stagePhase]);
 
   // Pre-generate floating decoy letter particles for Phase 2 letter cloud
   const decoyParticles = useMemo(() => {
@@ -347,6 +374,27 @@ function AudienceView({ roomID }) {
     } catch (err) {}
   };
 
+  // Tactile Thumb-Hold Handlers on the Center Pulse Node
+  const handleThumbDown = (e) => {
+    e.stopPropagation();
+    unlockAudio();
+    setIsThumbHolding(true);
+    playHeartbeatThud(false);
+    if (navigator.vibrate) navigator.vibrate(60);
+
+    clearTimeout(thumbHoldTimerRef.current);
+    thumbHoldTimerRef.current = setTimeout(() => {
+      setThumbConnected(true);
+      playHeartbeatThud(true);
+      if (navigator.vibrate) navigator.vibrate([50, 80, 90]);
+    }, 900);
+  };
+
+  const handleThumbUp = () => {
+    setIsThumbHolding(false);
+    clearTimeout(thumbHoldTimerRef.current);
+  };
+
   // PHASE 2 REVEAL SEQUENCE: SPIRAL (5s) -> LETTERS (5s) -> CONVERGE (1.2s) -> LOCKED INDEFINITELY
   const runRevealSequence = (wordToReveal) => {
     clearPhaseTimeouts();
@@ -419,6 +467,7 @@ function AudienceView({ roomID }) {
     
     return () => {
       clearTimeout(uiTimer);
+      clearTimeout(thumbHoldTimerRef.current);
       clearPhaseTimeouts();
       unsubFeedback();
       unsubCommand();
@@ -447,6 +496,7 @@ function AudienceView({ roomID }) {
     if (baseCmd === 'PHASE_1_RESET') {
       clearPhaseTimeouts();
       applyTorch(false);
+      setThumbConnected(false);
       setStagePhase('PULSE');
     } else if (baseCmd === 'PHASE_REVEAL') {
       const passedWord = (parts[2] || '').trim();
@@ -551,7 +601,7 @@ function AudienceView({ roomID }) {
       !cameraReady ? 'bg-[#f4f4f2] text-black' :
       isFlashing ? 'bg-black text-white' : 'bg-white text-black'
     }`}>
-      {/* Keyframes for Entry Heartbeat, Hypnotic Spiral & Floating Letter Cloud */}
+      {/* Keyframes for Entry Heartbeat, Inward Thought Waves, Hypnotic Spiral & Floating Letter Cloud */}
       <style>{`
         @keyframes spinHypnotic {
           0% { transform: scale(1) rotate(0deg); }
@@ -572,6 +622,12 @@ function AudienceView({ roomID }) {
         @keyframes subtleAura {
           0%, 100% { transform: scale(0.95); opacity: 0.18; }
           50% { transform: scale(1.12); opacity: 0.04; }
+        }
+        @keyframes inwardThoughtWave {
+          0% { transform: scale(3.6); opacity: 0; }
+          25% { opacity: 0.28; }
+          85% { opacity: 0.12; }
+          100% { transform: scale(0.15); opacity: 0; }
         }
       `}</style>
 
@@ -656,7 +712,7 @@ function AudienceView({ roomID }) {
       )}
 
       {/* ==========================================
-          PHASE 1: ARTISTIC RED HEART ENTRY -> PULSING LIGHTS
+          PHASE 1: ARTISTIC RED HEART ENTRY -> COLLECTIVE TUNING & PULSE
          ========================================== */}
       {stagePhase === 'PULSE' && (
         !cameraReady ? (
@@ -718,19 +774,109 @@ function AudienceView({ roomID }) {
           </div>
         ) : (
           <>
-            <div className="flex-1 flex flex-col items-center justify-center w-full pointer-events-none">
-              <div className="relative flex items-center justify-center">
-                <div className="w-6 h-6 bg-red-600 rounded-full drop-shadow-md"></div>
-                <div className="absolute w-24 h-24 border-2 border-red-600 rounded-full animate-ping opacity-30"></div>
-                <div className="absolute w-48 h-48 border border-red-600 rounded-full opacity-10" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
-                <div className="absolute w-72 h-72 border border-red-600 rounded-full opacity-5" style={{ animation: 'ping 4s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
+            {/* 1. TOP SPACE: CYCLING EMOTIONAL TUNING PROMPTS */}
+            <div className="absolute top-16 left-0 right-0 w-full px-8 text-center pointer-events-none z-20 flex flex-col items-center">
+              <div className="flex items-center space-x-2 mb-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                <span className="text-[9px] font-mono font-bold uppercase tracking-[0.3em] text-red-600/80">
+                  Live Stage Resonance
+                </span>
+              </div>
+              <p 
+                className={`text-xs sm:text-sm font-bold uppercase tracking-[0.24em] leading-relaxed max-w-xs transition-opacity duration-500 ${
+                  promptFade ? 'opacity-90' : 'opacity-0'
+                } ${isFlashing ? 'text-zinc-200' : 'text-zinc-600'}`}
+              >
+                {EMOTIONAL_TUNING_PROMPTS[promptIndex]}
+              </p>
+            </div>
+
+            {/* 2. CENTER NODE: INCOMING THOUGHT WAVES, LIVE ECG LINE & TACTILE THUMB HOOK */}
+            <div className="flex-1 flex flex-col items-center justify-center w-full relative">
+              
+              {/* Minimalist Live ECG Heartbeat Line Behind the Dot */}
+              <div className="absolute inset-x-0 flex items-center justify-center pointer-events-none overflow-hidden">
+                <svg 
+                  viewBox="0 0 400 100" 
+                  className={`w-full max-w-md h-24 transition-all duration-150 ${
+                    isFlashing || isThumbHolding 
+                      ? 'opacity-65 scale-y-125' 
+                      : 'opacity-20 scale-y-100'
+                  }`}
+                >
+                  <polyline
+                    fill="none"
+                    stroke="#dc2626"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points="0,50 130,50 148,50 158,36 168,62 180,14 194,86 206,40 218,50 270,50 400,50"
+                  />
+                </svg>
+              </div>
+
+              {/* Interactive Tactile Center Target */}
+              <div 
+                onPointerDown={handleThumbDown}
+                onPointerUp={handleThumbUp}
+                onPointerLeave={handleThumbUp}
+                onPointerCancel={handleThumbUp}
+                onContextMenu={(e) => e.preventDefault()}
+                className="relative flex items-center justify-center w-56 h-56 cursor-pointer touch-none z-10"
+              >
+                {/* Inward-Contracting Thought Waves (Pulling Stage Energy Into the Phone) */}
+                <div 
+                  className="absolute w-24 h-24 border border-red-600/40 rounded-full pointer-events-none"
+                  style={{ animation: `inwardThoughtWave ${isThumbHolding ? '1.6s' : '3.6s'} cubic-bezier(0.2, 0.8, 0.4, 1) infinite` }}
+                />
+                <div 
+                  className="absolute w-24 h-24 border border-red-600/30 rounded-full pointer-events-none"
+                  style={{ animation: `inwardThoughtWave ${isThumbHolding ? '1.6s' : '3.6s'} cubic-bezier(0.2, 0.8, 0.4, 1) infinite 1.2s` }}
+                />
+                <div 
+                  className="absolute w-24 h-24 border border-red-600/25 rounded-full pointer-events-none"
+                  style={{ animation: `inwardThoughtWave ${isThumbHolding ? '1.6s' : '3.6s'} cubic-bezier(0.2, 0.8, 0.4, 1) infinite 2.4s` }}
+                />
+
+                {/* Tactile Ripple When Thumb Holds the Center */}
+                {isThumbHolding && (
+                  <div className="absolute w-32 h-32 rounded-full bg-red-600/20 animate-ping pointer-events-none" />
+                )}
+
+                {/* Core Heartbeat Node */}
+                <div 
+                  className={`rounded-full bg-red-600 transition-all duration-200 shadow-[0_0_25px_rgba(220,38,38,0.65)] ${
+                    isThumbHolding ? 'w-11 h-11 scale-110' : thumbConnected ? 'w-8 h-8' : 'w-7 h-7'
+                  }`}
+                />
+              </div>
+
+              {/* Telemetry & Tactile Hook Status Readout */}
+              <div className="mt-2 text-center pointer-events-none z-20 px-6">
+                {thumbConnected ? (
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-600 animate-pulse">
+                    ♥ Connected to Stage — Now Raise Your Phone
+                  </p>
+                ) : isThumbHolding ? (
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-500">
+                    ♥ Locking Into Heartbeat...
+                  </p>
+                ) : (
+                  <p className="text-[9.5px] font-mono font-bold uppercase tracking-[0.25em] text-zinc-400">
+                    [ Hold Thumb on Pulse to Lock In ]
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="absolute bottom-16 left-0 right-0 w-full text-center px-4 pointer-events-none z-20">
-              <h1 className="text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
+            {/* 3. BOTTOM TEXT: OPTION 2 (HOLD UP YOUR PHONE + LET THEIR MEMORY FILL THE ROOM) */}
+            <div className="absolute bottom-14 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 space-y-2.5">
+              <h1 className="text-[26px] sm:text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
                 Hold up your<br/>phone
               </h1>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.28em] ${isFlashing ? 'text-zinc-300' : 'text-zinc-400'}`}>
+                Let their memory fill the room
+              </p>
             </div>
           </>
         )
