@@ -548,9 +548,10 @@ function AudienceView({ roomID }) {
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-75 overflow-hidden select-none ${
       stagePhase === 'SPIRAL' ? 'bg-white text-black' :
       (stagePhase === 'LETTERS' || stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') ? 'bg-black text-white' :
+      !cameraReady ? 'bg-[#f4f4f2] text-black' :
       isFlashing ? 'bg-black text-white' : 'bg-white text-black'
     }`}>
-      {/* Keyframes for Phase 2 Hypnotic Spiral & Floating Letter Cloud */}
+      {/* Keyframes for Entry Heartbeat, Hypnotic Spiral & Floating Letter Cloud */}
       <style>{`
         @keyframes spinHypnotic {
           0% { transform: scale(1) rotate(0deg); }
@@ -560,6 +561,17 @@ function AudienceView({ roomID }) {
           0% { transform: translate(0px, 0px); opacity: 0.15; }
           50% { transform: translate(var(--dx), var(--dy)); opacity: 0.85; }
           100% { transform: translate(calc(var(--dx) * -0.6), calc(var(--dy) * 0.6)); opacity: 0.2; }
+        }
+        @keyframes artisticHeartbeat {
+          0%, 100% { transform: scale(1); }
+          14% { transform: scale(1.06); }
+          28% { transform: scale(0.99); }
+          42% { transform: scale(1.035); }
+          70% { transform: scale(1); }
+        }
+        @keyframes subtleAura {
+          0%, 100% { transform: scale(0.95); opacity: 0.18; }
+          50% { transform: scale(1.12); opacity: 0.04; }
         }
       `}</style>
 
@@ -644,30 +656,62 @@ function AudienceView({ roomID }) {
       )}
 
       {/* ==========================================
-          PHASE 1: PULSING LIGHTS FIRST
+          PHASE 1: ARTISTIC RED HEART ENTRY -> PULSING LIGHTS
          ========================================== */}
       {stagePhase === 'PULSE' && (
         !cameraReady ? (
           <div 
             onClick={startCamera}
-            className={`flex flex-col items-center justify-center w-full min-h-[100dvh] max-w-md px-6 z-10 cursor-pointer transition-opacity duration-700 ease-in-out ${uiReady ? 'opacity-100' : 'opacity-0'}`}
+            className={`relative flex flex-col items-center justify-between w-full min-h-[100dvh] py-12 px-6 z-10 cursor-pointer transition-opacity duration-700 ease-in-out overflow-hidden ${uiReady ? 'opacity-100' : 'opacity-0'}`}
           >
-            <div className="flex items-center space-x-2 mb-3 animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_8px_#dc2626]"></span>
-              <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+            {/* Top Subtle Status Whisper */}
+            <div className="flex items-center space-x-2.5 pt-2 opacity-80">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#d91b1b] shadow-[0_0_8px_#d91b1b] animate-pulse"></span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.38em] text-zinc-500">
                 [ Tap to Connect ]
               </span>
             </div>
 
-            <button 
-              onClick={(e) => { e.stopPropagation(); startCamera(); }}
-              className="w-full py-6 bg-black text-white font-black rounded-xl text-2xl tracking-widest shadow-[0_12px_35px_rgba(0,0,0,0.22)] mb-6 transition-transform active:scale-95 uppercase px-4 break-words leading-tight ring-4 ring-black/5 animate-pulse"
-            >
-              BEGIN EXPERIMENT
-            </button>
+            {/* Centerpiece: Screen-Filling Red Heart with Subtle Artistic Typography Inside */}
+            <div className="relative flex items-center justify-center w-full my-auto">
+              {/* Soft Ambient Aura Rings */}
+              <div 
+                className="absolute w-[92vw] max-w-[420px] aspect-square rounded-full bg-red-600/10 blur-2xl pointer-events-none"
+                style={{ animation: 'subtleAura 3.6s ease-in-out infinite' }}
+              />
+              <div 
+                className="absolute w-[78vw] max-w-[350px] aspect-square rounded-full border border-red-600/15 pointer-events-none"
+                style={{ animation: 'subtleAura 2.2s ease-in-out infinite' }}
+              />
 
-            <div className="text-center space-y-2">
-              <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest px-4">
+              {/* Massive Breathing Red Heart */}
+              <div 
+                className="relative flex items-center justify-center w-[88vw] max-w-[390px] aspect-square transition-transform active:scale-95"
+                style={{ animation: 'artisticHeartbeat 2.2s infinite ease-in-out' }}
+              >
+                <svg 
+                  viewBox="0 0 24 24" 
+                  className="w-full h-full text-[#d91b1b] fill-current drop-shadow-[0_22px_45px_rgba(217,27,27,0.32)]"
+                >
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                </svg>
+
+                {/* Subtle Editorial Typography Carefully Placed Over the Heart's Center */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pb-5 px-8 text-center pointer-events-none">
+                  <span className="text-[9px] font-medium uppercase tracking-[0.42em] text-white/75 mb-2">
+                    Begin
+                  </span>
+                  <span className="text-base sm:text-lg font-extrabold uppercase tracking-[0.32em] text-white drop-shadow-sm">
+                    Experiment
+                  </span>
+                  <div className="w-6 h-[1px] bg-white/40 mt-3.5" />
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Subtle Permission Footnote */}
+            <div className="w-full max-w-xs text-center pb-2">
+              <p className="text-zinc-400 text-[9.5px] font-medium uppercase tracking-[0.26em] leading-relaxed">
                 Please allow camera access when prompted, to sync with the performance
               </p>
             </div>
