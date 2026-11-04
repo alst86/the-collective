@@ -1595,7 +1595,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
 
     if (phase === 'SPIRAL' || phase === 'LETTERS') {
-      // Only arm the swipe if the finger starts on the left side of the screen (< 110px)
       if (clientX <= 110) {
         overlaySwipeRef.current = {
           startX: clientX,
@@ -1629,13 +1628,11 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     const dy = clientY - startY;
     const elapsed = Date.now() - startTime;
 
-    // Disqualify if the gesture is too slow (> 600ms) or drifts vertically (> 50px)
     if (elapsed > 600 || Math.abs(dy) > 50) {
       overlaySwipeRef.current.startX = null;
       return;
     }
 
-    // Require a deliberate 185px+ left-to-right sweep across the screen
     if (dx >= 185) {
       overlaySwipeRef.current.swiped = true;
       if (navigator.vibrate) navigator.vibrate(45);
@@ -1707,10 +1704,13 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
+      {/* =========================================================
+          CLEAN, ENLARGED QR CODE OVERLAY ON MASTER PHONE
+         ========================================================= */}
       {showQrModal && (
         <div 
           onPointerDown={() => setShowQrModal(false)}
-          className="fixed inset-0 z-[110] bg-black/95 flex flex-col items-center justify-center p-6 cursor-pointer select-none touch-none"
+          className="fixed inset-0 z-[110] bg-black flex flex-col items-center justify-center p-5 cursor-pointer select-none touch-none"
         >
           <div 
             onPointerDown={(e) => {
@@ -1720,29 +1720,25 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 onSwitchToHeartbeatView();
               }
             }}
-            className="bg-white p-7 rounded-3xl shadow-[0_0_60px_rgba(255,255,255,0.18)] flex flex-col items-center max-w-xs w-full text-black cursor-pointer active:scale-95 transition-transform"
+            className="bg-white p-7 rounded-3xl shadow-[0_0_70px_rgba(255,255,255,0.2)] flex flex-col items-center max-w-sm w-full text-black cursor-pointer active:scale-95 transition-transform"
           >
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.28em] text-zinc-500 mb-4">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.28em] text-zinc-500 mb-5">
               Scan to Join Experience
             </span>
-            <div className="bg-white p-2 border-2 border-zinc-200 rounded-2xl mb-4 flex items-center justify-center">
+            <div className="bg-white p-3 border-2 border-zinc-200 rounded-2xl mb-5 flex items-center justify-center">
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(APP_QR_URL)}`} 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(APP_QR_URL)}`} 
                 alt="App QR Code"
-                className="w-56 h-56 object-contain pointer-events-none"
+                className="w-64 h-64 sm:w-72 sm:h-72 object-contain pointer-events-none"
               />
             </div>
-            <span className="text-xs font-mono font-bold text-zinc-800 tracking-wider mb-2">
+            <span className="text-sm font-mono font-bold text-zinc-800 tracking-wider mb-2">
               {APP_QR_URL.replace('https://', '')}
             </span>
             <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-red-600 animate-pulse mt-2 text-center">
               [ Tap QR Code to Open Heartbeat View ]
             </span>
           </div>
-
-          <span className="mt-6 text-[10px] font-mono uppercase tracking-[0.25em] text-zinc-500">
-            Tap outside card to return to Master Deck
-          </span>
         </div>
       )}
 
