@@ -716,7 +716,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
 
-      {/* 5-Tap Bottom-Right Secret Gateway to Master Control */}
       <div 
         onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
         className="absolute bottom-0 right-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
@@ -948,9 +947,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [activePhase, setActivePhase] = useState('PHASE_1');
 
-  // PALM-LOCK DOUBLE-TAP STATES (Prevents accidental touches when phone is face-down in volunteer's palm)
-  const [isCuesTouchLocked, setIsCuesTouchLocked] = useState(false);
-  const isCuesTouchLockedRef = useRef(false);
+  // PALM-LOCK DOUBLE-TAP STATES (Starts LOCKED by default)
+  const [isCuesTouchLocked, setIsCuesTouchLocked] = useState(true);
+  const isCuesTouchLockedRef = useRef(true);
   const [cueLockConfirmArmed, setCueLockConfirmArmed] = useState(false);
   const cueLockConfirmTimeoutRef = useRef(null);
 
@@ -1114,7 +1113,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             word = json.trim();
           }
         } catch (e) {
-          // If API returns raw plain text instead of JSON
           const rawText = (text || '').trim();
           if (rawText && !rawText.startsWith('<') && rawText.length < 60) {
             word = rawText;
@@ -1139,7 +1137,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
-  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK (Works even when touch buttons are Palm-Locked!)
+  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
@@ -1209,7 +1207,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     };
   }, [localMode, audienceMode, redirectUrl, feedbackUrl]); 
 
-  // 2X-TAP PALM LOCK TOGGLE HANDLER (Just like the REC button)
   const handleCueLockButtonTap = () => {
     if (!cueLockConfirmArmed) {
       setCueLockConfirmArmed(true);
@@ -1621,9 +1618,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
-      {/* =========================================================
-          QR CODE FULLSCREEN OVERLAY ON MASTER PHONE
-         ========================================================= */}
       {showQrModal && (
         <div 
           onPointerDown={() => setShowQrModal(false)}
@@ -1663,9 +1657,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         </div>
       )}
 
-      {/* =========================================================
-          SYNCHRONIZED MASTER REVEAL OVERLAY (Smooth Fade In/Out)
-         ========================================================= */}
       {masterMonitorPhase !== 'NONE' && (
         <div 
           onPointerDown={handleRedirectDown}
@@ -1739,7 +1730,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         </div>
       )}
 
-      {/* --- TOP BAR (UNCROWDED: REDIRECT, QR, SETTINGS) --- */}
+      {/* --- TOP BAR --- */}
       <div className="w-full h-14 flex items-center justify-between px-4 gap-2 shrink-0 z-40 border-b border-zinc-900">
         <button 
           onPointerDown={handleRedirectDown}
@@ -1946,9 +1937,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </button>
         </div>
 
-        {/* 3. FULL-WIDTH LIVE API PEEK DISPLAY + 2X-TAP PALM LOCK SWITCH */}
+        {/* 3. FULL-WIDTH LIVE API PEEK + 2X-TAP PALM LOCK TOGGLE SWITCH */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between gap-2 shrink-0">
-          {/* Live API Peek Readout */}
           <div className="flex items-center space-x-2.5 min-w-0 flex-1 bg-black/60 border border-zinc-800/90 px-3 py-2 rounded-lg">
             <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
               peekedWord ? 'bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]' : 'bg-zinc-700'
@@ -1965,7 +1955,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             </div>
           </div>
 
-          {/* 2x-Tap Palm Lock Toggle Switch (Just like REC button) */}
           <button
             type="button"
             onPointerDown={(e) => {
@@ -1984,7 +1973,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               ? '⚠️ TAP 2X'
               : isCuesTouchLocked
                 ? '🔒 PALM LOCKED'
-                : '🔓 LOCK CUES'}
+                : '🔓 UNLOCKED'}
           </button>
         </div>
 
