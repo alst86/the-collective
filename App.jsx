@@ -575,6 +575,10 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       clearPhaseTimeouts();
       applyTorch(false);
       setThumbFocused(false);
+      setSpiralVisible(false);
+      setBadgeVisible(false);
+      setLettersVisible(false);
+      setConvergeActive(false);
       setStagePhase('PULSE');
     } else if (baseCmd === 'PHASE_REVEAL') {
       const passedWord = (parts[2] || '').trim();
@@ -954,6 +958,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const cueLockConfirmTimeoutRef = useRef(null);
 
   const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE');
+  const masterMonitorPhaseRef = useRef('NONE');
   const [masterSpiralVisible, setMasterSpiralVisible] = useState(false);
   const [masterBadgeVisible, setMasterBadgeVisible] = useState(false);
   const [masterLettersVisible, setMasterLettersVisible] = useState(false);
@@ -1003,6 +1008,14 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
   const overlayExitClickCount = useRef(0);
   const overlayExitLastClickTime = useRef(0);
+
+  // SWIPE-RIGHT TO RESET TRACKING (Active only during SPIRAL and LETTERS phases)
+  const overlaySwipeRef = useRef({ startX: null, startY: null, swiped: false });
+
+  const updateMasterMonitorPhase = (nextPhase) => {
+    masterMonitorPhaseRef.current = nextPhase;
+    setMasterMonitorPhase(nextPhase);
+  };
 
   const masterDecoyParticles = useMemo(() => {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -1282,7 +1295,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     setMasterBadgeVisible(false);
     setMasterLettersVisible(false);
 
-    setMasterMonitorPhase('SPIRAL');
+    updateMasterMonitorPhase('SPIRAL');
     const t0 = setTimeout(() => setMasterBadgeVisible(true), 60);
     const tSpiralIn = setTimeout(() => setMasterSpiralVisible(true), 350);
 
@@ -1292,7 +1305,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }, 4300);
 
     const t1 = setTimeout(() => {
-      setMasterMonitorPhase('LETTERS');
+      updateMasterMonitorPhase('LETTERS');
       setTimeout(() => setMasterLettersVisible(true), 80);
     }, 5100);
 
@@ -1301,12 +1314,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }, 9300);
 
     const t2 = setTimeout(() => {
-      setMasterMonitorPhase('CONVERGE');
+      updateMasterMonitorPhase('CONVERGE');
       setTimeout(() => setMasterConvergeActive(true), 60);
     }, 10000);
 
     const t3 = setTimeout(() => {
-      setMasterMonitorPhase('LOCKED');
+      updateMasterMonitorPhase('LOCKED');
       setActivePhase('PHASE_2_DONE');
     }, 11200);
 
@@ -1315,7 +1328,11 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
   const resetToPhase1Pulse = () => {
     clearMasterPhaseTimeouts();
-    setMasterMonitorPhase('NONE');
+    setMasterSpiralVisible(false);
+    setMasterBadgeVisible(false);
+    setMasterLettersVisible(false);
+    setMasterConvergeActive(false);
+    updateMasterMonitorPhase('NONE');
     setActivePhase('PHASE_1');
     setAudienceMode('OFF');
     fireAudienceCommand('PHASE_1_RESET');
@@ -1559,6 +1576,45 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
   };
 
+  // PHASE-SPECIFIC OVERLAY GESTURE HANDLERS:
+  // • During Hypnotic Sequence ('SPIRAL' | 'LETTERS'): ONLY Swipe-Right to Reset is active (Hold-to-Redirect is disabled)
+  // • Once Word is Revealed ('CONVERGE' | 'LOCKED'): Swipe-Right is disabled; ONLY Hold-to-Redirect (800ms) is active
+  const handleOverlayTouchStart = (clientX, clientY) => {
+    const phase = masterMonitorPhaseRef.current;
+    if (phase === 'SPIRAL' || phase === 'LETTERS') {
+      overlaySwipeRef.current = { startX: clientX, startY: clientY, swiped: false };
+    } else if (phase === 'CONVERGE' || phase === 'LOCKED') {
+      overlaySwipeRef.current = { startX: null, startY: null, swiped: false };
+      handleRedirectDown();
+    }
+  };
+
+  const handleOverlayTouchMove = (clientX, clientY) => {
+    const phase = masterMonitorPhaseRef.current;
+    if (phase !== 'SPIRAL' && phase !== 'LETTERS') {
+      // Once the word is revealed, swipe-back is disabled
+      return;
+    }
+
+    const { startX, startY, swiped } = overlaySwipeRef.current;
+    if (startX === null || swiped) return;
+
+    const dx = clientX - startX;
+    const dy = clientY - startY;
+
+    // Swipe Right (left-to-right > 65px) during Hypnotic Sequence -> Reset sequence
+    if (dx > 65 && Math.abs(dy) < 100) {
+      overlaySwipeRef.current.swiped = true;
+      if (navigator.vibrate) navigator.vibrate(45);
+      resetToPhase1Pulse();
+    }
+  };
+
+  const handleOverlayTouchEnd = () => {
+    overlaySwipeRef.current = { startX: null, startY: null, swiped: false };
+    handleRedirectUp();
+  };
+
   const fireInstantRedirect = () => {
     executeSynchronizedRedirect();
   };
@@ -1582,7 +1638,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       overlayExitClickCount.current = 0;
       handleRedirectUp();
       clearMasterPhaseTimeouts();
-      setMasterMonitorPhase('NONE');
+      updateMasterMonitorPhase('NONE');
     }
   };
 
@@ -1657,12 +1713,18 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         </div>
       )}
 
+      {/* =========================================================
+          SYNCHRONIZED MASTER REVEAL OVERLAY
+          • During SPIRAL & LETTERS: Swipe Right to Reset (Hold-to-Redirect disabled)
+          • During CONVERGE & LOCKED: Hold Anywhere (800ms) to Redirect (Swipe disabled)
+         ========================================================= */}
       {masterMonitorPhase !== 'NONE' && (
         <div 
-          onPointerDown={handleRedirectDown}
-          onPointerUp={handleRedirectUp}
-          onPointerLeave={handleRedirectUp}
-          onPointerCancel={handleRedirectUp}
+          onPointerDown={(e) => handleOverlayTouchStart(e.clientX, e.clientY)}
+          onPointerMove={(e) => handleOverlayTouchMove(e.clientX, e.clientY)}
+          onPointerUp={handleOverlayTouchEnd}
+          onPointerLeave={handleOverlayTouchEnd}
+          onPointerCancel={handleOverlayTouchEnd}
           onContextMenu={(e) => e.preventDefault()}
           className={`fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden select-none touch-none transition-colors duration-500 ${
             masterMonitorPhase === 'SPIRAL' ? 'bg-white' : 'bg-black'
