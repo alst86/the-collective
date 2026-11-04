@@ -166,7 +166,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [revealWord, setRevealWord] = useState('');
   const [uiReady, setUiReady] = useState(false);
 
-  // Silently reveals "HOLD UP YOUR PHONE" after the updated API Poll arrives
+  // Silently reveals "HOLD UP YOUR PHONE" automatically once the API Poll updates
   const [holdUpPromptActive, setHoldUpPromptActive] = useState(false);
 
   const [promptIndex, setPromptIndex] = useState(0);
@@ -341,7 +341,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     } catch (e) {}
   };
 
-  // Supports 'lub' (false), 'dub' (true), and 'strobe' (tight rapid beat)
   const playHeartbeatThud = (mode = false) => {
     if (isRedirectingRef.current) return;
     try {
@@ -441,7 +440,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     }
   };
 
-  // Every time the spectator's phone lights up (active === true), it also vibrates and plays the heartbeat sound
   const applyTorch = async (active, beatType = 'lub') => {
     if (isRedirectingRef.current && active) return;
     setIsFlashing(active); 
@@ -548,7 +546,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       kickerWordRef.current = cleaned;
     });
 
-    // Silently fade in "HOLD UP YOUR PHONE" once the updated API Poll is received (no sound/vibration tell)
     const holdUpRef = ref(db, `${roomID}/promptHoldUp`);
     const unsubHoldUp = onValue(holdUpRef, (snapshot) => {
       setHoldUpPromptActive(Boolean(snapshot.val()));
@@ -931,11 +928,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
               </div>
 
               <div className="mt-2 text-center pointer-events-none z-20 px-6">
-                {thumbFocused && holdUpPromptActive ? (
-                  <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-600 animate-pulse">
-                    ♥ Presence Felt — Now Raise Your Phone
-                  </p>
-                ) : thumbFocused ? (
+                {thumbFocused ? (
                   <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-600">
                     ♥ Presence Felt
                   </p>
@@ -951,7 +944,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
               </div>
             </div>
 
-            {/* BOTTOM TEXT: Purely atmospheric while waiting; silently fades in "HOLD UP YOUR PHONE" after the updated API Poll arrives */}
+            {/* BOTTOM TEXT: Silently reveals "HOLD UP YOUR PHONE" when the updated API Poll arrives */}
             <div className="absolute bottom-14 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 space-y-2.5">
               <div
                 className={`transition-all duration-1000 ease-in-out ${
@@ -1147,7 +1140,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     set(ref(db, `${roomID}/feedbackUrl`), activeFeedback).catch(() => {});
   }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, feedbackUrl, roomID]);
 
-  // ROBUST CACHE-BUSTED API POLLING
+  // ROBUST CACHE-BUSTED API POLLING: Automatically triggers "HOLD UP YOUR PHONE" silently upon new API poll arrival
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
@@ -1213,7 +1206,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
-  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK (Shortcuts: [R], [B], [T], [S], [E])
+  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
@@ -2087,7 +2080,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </button>
         </div>
 
-        {/* 3. FULL-WIDTH LIVE API PEEK + 2X-TAP PALM LOCK SWITCH */}
+        {/* 3. FULL-WIDTH LIVE API PEEK + 2X-TAP PALM LOCK TOGGLE SWITCH */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between gap-2 shrink-0">
           <div 
             onPointerDown={(e) => {
