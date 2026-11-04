@@ -1009,8 +1009,14 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const overlayExitClickCount = useRef(0);
   const overlayExitLastClickTime = useRef(0);
 
-  // SWIPE-RIGHT TO RESET TRACKING (Active only during SPIRAL and LETTERS phases)
-  const overlaySwipeRef = useRef({ startX: null, startY: null, swiped: false });
+  // PALM-PROOF SWIPE-RIGHT TO RESET TRACKING (Active only during SPIRAL and LETTERS phases)
+  const overlaySwipeRef = useRef({
+    startX: null,
+    startY: null,
+    startTime: 0,
+    swiped: false,
+    multiTouch: false
+  });
 
   const updateMasterMonitorPhase = (nextPhase) => {
     masterMonitorPhaseRef.current = nextPhase;
@@ -1576,34 +1582,61 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
   };
 
-  // PHASE-SPECIFIC OVERLAY GESTURE HANDLERS:
-  // • During Hypnotic Sequence ('SPIRAL' | 'LETTERS'): ONLY Swipe-Right to Reset is active (Hold-to-Redirect is disabled)
-  // • Once Word is Revealed ('CONVERGE' | 'LOCKED'): Swipe-Right is disabled; ONLY Hold-to-Redirect (800ms) is active
-  const handleOverlayTouchStart = (clientX, clientY) => {
+  // PALM-PROOF OVERLAY GESTURE HANDLERS:
+  // • During Hypnotic Sequence ('SPIRAL' | 'LETTERS'): Requires a single-finger, left-side start (< 110px),
+  //   full-screen sweep (> 185px), tight vertical corridor (< 50px), and brisk speed (< 600ms).
+  // • Once Word is Revealed ('CONVERGE' | 'LOCKED'): Swipe-Right is disabled; ONLY Hold-to-Redirect (800ms) is active.
+  const handleOverlayTouchStart = (clientX, clientY, touchCount = 1) => {
     const phase = masterMonitorPhaseRef.current;
+
+    if (touchCount > 1) {
+      overlaySwipeRef.current = { startX: null, startY: null, startTime: 0, swiped: false, multiTouch: true };
+      return;
+    }
+
     if (phase === 'SPIRAL' || phase === 'LETTERS') {
-      overlaySwipeRef.current = { startX: clientX, startY: clientY, swiped: false };
+      // Only arm the swipe if the finger starts on the left side of the screen (< 110px)
+      if (clientX <= 110) {
+        overlaySwipeRef.current = {
+          startX: clientX,
+          startY: clientY,
+          startTime: Date.now(),
+          swiped: false,
+          multiTouch: false
+        };
+      } else {
+        overlaySwipeRef.current = { startX: null, startY: null, startTime: 0, swiped: false, multiTouch: false };
+      }
     } else if (phase === 'CONVERGE' || phase === 'LOCKED') {
-      overlaySwipeRef.current = { startX: null, startY: null, swiped: false };
+      overlaySwipeRef.current = { startX: null, startY: null, startTime: 0, swiped: false, multiTouch: false };
       handleRedirectDown();
     }
   };
 
-  const handleOverlayTouchMove = (clientX, clientY) => {
+  const handleOverlayTouchMove = (clientX, clientY, touchCount = 1) => {
     const phase = masterMonitorPhaseRef.current;
-    if (phase !== 'SPIRAL' && phase !== 'LETTERS') {
-      // Once the word is revealed, swipe-back is disabled
+    if (phase !== 'SPIRAL' && phase !== 'LETTERS') return;
+
+    if (touchCount > 1) {
+      overlaySwipeRef.current.multiTouch = true;
       return;
     }
 
-    const { startX, startY, swiped } = overlaySwipeRef.current;
-    if (startX === null || swiped) return;
+    const { startX, startY, startTime, swiped, multiTouch } = overlaySwipeRef.current;
+    if (startX === null || swiped || multiTouch) return;
 
     const dx = clientX - startX;
     const dy = clientY - startY;
+    const elapsed = Date.now() - startTime;
 
-    // Swipe Right (left-to-right > 65px) during Hypnotic Sequence -> Reset sequence
-    if (dx > 65 && Math.abs(dy) < 100) {
+    // Disqualify if the gesture is too slow (> 600ms) or drifts vertically (> 50px)
+    if (elapsed > 600 || Math.abs(dy) > 50) {
+      overlaySwipeRef.current.startX = null;
+      return;
+    }
+
+    // Require a deliberate 185px+ left-to-right sweep across the screen
+    if (dx >= 185) {
       overlaySwipeRef.current.swiped = true;
       if (navigator.vibrate) navigator.vibrate(45);
       resetToPhase1Pulse();
@@ -1611,7 +1644,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   };
 
   const handleOverlayTouchEnd = () => {
-    overlaySwipeRef.current = { startX: null, startY: null, swiped: false };
+    overlaySwipeRef.current = { startX: null, startY: null, startTime: 0, swiped: false, multiTouch: false };
     handleRedirectUp();
   };
 
@@ -1715,16 +1748,28 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
       {/* =========================================================
           SYNCHRONIZED MASTER REVEAL OVERLAY
-          • During SPIRAL & LETTERS: Swipe Right to Reset (Hold-to-Redirect disabled)
-          • During CONVERGE & LOCKED: Hold Anywhere (800ms) to Redirect (Swipe disabled)
+          • During SPIRAL & LETTERS: Palm-proof left-to-right full-screen swipe resets sequence
+          • During CONVERGE & LOCKED: Hold Anywhere (800ms) fires redirect (Swipe disabled)
          ========================================================= */}
       {masterMonitorPhase !== 'NONE' && (
         <div 
-          onPointerDown={(e) => handleOverlayTouchStart(e.clientX, e.clientY)}
-          onPointerMove={(e) => handleOverlayTouchMove(e.clientX, e.clientY)}
-          onPointerUp={handleOverlayTouchEnd}
-          onPointerLeave={handleOverlayTouchEnd}
-          onPointerCancel={handleOverlayTouchEnd}
+          onTouchStart={(e) => {
+            const count = e.touches ? e.touches.length : 1;
+            const t = e.touches && e.touches[0];
+            if (t) handleOverlayTouchStart(t.clientX, t.clientY, count);
+          }}
+          onTouchMove={(e) => {
+            const count = e.touches ? e.touches.length : 1;
+            const t = e.touches && e.touches[0];
+            if (t) handleOverlayTouchMove(t.clientX, t.clientY, count);
+          }}
+          onTouchEnd={handleOverlayTouchEnd}
+          onTouchCancel={handleOverlayTouchEnd}
+          onMouseDown={(e) => handleOverlayTouchStart(e.clientX, e.clientY, 1)}
+          onMouseMove={(e) => {
+            if (e.buttons === 1) handleOverlayTouchMove(e.clientX, e.clientY, 1);
+          }}
+          onMouseUp={handleOverlayTouchEnd}
           onContextMenu={(e) => e.preventDefault()}
           className={`fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden select-none touch-none transition-colors duration-500 ${
             masterMonitorPhase === 'SPIRAL' ? 'bg-white' : 'bg-black'
