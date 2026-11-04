@@ -1582,10 +1582,10 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
   };
 
-  // PALM-PROOF OVERLAY GESTURE HANDLERS:
-  // • During Hypnotic Sequence ('SPIRAL' | 'LETTERS'): Requires a single-finger, left-side start (< 110px),
-  //   full-screen sweep (> 185px), tight vertical corridor (< 50px), and brisk speed (< 600ms).
-  // • Once Word is Revealed ('CONVERGE' | 'LOCKED'): Swipe-Right is disabled; ONLY Hold-to-Redirect (800ms) is active.
+  // PALM-PROOF OVERLAY GESTURE HANDLERS (Hardened against accidental palm triggers):
+  // • Requires single-finger touch
+  // • Must start on the far left side of the screen (startX <= 110px)
+  // • Must travel at least 185px to the right within 600ms with strict vertical stability (< 50px drift)
   const handleOverlayTouchStart = (clientX, clientY, touchCount = 1) => {
     const phase = masterMonitorPhaseRef.current;
 
@@ -1705,7 +1705,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       />
 
       {/* =========================================================
-          CLEAN, ENLARGED QR CODE OVERLAY ON MASTER PHONE
+          CLEAN, ENLARGED QR CODE OVERLAY (NO OUTSIDE TEXT)
          ========================================================= */}
       {showQrModal && (
         <div 
@@ -1736,7 +1736,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               {APP_QR_URL.replace('https://', '')}
             </span>
             <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-red-600 animate-pulse mt-2 text-center">
-              [ Tap QR Code to Open Heartbeat View ]
+              [ TAP QR CODE TO OPEN HEARTBEAT VIEW ]
             </span>
           </div>
         </div>
@@ -1744,8 +1744,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
       {/* =========================================================
           SYNCHRONIZED MASTER REVEAL OVERLAY
-          • During SPIRAL & LETTERS: Palm-proof left-to-right full-screen swipe resets sequence
-          • During CONVERGE & LOCKED: Hold Anywhere (800ms) fires redirect (Swipe disabled)
          ========================================================= */}
       {masterMonitorPhase !== 'NONE' && (
         <div 
