@@ -1156,7 +1156,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
-  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK
+  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK (Updated with new shortcuts: [R], [B], [T], [S], [E])
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
@@ -1184,21 +1184,17 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       setLastKey(k);
 
       if (k === 'i' || k === 'I') { e.preventDefault(); fireInstantRedirect(); return; }
-      if (k === 'g' || k === 'G') { e.preventDefault(); triggerPhase2Reveal(); return; }
+      if (k === 'r' || k === 'R') { e.preventDefault(); triggerPhase2Reveal(); return; } // Reveal key = R
       if (k === 'q' || k === 'Q') { e.preventDefault(); setShowQrModal((prev) => !prev); return; }
       if (isPlayingRef.current) { handleStopPlayback(); return; }
       if (k === 'p' || k === 'P') { e.preventDefault(); handlePlayToggle(); return; }
       
-      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') { e.preventDefault(); handleLocalDown(true); }
-      else if (k === 'ArrowRight') { e.preventDefault(); startLocalHeartbeat(); }
-      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') { e.preventDefault(); handleAudienceDown(true); }
-      else if (k === 'ArrowLeft') { e.preventDefault(); startAudienceHeartbeat(); }
-      else if (k === 'u' || k === 'U') { e.preventDefault(); toggleLocalTorch(); }
-      else if (k === 'r' || k === 'R') { e.preventDefault(); toggleLocalHeartbeat(); }
-      else if (k === 'e' || k === 'E') { e.preventDefault(); toggleLocalStrobe(); }
+      if (k === 'u' || k === 'U') { e.preventDefault(); toggleLocalTorch(); }
+      else if (k === 'b' || k === 'B') { e.preventDefault(); startLocalHeartbeat(); } // Magician Heartbeat = B
+      else if (k === 's' || k === 'S') { e.preventDefault(); startLocalStrobe(); } // Magician Strobe = S
       else if (k === 'd' || k === 'D') { e.preventDefault(); toggleAudienceTorch(); }
-      else if (k === 'l' || k === 'L') { e.preventDefault(); toggleAudienceHeartbeat(); }
-      else if (k === 's' || k === 'S') { e.preventDefault(); toggleAudienceStrobe(); }
+      else if (k === 't' || k === 'T') { e.preventDefault(); startAudienceHeartbeat(); } // Spectator Heartbeat = T
+      else if (k === 'e' || k === 'E') { e.preventDefault(); startAudienceStrobe(); } // Spectator Strobe = E
     };
 
     const handleKeyUp = (e) => {
@@ -1207,10 +1203,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       if (isTypingInSettings) return;
 
       const k = e.key;
-      if (k === 'ArrowUp' || k === 'PageUp' || k === 'VolumeUp') { e.preventDefault(); handleLocalUp(true); }
-      else if (k === 'ArrowDown' || k === 'PageDown' || k === 'VolumeDown') { e.preventDefault(); handleAudienceUp(true); }
-      else if (k === 'ArrowRight') { e.preventDefault(); stopLocalHeartbeat(); }
-      else if (k === 'ArrowLeft') { e.preventDefault(); stopAudienceHeartbeat(); }
+      if (k === 'b' || k === 'B') { e.preventDefault(); stopLocalHeartbeat(); }
+      else if (k === 't' || k === 'T') { e.preventDefault(); stopAudienceHeartbeat(); }
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
@@ -1582,10 +1576,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
   };
 
-  // PALM-PROOF OVERLAY GESTURE HANDLERS (Hardened against accidental palm triggers):
-  // • Requires single-finger touch
-  // • Must start on the far left side of the screen (startX <= 110px)
-  // • Must travel at least 185px to the right within 600ms with strict vertical stability (< 50px drift)
   const handleOverlayTouchStart = (clientX, clientY, touchCount = 1) => {
     const phase = masterMonitorPhaseRef.current;
 
@@ -1704,9 +1694,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         className="absolute opacity-0 w-px h-px pointer-events-none -z-10"
       />
 
-      {/* =========================================================
-          CLEAN, ENLARGED QR CODE OVERLAY (NO OUTSIDE TEXT)
-         ========================================================= */}
       {showQrModal && (
         <div 
           onPointerDown={() => setShowQrModal(false)}
@@ -1742,9 +1729,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         </div>
       )}
 
-      {/* =========================================================
-          SYNCHRONIZED MASTER REVEAL OVERLAY
-         ========================================================= */}
       {masterMonitorPhase !== 'NONE' && (
         <div 
           onTouchStart={(e) => {
@@ -1940,15 +1924,15 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               <div className="flex justify-between text-zinc-300"><span>Torch ON/OFF</span><span className="text-white font-bold">[U]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Torch ON/OFF</span><span className="text-white font-bold">[D]</span></div>
 
-              <div className="flex justify-between text-zinc-300"><span>Heartbeat</span><span className="text-red-400 font-bold">[R]</span></div>
-              <div className="flex justify-between text-zinc-300"><span>Heartbeat</span><span className="text-red-400 font-bold">[L]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Heartbeat</span><span className="text-red-400 font-bold">[B]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Heartbeat</span><span className="text-red-400 font-bold">[T]</span></div>
 
-              <div className="flex justify-between text-zinc-300"><span>Strobe</span><span className="text-yellow-400 font-bold">[E]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Strobe</span><span className="text-yellow-400 font-bold">[S]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Strobe</span><span className="text-yellow-400 font-bold">[E]</span></div>
 
               <div className="col-span-2 h-px bg-zinc-800 my-0.5"></div>
 
-              <div className="flex justify-between text-zinc-300"><span>Phase 2 Reveal</span><span className="text-purple-400 font-bold">[G]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Phase 2 Reveal</span><span className="text-purple-400 font-bold">[R]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Play / Stop Seq</span><span className="text-green-400 font-bold">[P]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Toggle QR Code</span><span className="text-zinc-200 font-bold">[Q]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Phase 3 Redirect</span><span className="text-red-500 font-bold">[I]</span></div>
@@ -2033,8 +2017,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             {activePhase === 'REVEALING'
               ? '🌀 REVEALING...'
               : activePhase === 'PHASE_2_DONE'
-                ? `✓ ${peekedWord || customText || 'LOCKED'} [G]`
-                : '🌀 REVEAL NAME [G]'}
+                ? `✓ ${peekedWord || customText || 'LOCKED'} [R]`
+                : '🌀 REVEAL NAME [R]'}
           </button>
         </div>
 
@@ -2124,7 +2108,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                   }}
                   className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
                 >
-                  ⚡ STROBE (e)
+                  ⚡ STROBE (s)
                 </button>
               </div>
             </div>
@@ -2169,7 +2153,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                   }}
                   className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
                 >
-                  ⚡ STROBE (s)
+                  ⚡ STROBE (e)
                 </button>
               </div>
             </div>
