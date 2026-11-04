@@ -166,6 +166,9 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [revealWord, setRevealWord] = useState('');
   const [uiReady, setUiReady] = useState(false);
 
+  // Silently reveals "HOLD UP YOUR PHONE" after the updated API Poll arrives
+  const [holdUpPromptActive, setHoldUpPromptActive] = useState(false);
+
   const [promptIndex, setPromptIndex] = useState(0);
   const [promptFade, setPromptFade] = useState(true);
   const [isThumbHolding, setIsThumbHolding] = useState(false);
@@ -545,6 +548,12 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       kickerWordRef.current = cleaned;
     });
 
+    // Silently fade in "HOLD UP YOUR PHONE" once the updated API Poll is received (no sound/vibration tell)
+    const holdUpRef = ref(db, `${roomID}/promptHoldUp`);
+    const unsubHoldUp = onValue(holdUpRef, (snapshot) => {
+      setHoldUpPromptActive(Boolean(snapshot.val()));
+    });
+
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
@@ -569,6 +578,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       unsubFeedback();
       unsubCommand();
       unsubText();
+      unsubHoldUp();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
       if (silentAudioRef.current) {
@@ -594,6 +604,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       clearPhaseTimeouts();
       applyTorch(false);
       setThumbFocused(false);
+      setHoldUpPromptActive(false);
       setSpiralVisible(false);
       setBadgeVisible(false);
       setLettersVisible(false);
@@ -920,9 +931,13 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
               </div>
 
               <div className="mt-2 text-center pointer-events-none z-20 px-6">
-                {thumbFocused ? (
+                {thumbFocused && holdUpPromptActive ? (
                   <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-600 animate-pulse">
                     ♥ Presence Felt — Now Raise Your Phone
+                  </p>
+                ) : thumbFocused ? (
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-600">
+                    ♥ Presence Felt
                   </p>
                 ) : isThumbHolding ? (
                   <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-red-500">
@@ -936,10 +951,19 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
               </div>
             </div>
 
+            {/* BOTTOM TEXT: Purely atmospheric while waiting; silently fades in "HOLD UP YOUR PHONE" after the updated API Poll arrives */}
             <div className="absolute bottom-14 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 space-y-2.5">
-              <h1 className="text-[26px] sm:text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
-                Hold up your<br/>phone
-              </h1>
+              <div
+                className={`transition-all duration-1000 ease-in-out ${
+                  holdUpPromptActive
+                    ? 'opacity-100 translate-y-0'
+                    : 'opacity-0 translate-y-2 pointer-events-none'
+                }`}
+              >
+                <h1 className="text-[26px] sm:text-[28px] font-black uppercase tracking-[0.15em] leading-tight">
+                  Hold up your<br/>phone
+                </h1>
+              </div>
               <p className={`text-[10px] font-bold uppercase tracking-[0.28em] ${isFlashing ? 'text-zinc-300' : 'text-zinc-400'}`}>
                 Let their memory fill the room
               </p>
@@ -993,6 +1017,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [peekedWord, setPeekedWord] = useState('');
   const peekedWordRef = useRef('');
   const lastInjectRef = useRef('');
+  const isBaselineCaptureRef = useRef(true);
+  const [holdUpPromptSent, setHoldUpPromptSent] = useState(false);
+
   const [lastKey, setLastKey] = useState('NONE'); 
   const hiddenInputRef = useRef(null);
   const deckContainerRef = useRef(null);
@@ -1080,7 +1107,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     } catch (e) {}
   }, [roomID]);
 
-  // Listen to Firebase buttonText so Master Deck always shows the current live word
+  // Listen to Firebase buttonText & promptHoldUp so Master Deck always shows live state
   useEffect(() => {
     const textRef = ref(db, `${roomID}/buttonText`);
     const unsubText = onValue(textRef, (snapshot) => {
@@ -1091,7 +1118,16 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         peekedWordRef.current = cleaned;
       }
     });
-    return () => unsubText();
+
+    const holdUpRef = ref(db, `${roomID}/promptHoldUp`);
+    const unsubHoldUp = onValue(holdUpRef, (snapshot) => {
+      setHoldUpPromptSent(Boolean(snapshot.val()));
+    });
+
+    return () => {
+      unsubText();
+      unsubHoldUp();
+    };
   }, [roomID]);
 
   useEffect(() => {
@@ -1152,12 +1188,20 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         }
 
         if (word) {
-          setPeekedWord(word);
-          peekedWordRef.current = word;
-          if (word !== lastInjectRef.current) {
+          if (isBaselineCaptureRef.current) {
+            isBaselineCaptureRef.current = false;
             lastInjectRef.current = word;
+            setPeekedWord(word);
+            peekedWordRef.current = word;
+          } else if (word !== lastInjectRef.current) {
+            lastInjectRef.current = word;
+            setPeekedWord(word);
+            peekedWordRef.current = word;
             set(ref(db, `${roomID}/buttonText`), word);
+            set(ref(db, `${roomID}/promptHoldUp`), true);
           }
+        } else if (isBaselineCaptureRef.current) {
+          isBaselineCaptureRef.current = false;
         }
       } catch (e) {}
     };
@@ -1197,17 +1241,17 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       setLastKey(k);
 
       if (k === 'i' || k === 'I') { e.preventDefault(); fireInstantRedirect(); return; }
-      if (k === 'r' || k === 'R') { e.preventDefault(); triggerPhase2Reveal(); return; } // Reveal key = R
+      if (k === 'r' || k === 'R') { e.preventDefault(); triggerPhase2Reveal(); return; }
       if (k === 'q' || k === 'Q') { e.preventDefault(); setShowQrModal((prev) => !prev); return; }
       if (isPlayingRef.current) { handleStopPlayback(); return; }
       if (k === 'p' || k === 'P') { e.preventDefault(); handlePlayToggle(); return; }
       
       if (k === 'u' || k === 'U') { e.preventDefault(); toggleLocalTorch(); }
-      else if (k === 'b' || k === 'B') { e.preventDefault(); startLocalHeartbeat(); } // Magician Heartbeat = B
-      else if (k === 's' || k === 'S') { e.preventDefault(); startLocalStrobe(); } // Magician Strobe = S
+      else if (k === 'b' || k === 'B') { e.preventDefault(); startLocalHeartbeat(); }
+      else if (k === 's' || k === 'S') { e.preventDefault(); startLocalStrobe(); }
       else if (k === 'd' || k === 'D') { e.preventDefault(); toggleAudienceTorch(); }
-      else if (k === 't' || k === 'T') { e.preventDefault(); startAudienceHeartbeat(); } // Spectator Heartbeat = T
-      else if (k === 'e' || k === 'E') { e.preventDefault(); startAudienceStrobe(); } // Spectator Strobe = E
+      else if (k === 't' || k === 'T') { e.preventDefault(); startAudienceHeartbeat(); }
+      else if (k === 'e' || k === 'E') { e.preventDefault(); startAudienceStrobe(); }
     };
 
     const handleKeyUp = (e) => {
@@ -1252,6 +1296,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
   const handleSetCustomText = () => {
     set(ref(db, `${roomID}/buttonText`), customText);
+    set(ref(db, `${roomID}/promptHoldUp`), Boolean(customText && customText.trim() !== ''));
     setPeekedWord(customText);
     peekedWordRef.current = customText;
     lastInjectRef.current = customText;
@@ -1262,6 +1307,11 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     peekedWordRef.current = '';
     lastInjectRef.current = '';
     set(ref(db, `${roomID}/buttonText`), '');
+    set(ref(db, `${roomID}/promptHoldUp`), false);
+  };
+
+  const toggleHoldUpPromptManually = () => {
+    set(ref(db, `${roomID}/promptHoldUp`), !holdUpPromptSent);
   };
 
   const recordCue = (target, cmd) => {
@@ -1348,6 +1398,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     updateMasterMonitorPhase('NONE');
     setActivePhase('PHASE_1');
     setAudienceMode('OFF');
+    isBaselineCaptureRef.current = true;
+    set(ref(db, `${roomID}/promptHoldUp`), false);
     fireAudienceCommand('PHASE_1_RESET');
   };
 
@@ -2035,18 +2087,30 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </button>
         </div>
 
-        {/* 3. FULL-WIDTH LIVE API PEEK + 2X-TAP PALM LOCK TOGGLE SWITCH */}
+        {/* 3. FULL-WIDTH LIVE API PEEK + 2X-TAP PALM LOCK SWITCH */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center space-x-2.5 min-w-0 flex-1 bg-black/60 border border-zinc-800/90 px-3 py-2 rounded-lg">
+          <div 
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              toggleHoldUpPromptManually();
+            }}
+            className={`flex items-center space-x-2.5 min-w-0 flex-1 bg-black/60 border px-3 py-2 rounded-lg cursor-pointer active:scale-[0.99] transition-colors ${
+              holdUpPromptSent ? 'border-green-500/60' : 'border-zinc-800/90'
+            }`}
+          >
             <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-              peekedWord ? 'bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]' : 'bg-zinc-700'
+              holdUpPromptSent
+                ? 'bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]'
+                : peekedWord
+                  ? 'bg-amber-500'
+                  : 'bg-zinc-700'
             }`} />
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-                Live API Peek
+              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-zinc-500 truncate">
+                {holdUpPromptSent ? 'Live API Peek • Hold-Up Active' : 'Live API Peek • Waiting New Poll'}
               </span>
               <span className={`text-sm font-mono font-black tracking-widest uppercase truncate ${
-                peekedWord ? 'text-green-400' : 'text-zinc-600'
+                holdUpPromptSent ? 'text-green-400' : peekedWord ? 'text-zinc-300' : 'text-zinc-600'
               }`}>
                 {peekedWord || 'WAITING FOR PEEK...'}
               </span>
