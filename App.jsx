@@ -805,7 +805,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
             <div className="flex items-center space-x-2.5 pt-2 opacity-80">
               <span className="w-1.5 h-1.5 rounded-full bg-[#d91b1b] shadow-[0_0_8px_#d91b1b] animate-pulse"></span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.38em] text-zinc-500">
-                [ Touch the Heart ]
+                Touch the Heart
               </span>
             </div>
 
@@ -930,7 +930,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
                   </p>
                 ) : (
                   <p className="text-[9.5px] font-mono font-bold uppercase tracking-[0.25em] text-zinc-400">
-                    [ Hold Thumb on Pulse to Focus ]
+                    Hold Thumb on Pulse to Focus
                   </p>
                 )}
               </div>
@@ -1735,8 +1735,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             <span className="text-sm font-mono font-bold text-zinc-800 tracking-wider mb-2">
               {APP_QR_URL.replace('https://', '')}
             </span>
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-red-600 animate-pulse mt-2 text-center">
-              [ TAP QR CODE TO OPEN HEARTBEAT VIEW ]
+            <span className="text-[9.5px] font-extrabold uppercase tracking-[0.16em] text-red-600 animate-pulse mt-2 text-center whitespace-nowrap">
+              TAP QR CODE TO OPEN HEARTBEAT VIEW
             </span>
           </div>
         </div>
