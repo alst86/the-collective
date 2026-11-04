@@ -338,7 +338,8 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     } catch (e) {}
   };
 
-  const playHeartbeatThud = (isSecondBeat = false) => {
+  // Supports 'lub' (false), 'dub' (true), and 'strobe' (tight rapid beat)
+  const playHeartbeatThud = (mode = false) => {
     if (isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
@@ -354,10 +355,13 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       oscSub.type = 'triangle';
       oscPunch.type = 'sine';
 
-      const startFreq = isSecondBeat ? 210 : 185;
-      const endFreq = isSecondBeat ? 70 : 58;
-      const duration = isSecondBeat ? 0.14 : 0.18;
-      const peakGain = isSecondBeat ? 2.4 : 3.5;
+      const isStrobe = mode === 'strobe';
+      const isSecondBeat = mode === true || mode === 'dub';
+
+      const startFreq = isStrobe ? 225 : isSecondBeat ? 210 : 185;
+      const endFreq = isStrobe ? 65 : isSecondBeat ? 70 : 58;
+      const duration = isStrobe ? 0.11 : isSecondBeat ? 0.14 : 0.18;
+      const peakGain = isStrobe ? 3.0 : isSecondBeat ? 2.4 : 3.5;
 
       oscSub.frequency.setValueAtTime(startFreq, now);
       oscSub.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
@@ -366,11 +370,11 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       oscPunch.frequency.exponentialRampToValueAtTime(endFreq * 1.2, now + duration);
 
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(340, now);
+      filter.frequency.setValueAtTime(isStrobe ? 380 : 340, now);
       filter.Q.setValueAtTime(3.5, now);
 
       gain.gain.setValueAtTime(0.001, now);
-      gain.gain.linearRampToValueAtTime(peakGain, now + 0.012);
+      gain.gain.linearRampToValueAtTime(peakGain, now + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
       oscSub.connect(filter);
@@ -434,9 +438,24 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     }
   };
 
-  const applyTorch = async (active) => {
+  // Every time the spectator's phone lights up (active === true), it also vibrates and plays the heartbeat sound
+  const applyTorch = async (active, beatType = 'lub') => {
     if (isRedirectingRef.current && active) return;
     setIsFlashing(active); 
+
+    if (active) {
+      if (beatType === 'strobe') {
+        playHeartbeatThud('strobe');
+        if (navigator.vibrate) navigator.vibrate(50);
+      } else if (beatType === 'dub') {
+        playHeartbeatThud(true);
+        if (navigator.vibrate) navigator.vibrate(70);
+      } else {
+        playHeartbeatThud(false);
+        if (navigator.vibrate) navigator.vibrate(100);
+      }
+    }
+
     if (!trackRef.current) return;
     try {
       await trackRef.current.applyConstraints({ advanced: [{ torch: active }] });
@@ -586,23 +605,19 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     } else if (baseCmd === 'ON') {
       isRedirectingRef.current = false;
       setStagePhase('PULSE');
-      applyTorch(true);
+      applyTorch(true, 'lub');
     } else if (baseCmd === 'OFF') {
       applyTorch(false);
       if (!isInitialLoad) resetIdleTimer();
     } else if (baseCmd === 'STRIKE_LUB') {
       isRedirectingRef.current = false;
       setStagePhase('PULSE');
-      applyTorch(true);
-      playHeartbeatThud(false);
-      if (navigator.vibrate) navigator.vibrate(100);
+      applyTorch(true, 'lub');
       timerRef.current = setTimeout(() => applyTorch(false), 140);
     } else if (baseCmd === 'STRIKE_DUB') {
       isRedirectingRef.current = false;
       setStagePhase('PULSE');
-      applyTorch(true);
-      playHeartbeatThud(true);
-      if (navigator.vibrate) navigator.vibrate(70);
+      applyTorch(true, 'dub');
       timerRef.current = setTimeout(() => applyTorch(false), 110);
     } else if (baseCmd === 'BLINK') {
       isRedirectingRef.current = false;
@@ -613,13 +628,8 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         if (isRedirectingRef.current) return;
         const duration = pattern[step];
         const isOn = (step === 0 || step === 2); 
-        applyTorch(isOn);
-        if (step === 0) {
-          playHeartbeatThud(false); 
-          if (navigator.vibrate) navigator.vibrate([100, 150, 100]);
-        } else if (step === 2) {
-          playHeartbeatThud(true);  
-        }
+        const beatType = step === 2 ? 'dub' : 'lub';
+        applyTorch(isOn, beatType);
         step = (step + 1) % pattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
@@ -627,11 +637,14 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     } else if (baseCmd === 'STROBE') {
       isRedirectingRef.current = false;
       setStagePhase('PULSE');
+      let strobeOn = true;
       const playStrobe = () => {
         if (isRedirectingRef.current) return;
-        const isOn = Math.random() > 0.5; 
-        applyTorch(isOn);
-        const randomDelay = Math.floor(Math.random() * 90) + 60;
+        applyTorch(strobeOn, 'strobe');
+        const randomDelay = strobeOn
+          ? Math.floor(Math.random() * 45) + 55
+          : Math.floor(Math.random() * 65) + 60;
+        strobeOn = !strobeOn;
         timerRef.current = setTimeout(playStrobe, randomDelay);
       };
       playStrobe();
@@ -1156,7 +1169,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
-  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK (Updated with new shortcuts: [R], [B], [T], [S], [E])
+  // PERMANENT FLIC / BLUETOOTH KEYBOARD LOCK (Shortcuts: [R], [B], [T], [S], [E])
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
