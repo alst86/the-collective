@@ -65,10 +65,8 @@ function BrandLogoSVG({ className = "w-14 h-14", variant = "darkOnLight" }) {
 
 // ==========================================
 // OPTION 1 (STAGE 1): THE EXPANDED RESONANCE RIPPLE (0.0s - 4.4s)
-// Mimics Video 2 Left: 3D acoustic speaker-cone ripples + emerging letters + horizontal flare
 // ==========================================
 const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippleStage1({ subStage }) {
-  // subStage: 'RIPPLE_PURE' (0-1.8s) -> 'RIPPLE_LETTERS' (1.8-3.1s) -> 'RIPPLE_HORIZON' (3.1-4.4s)
   const showEmergingLetters = subStage === 'RIPPLE_LETTERS' || subStage === 'RIPPLE_HORIZON';
   const showHorizonBeam = subStage === 'RIPPLE_HORIZON';
 
@@ -82,7 +80,7 @@ const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippl
     const chars = ['A', 'R', 'E', 'S', 'O', 'N', 'M', 'K', 'L', 'T', 'V', 'H', 'C', 'I'];
     return chars.map((ch, idx) => {
       const angle = (idx / chars.length) * 2 * Math.PI + 0.3;
-      const dist = 19 + (idx % 3) * 11; // vmin
+      const dist = 19 + (idx % 3) * 11;
       return {
         id: idx,
         ch,
@@ -104,7 +102,6 @@ const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippl
 
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden bg-black select-none">
-      {/* Deep 3D Molded Concentric Acoustic Cone Field */}
       <div
         className="absolute w-[125vmin] h-[125vmin] rounded-full pointer-events-none"
         style={{
@@ -121,7 +118,6 @@ const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippl
         }}
       />
 
-      {/* Expanding 3D Shaded Ripple Troughs & Crests */}
       {concentricRidges.map((r) => (
         <div
           key={r.id}
@@ -140,7 +136,6 @@ const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippl
         />
       ))}
 
-      {/* Emerging Luminous Stardust & Faint Characters (00:02 - 00:03 in Video 2) */}
       <div className={`absolute inset-0 transition-opacity duration-700 ${showEmergingLetters ? 'opacity-100' : 'opacity-0'}`}>
         {stardust.map((s) => (
           <span
@@ -150,7 +145,7 @@ const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippl
               top: s.top,
               width: `${s.size}px`,
               height: `${s.size}px`,
-              boxShadow: '0 0 8px #00f0ff, 0 0 14px #ffffff',
+              boxShadow: '0 0 8px #00f0ff, 0 0 15px #ffffff',
               animation: `stardustTwinkle 1.4s ease-in-out infinite alternate`,
               animationDelay: s.delay
             }}
@@ -175,7 +170,6 @@ const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippl
         ))}
       </div>
 
-      {/* Horizontal Energy Equator Flare (00:03 in Video 2 Left) */}
       <div
         className={`absolute inset-x-0 flex items-center justify-center transition-all duration-700 ${
           showHorizonBeam ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-50'
@@ -190,7 +184,6 @@ const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippl
         <div className="absolute inset-x-0 h-[3px] bg-cyan-100 shadow-[0_0_25px_#00f0ff,0_0_50px_#00f0ff]" />
       </div>
 
-      {/* Center Glowing White/Cyan Medallion with AL Monogram */}
       <div
         className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white flex items-center justify-center transition-transform duration-500"
         style={{
@@ -206,20 +199,16 @@ const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippl
 });
 
 // ==========================================
-// OPTION 1 (STAGE 2): ACOUSTIC SEISMOGRAPH SOUNDWAVE + TUMBLING LETTERS (4.4s - 9.6s)
-// Mimics Video 1 Left & Video 2 Left (00:04 - 00:09):
-// Laser Horizon -> Ribbon Wave -> High-Density Vertical Seismograph Spikes -> Tumbling Letters
+// OPTION 1 (STAGE 2): SEISMOGRAPH SOUNDWAVE (4.4s - 9.6s)
 // ==========================================
 const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSoundwaveStage2({ waveStage }) {
-  // waveStage: 'RIBBON_BEAM' (4.4-5.4s) -> 'SPIKE_BURST' (5.4-7.8s) -> 'LETTER_COMPRESS' (7.8-9.6s)
   const isSpikeBurst = waveStage === 'SPIKE_BURST';
   const isCompressing = waveStage === 'LETTER_COMPRESS';
 
-  // 96 Dense Vertical Seismograph Spikes matching 00:04-00:07 of Video 1 & 2 Left
   const spikes = useMemo(() => {
     return Array.from({ length: 96 }).map((_, i) => {
-      const norm = i / 95; // 0 to 1
-      const bell = Math.sin(norm * Math.PI); // Tapered ends, tall center
+      const norm = i / 95;
+      const bell = Math.sin(norm * Math.PI);
       const harmonic = 0.45 + 0.55 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.65));
       const heightPx = Math.round(14 + bell * harmonic * 250);
       return {
@@ -232,7 +221,6 @@ const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSo
     });
   }, []);
 
-  // Luminous Micro-Particle Dust Cloud
   const sparks = useMemo(() => {
     return Array.from({ length: 76 }).map((_, i) => ({
       id: i,
@@ -245,13 +233,12 @@ const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSo
     }));
   }, []);
 
-  // 3D Tumbling Alphanumeric Letters (00:07 - 00:09 in Video 1 Left)
   const tumblingLetters = useMemo(() => {
     const pool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     return Array.from({ length: 34 }).map((_, i) => {
       const fromTop = i % 2 === 0;
-      const spreadY = (fromTop ? -1 : 1) * (12 + ((i * 17) % 34)); // vh from center
-      const compressY = (fromTop ? -1 : 1) * (2 + (i % 5) * 1.8); // tight band at 00:09
+      const spreadY = (fromTop ? -1 : 1) * (12 + ((i * 17) % 34));
+      const compressY = (fromTop ? -1 : 1) * (2 + (i % 5) * 1.8);
       const rot = (i % 2 === 0 ? 1 : -1) * (18 + (i * 13) % 45);
       const isHero = i % 6 === 0;
       return {
@@ -271,7 +258,6 @@ const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSo
 
   return (
     <div className="relative w-full h-full min-h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none pointer-events-none">
-      {/* Ambient Neon Cyan Central Bloom */}
       <div
         className="absolute inset-x-0 h-80 pointer-events-none transition-all duration-700"
         style={{
@@ -281,7 +267,6 @@ const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSo
         }}
       />
 
-      {/* Glowing Stardust Micro-Sparks */}
       {sparks.map((s) => (
         <span
           key={s.id}
@@ -299,7 +284,6 @@ const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSo
         />
       ))}
 
-      {/* Smooth Oscillating Ribbon Wave (Prominent in RIBBON_BEAM, subtle in SPIKE_BURST) */}
       <svg
         viewBox="0 0 1000 300"
         preserveAspectRatio="none"
@@ -335,7 +319,6 @@ const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSo
         />
       </svg>
 
-      {/* High-Density Vertical Seismograph Waveform (00:04 - 00:07) */}
       <div
         className={`absolute inset-x-0 flex items-center justify-between px-1 transition-all duration-500 ${
           isSpikeBurst ? 'opacity-100 scale-y-100' : isCompressing ? 'opacity-55 scale-y-[0.22]' : 'opacity-25 scale-y-[0.15]'
@@ -358,10 +341,8 @@ const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSo
         ))}
       </div>
 
-      {/* Intense White-Hot / Neon-Blue Horizontal Laser Core Line */}
       <div className="absolute inset-x-0 h-[3px] bg-white shadow-[0_0_18px_#ffffff,0_0_35px_#00f0ff,0_0_65px_#00f0ff]" />
 
-      {/* Tumbling & Compressing Alphanumeric Letters (00:06 - 00:09) */}
       {tumblingLetters.map((item) => {
         const yOffset = isCompressing ? item.compressY : item.spreadY;
         return (
@@ -388,11 +369,10 @@ const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSo
 });
 
 // ==========================================
-// OPTION 2 (STAGE 1): THE FOCUS APERTURE IRIS (0.0s - 4.4s)
-// Mimics Video 2 Right (00:00 - 00:04) in 3D Neon Blue / Ice-White
+// OPTION 2 (STAGE 1): FOCUS APERTURE IRIS (0.0s - 4.4s)
 // ==========================================
 const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
-  shutterStage // 'CLOSED_WHITE' (0-2.1s) -> 'IRIS_DARK' (2.1-3.4s) -> 'OPEN_VORTEX' (3.4-4.4s)
+  shutterStage
 }) {
   const tickAngles = useMemo(() => Array.from({ length: 72 }).map((_, i) => i * 5), []);
   const bladeAngles = useMemo(() => Array.from({ length: 12 }).map((_, i) => i * 30), []);
@@ -402,7 +382,6 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
 
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden bg-black select-none">
-      {/* Subtle Neon-Blue Radial Vignette */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -417,7 +396,6 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
               <circle cx="0" cy="0" r="248" />
             </clipPath>
 
-            {/* 3D Brushed Cyan-Titanium Metallic Blade Gradient */}
             <linearGradient id="shutterBladeCyanMetallic" x1="0%" y1="0%" x2="100%" y2="85%">
               <stop offset="0%" stopColor="#d8f8ff" stopOpacity="0.92" />
               <stop offset="35%" stopColor="#38bdf8" stopOpacity="0.78" />
@@ -425,7 +403,6 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
               <stop offset="100%" stopColor="#020617" stopOpacity="0.99" />
             </linearGradient>
 
-            {/* Glowing Neon-Blue Rim Sweep Gradient */}
             <linearGradient id="rimSweepCyan" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
               <stop offset="40%" stopColor="#00f0ff" stopOpacity="0.85" />
@@ -445,7 +422,7 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             </filter>
           </defs>
 
-          {/* OUTER PRECISION HUD & DEGREE TICKS (Expands outward at 0:04 when shutter opens) */}
+          {/* Outer Precision HUD & Degree Ticks */}
           <g
             className="transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
@@ -453,16 +430,13 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
               opacity: isOpening ? 0.75 : 1,
             }}
           >
-            {/* Outermost Thin Guide Circle */}
             <circle cx="0" cy="0" r="425" fill="none" stroke="#00f0ff" strokeOpacity="0.48" strokeWidth="1.2" />
 
-            {/* 4 Cardinal Axis Lines extending inward from the outer circle */}
             <line x1="0" y1="-425" x2="0" y2="-362" stroke="#e0faff" strokeOpacity="0.85" strokeWidth="1.8" filter="url(#rimGlowFilter)" />
             <line x1="0" y1="362" x2="0" y2="425" stroke="#e0faff" strokeOpacity="0.85" strokeWidth="1.8" filter="url(#rimGlowFilter)" />
             <line x1="-425" y1="0" x2="-362" y2="0" stroke="#e0faff" strokeOpacity="0.85" strokeWidth="1.8" filter="url(#rimGlowFilter)" />
             <line x1="362" y1="0" x2="425" y2="0" stroke="#e0faff" strokeOpacity="0.85" strokeWidth="1.8" filter="url(#rimGlowFilter)" />
 
-            {/* Radial Graduation Tick Marks Ring */}
             {tickAngles.map((deg) => {
               const isCardinal = deg % 90 === 0;
               const isMajor = deg % 30 === 0;
@@ -484,7 +458,7 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             })}
           </g>
 
-          {/* SWIRLING FIBROUS VORTEX TUNNEL UNDERNEATH THE BLADES (Revealed at 0:04) */}
+          {/* Swirling Fibrous Vortex Tunnel Underneath Blades */}
           <g
             clipPath="url(#shutterBarrelClip)"
             className="transition-opacity duration-700"
@@ -509,7 +483,7 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             </g>
           </g>
 
-          {/* CLIPPED 12-BLADE MECHANICAL IRIS */}
+          {/* Clipped 12-Blade Mechanical Iris */}
           <g clipPath="url(#shutterBarrelClip)">
             <g
               className="transition-all duration-900 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -549,7 +523,6 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             </g>
           </g>
 
-          {/* SHUTTER BARREL DOUBLE RIM */}
           <circle
             cx="0"
             cy="0"
@@ -570,13 +543,11 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             strokeWidth="1"
           />
 
-          {/* Thin Concentric Inner Rings (Visible at 0:04 when blades open) */}
           <g className="transition-opacity duration-700" style={{ opacity: isOpening ? 0.75 : 0 }}>
             <circle cx="0" cy="0" r="175" fill="none" stroke="#00f0ff" strokeWidth="1.1" strokeOpacity="0.6" />
             <circle cx="0" cy="0" r="205" fill="none" stroke="#e0faff" strokeWidth="0.9" strokeOpacity="0.45" />
           </g>
 
-          {/* SWEEPING NEON-BLUE / WHITE RIM LIGHT ARC (0:02 - 0:03) */}
           <circle
             cx="0"
             cy="0"
@@ -595,7 +566,7 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
           />
         </svg>
 
-        {/* CENTER AL EMBLEM: Solid White-Cyan Badge (0:00-0:02) -> Dark Core Neon-Blue Monogram (0:03-0:04) */}
+        {/* Center AL Emblem */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div
             className={`rounded-full flex items-center justify-center transition-all duration-700 ease-in-out ${
@@ -617,13 +588,10 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
 
 // ==========================================
 // OPTION 2 (STAGE 2): THE MAGNETIC VORTEX (4.4s - 9.6s)
-// Mimics Video 1 Right & Video 2 Right (00:05 - 00:09):
-// Concentric 3D Wave Troughs + Orbital Letter Rings + Luminous Arcs + Core Ignition Flare
 // ==========================================
 const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlareActive }) {
   const glyphPool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  // 4 Distinct Concentric Orbital Letter Rings matching Video 1 Right & Video 2 Right
   const orbitalRings = useMemo(() => {
     const ringConfigs = [
       { radiusVmin: 15, count: 14, size: '0.78rem', speed: '6.5s', dir: 'normal' },
@@ -652,7 +620,6 @@ const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlar
 
   return (
     <div className="relative w-full h-full min-h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none pointer-events-none">
-      {/* 3D Molded Concentric Wave Troughs (Matches 00:10-00:19 in Video 1 Right) */}
       <div
         className="absolute w-[130vmin] h-[130vmin] rounded-full pointer-events-none transition-all duration-700"
         style={{
@@ -669,7 +636,6 @@ const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlar
         }}
       />
 
-      {/* Intense Ice-Blue / White Core Ignition Bloom (Matches 00:07-00:09 in Video 2 Right & 00:16-00:19 in Video 1 Right) */}
       <div
         className={`absolute w-[95vmin] h-[95vmin] rounded-full pointer-events-none transition-all duration-700 ${
           coreFlareActive ? 'opacity-100 scale-110' : 'opacity-40 scale-75'
@@ -679,7 +645,6 @@ const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlar
         }}
       />
 
-      {/* Sweeping Luminous Neon-Blue Orbital Light Arcs */}
       <svg
         viewBox="-500 -500 1000 1000"
         className="absolute w-[115vmin] h-[115vmin] will-change-transform"
@@ -712,7 +677,6 @@ const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlar
         ))}
       </svg>
 
-      {/* 4 Concentric Rotating Letter Rings */}
       {orbitalRings.map((ring) => (
         <div
           key={ring.rIdx}
@@ -740,7 +704,6 @@ const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlar
         </div>
       ))}
 
-      {/* Center Medallion: Transitions from Dark Core (0:05-0:07) to Brilliant White-Cyan Ignition (0:07-0:09) */}
       <div
         className={`relative z-10 rounded-full flex items-center justify-center transition-all duration-700 ${
           coreFlareActive
@@ -757,87 +720,8 @@ const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlar
   );
 });
 
-const formatValidUrl = (rawUrl, fallbackUrl) => {
-  let clean = (rawUrl || fallbackUrl || '').trim();
-  if (!clean) return fallbackUrl;
-  if (!clean.startsWith('http') && !clean.includes('://')) {
-    clean = `https://${clean}`;
-  }
-  return clean;
-};
-
-// Arms both a 30-second live tab timer AND a one-time sessionStorage return trap
-const executeGuaranteedRedirect = (rawPrimaryUrl, rawFeedbackUrl, isAudience = true) => {
-  const finalPrimaryUrl = formatValidUrl(rawPrimaryUrl, DEFAULT_REDIRECT_URL);
-  const finalFeedbackUrl = formatValidUrl(rawFeedbackUrl, DEFAULT_FEEDBACK_URL);
-  const startTime = Date.now();
-
-  if (isAudience) {
-    try {
-      sessionStorage.setItem('pulseRedirectTimestamp', String(startTime));
-      sessionStorage.setItem('pulseFeedbackUrl', finalFeedbackUrl);
-    } catch (e) {}
-  }
-
-  let hasRedirectedToFeedback = false;
-
-  const goToFeedback = () => {
-    if (hasRedirectedToFeedback) return;
-    hasRedirectedToFeedback = true;
-    try {
-      sessionStorage.removeItem('pulseRedirectTimestamp');
-      sessionStorage.removeItem('pulseFeedbackUrl');
-    } catch (e) {}
-    window.location.replace(finalFeedbackUrl);
-  };
-
-  const timerId = setTimeout(goToFeedback, FEEDBACK_DELAY_MS);
-
-  const handleBrowserWake = () => {
-    if (document.visibilityState === 'visible') {
-      const elapsed = Date.now() - startTime;
-      if (elapsed >= FEEDBACK_DELAY_MS) {
-        clearTimeout(timerId);
-        goToFeedback();
-      } else {
-        clearTimeout(timerId);
-        setTimeout(goToFeedback, FEEDBACK_DELAY_MS - elapsed);
-      }
-    }
-  };
-
-  document.addEventListener('visibilitychange', handleBrowserWake);
-  window.addEventListener('pageshow', handleBrowserWake);
-  window.addEventListener('focus', handleBrowserWake);
-
-  window.location.href = finalPrimaryUrl;
-};
-
-export default function App() {
-  const searchParams = new URLSearchParams(window.location.search);
-  const [isMasterView, setIsMasterView] = useState(() => searchParams.has('master'));
-  const [skipEntryPrompt, setSkipEntryPrompt] = useState(false);
-  const roomID = searchParams.get('room') || 'v2-stage';
-
-  return isMasterView ? (
-    <ControlView 
-      roomID={roomID} 
-      onSwitchToHeartbeatView={() => {
-        setSkipEntryPrompt(true);
-        setIsMasterView(false);
-      }}
-    />
-  ) : (
-    <AudienceView 
-      roomID={roomID} 
-      skipEntryPrompt={skipEntryPrompt}
-      onEnterMaster={() => setIsMasterView(true)}
-    />
-  );
-}
-
 // ==========================================
-// AUDIENCE VIEW (Spectator's Phone)
+// AUDIENCE VIEW COMPONENT
 // ==========================================
 function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [cameraReady, setCameraReady] = useState(skipEntryPrompt);
@@ -848,6 +732,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const kickerWordRef = useRef('');
   const [revealWord, setRevealWord] = useState('');
   const [revealTheme, setRevealTheme] = useState('RIPPLE_WAVE');
+  const [sfxEnabled, setSfxEnabled] = useState(true);
   const [holdUpPromptActive, setHoldUpPromptActive] = useState(true);
   const [uiReady, setUiReady] = useState(false);
 
@@ -860,9 +745,9 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   // STAGES: PULSE -> STAGE_1 (0-4.4s) -> STAGE_2 (4.4-9.6s) -> CONVERGE (9.6-11.0s) -> LOCKED
   const [stagePhase, setStagePhase] = useState('PULSE');
   const [emblemVisible, setEmblemVisible] = useState(false);
-  const [shutterStage, setShutterStage] = useState('CLOSED_WHITE'); // Also drives Option 1 sub-stages
+  const [shutterStage, setShutterStage] = useState('CLOSED_WHITE');
   const [stormVisible, setStormVisible] = useState(false);
-  const [waveSubStage, setWaveSubStage] = useState('RIBBON_BEAM'); // 'RIBBON_BEAM' | 'SPIKE_BURST' | 'LETTER_COMPRESS'
+  const [waveSubStage, setWaveSubStage] = useState('RIBBON_BEAM');
   const [vortexFlare, setVortexFlare] = useState(false);
   const [convergeActive, setConvergeActive] = useState(false);
   const phaseTimeoutsRef = useRef([]);
@@ -876,6 +761,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
   const audioCtxRef = useRef(null);
   const silentAudioRef = useRef(null);
+  const activeNodesRef = useRef([]);
 
   const idleTimerRef = useRef(null);
   const IDLE_TIMEOUT_MS = 180 * 1000; 
@@ -884,6 +770,19 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const clearPhaseTimeouts = () => {
     phaseTimeoutsRef.current.forEach(clearTimeout);
     phaseTimeoutsRef.current = [];
+  };
+
+  const stopActiveSynthNodes = () => {
+    activeNodesRef.current.forEach(({ osc, gain }) => {
+      try {
+        if (gain && audioCtxRef.current) {
+          gain.gain.setValueAtTime(gain.gain.value, audioCtxRef.current.currentTime);
+          gain.gain.linearRampToValueAtTime(0.0001, audioCtxRef.current.currentTime + 0.08);
+        }
+        if (osc) setTimeout(() => { try { osc.stop(); } catch (e) {} }, 100);
+      } catch (e) {}
+    });
+    activeNodesRef.current = [];
   };
 
   const resetIdleTimer = () => {
@@ -1004,6 +903,145 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
         if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume().catch(() => {});
       }
+    } catch (e) {}
+  };
+
+  // ==========================================
+  // PROCEDURAL WEB AUDIO SYNTH FOR REVEAL SFX
+  // ==========================================
+  const playRevealSubDrone = () => {
+    if (!sfxEnabled || isRedirectingRef.current) return;
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      const now = ctx.currentTime;
+      const oscLow = ctx.createOscillator();
+      const oscHarmonic = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      oscLow.type = 'triangle';
+      oscLow.frequency.setValueAtTime(55, now);
+      oscLow.frequency.linearRampToValueAtTime(62, now + 4.2);
+
+      oscHarmonic.type = 'sine';
+      oscHarmonic.frequency.setValueAtTime(110, now);
+      oscHarmonic.frequency.linearRampToValueAtTime(124, now + 4.2);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(180, now);
+      filter.frequency.linearRampToValueAtTime(320, now + 4.2);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.45, now + 0.5);
+      gain.gain.setValueAtTime(0.45, now + 3.8);
+      gain.gain.linearRampToValueAtTime(0.0001, now + 4.3);
+
+      oscLow.connect(filter);
+      oscHarmonic.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      oscLow.start(now);
+      oscHarmonic.start(now);
+      oscLow.stop(now + 4.4);
+      oscHarmonic.stop(now + 4.4);
+
+      activeNodesRef.current.push({ osc: oscLow, gain }, { osc: oscHarmonic, gain });
+    } catch (e) {}
+  };
+
+  const playRevealTensionRiser = () => {
+    if (!sfxEnabled || isRedirectingRef.current) return;
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      const now = ctx.currentTime;
+      const duration = 4.8;
+      const oscA = ctx.createOscillator();
+      const oscB = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      oscA.type = 'sawtooth';
+      oscA.frequency.setValueAtTime(120, now);
+      oscA.frequency.exponentialRampToValueAtTime(740, now + duration);
+
+      oscB.type = 'sine';
+      oscB.frequency.setValueAtTime(122, now);
+      oscB.frequency.exponentialRampToValueAtTime(748, now + duration);
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(240, now);
+      filter.frequency.exponentialRampToValueAtTime(1400, now + duration);
+      filter.Q.setValueAtTime(2.2, now);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.38, now + 0.6);
+      gain.gain.linearRampToValueAtTime(0.68, now + duration - 0.2);
+      gain.gain.linearRampToValueAtTime(0.0001, now + duration);
+
+      oscA.connect(filter);
+      oscB.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      oscA.start(now);
+      oscB.start(now);
+      oscA.stop(now + duration + 0.05);
+      oscB.stop(now + duration + 0.05);
+
+      activeNodesRef.current.push({ osc: oscA, gain }, { osc: oscB, gain });
+    } catch (e) {}
+  };
+
+  const playRevealConvergenceImpact = () => {
+    if (!sfxEnabled || isRedirectingRef.current) return;
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      const now = ctx.currentTime;
+
+      // 1. Deep Sub Drop (130Hz -> 32Hz)
+      const oscSub = ctx.createOscillator();
+      const gainSub = ctx.createGain();
+      oscSub.type = 'sine';
+      oscSub.frequency.setValueAtTime(130, now);
+      oscSub.frequency.exponentialRampToValueAtTime(32, now + 0.65);
+
+      gainSub.gain.setValueAtTime(0.0001, now);
+      gainSub.gain.linearRampToValueAtTime(1.8, now + 0.02);
+      gainSub.gain.exponentialRampToValueAtTime(0.0001, now + 0.95);
+
+      oscSub.connect(gainSub);
+      gainSub.connect(ctx.destination);
+      oscSub.start(now);
+      oscSub.stop(now + 1.0);
+
+      // 2. High Crystalline Chime Chord (528Hz + 1056Hz)
+      [528, 1056].forEach((freq, idx) => {
+        const oscChime = ctx.createOscillator();
+        const gainChime = ctx.createGain();
+        oscChime.type = 'sine';
+        oscChime.frequency.setValueAtTime(freq, now);
+
+        gainChime.gain.setValueAtTime(0.0001, now);
+        gainChime.gain.linearRampToValueAtTime(idx === 0 ? 0.35 : 0.22, now + 0.015);
+        gainChime.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
+
+        oscChime.connect(gainChime);
+        gainChime.connect(ctx.destination);
+        oscChime.start(now);
+        oscChime.stop(now + 2.5);
+      });
+
+      if (navigator.vibrate) navigator.vibrate([40, 70, 110]);
     } catch (e) {}
   };
 
@@ -1143,9 +1181,10 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     clearTimeout(thumbHoldTimerRef.current);
   };
 
-  // SYNCHRONIZED REVEAL TIMELINE FOR BOTH OPTION 1 & OPTION 2
+  // REVEAL TIMELINE WITH PROCEDURAL SYNTH SOUNDSCAPE
   const runRevealSequence = (wordToReveal, incomingTheme) => {
     clearPhaseTimeouts();
+    stopActiveSynthNodes();
     clearTimeout(timerRef.current);
     applyTorch(false);
 
@@ -1160,16 +1199,17 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     setWaveSubStage('RIBBON_BEAM');
     setVortexFlare(false);
 
-    // 0.0s: Stage 1 (Option 1: Pure Ripple / Option 2: Closed White-Core Shutter)
+    // 0.0s: Stage 1 Begins + Start Sub Drone SFX
     setStagePhase('STAGE_1');
+    playRevealSubDrone();
     const tEmblemIn = setTimeout(() => setEmblemVisible(true), 80);
 
-    // 1.8s: Option 1 letters emerge / Option 2 core turns dark
+    // 1.8s: Stage 1 sub-transition
     const tMidStage1 = setTimeout(() => {
       setShutterStage('IRIS_DARK');
     }, 1900);
 
-    // 3.1s: Option 1 horizontal beam / Option 2 shutter blades open into vortex
+    // 3.1s: Shutter open / ripple expand
     const tOpenStage1 = setTimeout(() => {
       setShutterStage('OPEN_VORTEX');
     }, 3100);
@@ -1179,35 +1219,38 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       setEmblemVisible(false);
     }, 4200);
 
-    // 4.4s: Enter Stage 2 (Option 1: Ribbon Beam / Option 2: Magnetic Vortex)
+    // 4.4s: Stage 2 Enters + Start Harmonic Tension Riser SFX
     const tStormIn = setTimeout(() => {
       setStagePhase('STAGE_2');
+      playRevealTensionRiser();
       setTimeout(() => setStormVisible(true), 60);
     }, 4400);
 
-    // 5.4s: Option 1 erupts into vertical seismograph spikes
+    // 5.4s: Option 1 Seismograph burst
     const tSpikeBurst = setTimeout(() => {
       setWaveSubStage('SPIKE_BURST');
     }, 5400);
 
-    // 7.4s: Option 1 letters tumble & compress into beam / Option 2 ignites bright white-cyan core flare
+    // 7.4s: Compression & Core Flare
     const tClimaxFlare = setTimeout(() => {
       setWaveSubStage('LETTER_COMPRESS');
       setVortexFlare(true);
     }, 7400);
 
-    // 9.0s: Fade out Stage 2 completely so NOTHING obstructs the single name
+    // 9.0s: Total Silence (Duck all audio in anticipation of impact)
     const tStormOut = setTimeout(() => {
       setStormVisible(false);
+      stopActiveSynthNodes();
     }, 9000);
 
-    // 9.6s: Pure black screen — single thought-of name converges
+    // 9.6s: Single Name Converges + Convergence Impact SFX & Sub-Drop
     const tConverge = setTimeout(() => {
       setStagePhase('CONVERGE');
+      playRevealConvergenceImpact();
       setTimeout(() => setConvergeActive(true), 60);
     }, 9600);
 
-    // 10.9s: Single name locked in place
+    // 10.9s: Name Locked
     const tLocked = setTimeout(() => {
       setStagePhase('LOCKED');
     }, 10900);
@@ -1256,6 +1299,12 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       if (val) setRevealTheme(String(val));
     });
 
+    const sfxRef = ref(db, `${roomID}/sfxEnabled`);
+    const unsubSfx = onValue(sfxRef, (snapshot) => {
+      const val = snapshot.val();
+      setSfxEnabled(val === null ? true : Boolean(val));
+    });
+
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
@@ -1277,11 +1326,13 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       clearTimeout(uiTimer);
       clearTimeout(thumbHoldTimerRef.current);
       clearPhaseTimeouts();
+      stopActiveSynthNodes();
       unsubFeedback();
       unsubCommand();
       unsubText();
       unsubHoldUp();
       unsubTheme();
+      unsubSfx();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
       if (silentAudioRef.current) {
@@ -1305,6 +1356,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     
     if (baseCmd === 'PHASE_1_RESET') {
       clearPhaseTimeouts();
+      stopActiveSynthNodes();
       applyTorch(false);
       setThumbFocused(false);
       setEmblemVisible(false);
@@ -1367,6 +1419,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     } else if (baseCmd === 'REDIRECT') {
       isRedirectingRef.current = true;
       clearPhaseTimeouts();
+      stopActiveSynthNodes();
       clearTimeout(timerRef.current);
       setIsFlashing(false);
 
@@ -1727,9 +1780,13 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [activePhase, setActivePhase] = useState('PHASE_1');
 
-  // LIVE THEME STATE (Option 1 vs Option 2)
+  // LIVE THEME & SFX STATES
   const [revealTheme, setRevealTheme] = useState(() => localStorage.getItem('magicRevealStyle') || 'RIPPLE_WAVE');
   const revealThemeRef = useRef(revealTheme);
+  const [sfxEnabled, setSfxEnabled] = useState(() => {
+    const saved = localStorage.getItem('magicSfxEnabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
 
   // PALM-LOCK DOUBLE-TAP STATES (Starts LOCKED by default)
   const [isCuesTouchLocked, setIsCuesTouchLocked] = useState(true);
@@ -1837,12 +1894,17 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     } catch (e) {}
   }, [roomID]);
 
-  // Sync Theme to LocalStorage & Firebase
+  // Sync Theme & SFX to LocalStorage & Firebase
   useEffect(() => {
     revealThemeRef.current = revealTheme;
     localStorage.setItem('magicRevealStyle', revealTheme);
     set(ref(db, `${roomID}/revealStyle`), revealTheme).catch(() => {});
   }, [revealTheme, roomID]);
+
+  useEffect(() => {
+    localStorage.setItem('magicSfxEnabled', JSON.stringify(sfxEnabled));
+    set(ref(db, `${roomID}/sfxEnabled`), sfxEnabled).catch(() => {});
+  }, [sfxEnabled, roomID]);
 
   useEffect(() => {
     const textRef = ref(db, `${roomID}/buttonText`);
@@ -2136,7 +2198,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     clearMasterPhaseTimeouts();
     setMasterEmblemVisible(false);
     setMasterShutterStage('CLOSED_WHITE');
-    setMasterStormVisible(false);
     setMasterWaveSubStage('RIBBON_BEAM');
     setMasterVortexFlare(false);
     setMasterConvergeActive(false);
@@ -2740,16 +2801,16 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             </div>
             <button 
               onClick={() => setIsInjectSyncing(!isInjectSyncing)}
-              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
+              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
             >
               {isInjectSyncing ? 'SYNCING' : 'AUTO-SYNC'}
             </button>
           </div>
 
-          {/* DUAL THEME SELECTOR: OPTION 1 & OPTION 2 */}
-          <div className="flex flex-col w-full">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1.5">
-              Climax Reveal Theme ({revealTheme === 'APERTURE_VORTEX' ? 'OPTION 2: APERTURE' : 'OPTION 1: RIPPLE'})
+          {/* DUAL THEME SELECTOR + SFX TOGGLE */}
+          <div className="flex flex-col w-full space-y-2">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+              Reveal Theme & Audio Control
             </label>
             <div className="grid grid-cols-2 gap-2">
               {REVEAL_THEMES.map((themeItem) => {
@@ -2770,6 +2831,20 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 );
               })}
             </div>
+
+            {/* LIVE AUDIENCE SFX TOGGLE */}
+            <button
+              type="button"
+              onClick={() => setSfxEnabled((prev) => !prev)}
+              className={`w-full py-2.5 px-3 rounded-lg border text-[10px] font-bold tracking-wider uppercase transition-colors flex items-center justify-between ${
+                sfxEnabled
+                  ? 'bg-cyan-950/60 border-cyan-500/80 text-cyan-200'
+                  : 'bg-zinc-950 border-zinc-800 text-zinc-500'
+              }`}
+            >
+              <span>🔊 AUDIENCE REVEAL SFX</span>
+              <span className="font-mono font-black">{sfxEnabled ? 'ENABLED' : 'MUTED'}</span>
+            </button>
           </div>
 
           <div className="w-full bg-black/50 border border-zinc-800 rounded-lg p-3 flex flex-col space-y-2">
@@ -2848,7 +2923,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </div>
         </div>
 
-        {/* 2. OPTION A STAGE PROGRESSION BAR */}
+        {/* 2. STAGE PROGRESSION BAR */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2 grid grid-cols-2 gap-2 shrink-0">
           <button
             onClick={resetToPhase1Pulse}
