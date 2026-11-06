@@ -422,7 +422,6 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             </filter>
           </defs>
 
-          {/* Outer Precision HUD & Degree Ticks */}
           <g
             className="transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
@@ -458,7 +457,6 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             })}
           </g>
 
-          {/* Swirling Fibrous Vortex Tunnel Underneath Blades */}
           <g
             clipPath="url(#shutterBarrelClip)"
             className="transition-opacity duration-700"
@@ -483,7 +481,6 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             </g>
           </g>
 
-          {/* Clipped 12-Blade Mechanical Iris */}
           <g clipPath="url(#shutterBarrelClip)">
             <g
               className="transition-all duration-900 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -566,7 +563,6 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
           />
         </svg>
 
-        {/* Center AL Emblem */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div
             className={`rounded-full flex items-center justify-center transition-all duration-700 ease-in-out ${
@@ -721,6 +717,91 @@ const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlar
 });
 
 // ==========================================
+// URL & GUARANTEED REDIRECT HELPERS
+// ==========================================
+const formatValidUrl = (rawUrl, fallbackUrl) => {
+  let clean = (rawUrl || fallbackUrl || '').trim();
+  if (!clean) return fallbackUrl;
+  if (!clean.startsWith('http') && !clean.includes('://')) {
+    clean = `https://${clean}`;
+  }
+  return clean;
+};
+
+// Arms both a 30-second live tab timer AND a one-time sessionStorage return trap
+const executeGuaranteedRedirect = (rawPrimaryUrl, rawFeedbackUrl, isAudience = true) => {
+  const finalPrimaryUrl = formatValidUrl(rawPrimaryUrl, DEFAULT_REDIRECT_URL);
+  const finalFeedbackUrl = formatValidUrl(rawFeedbackUrl, DEFAULT_FEEDBACK_URL);
+  const startTime = Date.now();
+
+  if (isAudience) {
+    try {
+      sessionStorage.setItem('pulseRedirectTimestamp', String(startTime));
+      sessionStorage.setItem('pulseFeedbackUrl', finalFeedbackUrl);
+    } catch (e) {}
+  }
+
+  let hasRedirectedToFeedback = false;
+
+  const goToFeedback = () => {
+    if (hasRedirectedToFeedback) return;
+    hasRedirectedToFeedback = true;
+    try {
+      sessionStorage.removeItem('pulseRedirectTimestamp');
+      sessionStorage.removeItem('pulseFeedbackUrl');
+    } catch (e) {}
+    window.location.replace(finalFeedbackUrl);
+  };
+
+  const timerId = setTimeout(goToFeedback, FEEDBACK_DELAY_MS);
+
+  const handleBrowserWake = () => {
+    if (document.visibilityState === 'visible') {
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= FEEDBACK_DELAY_MS) {
+        clearTimeout(timerId);
+        goToFeedback();
+      } else {
+        clearTimeout(timerId);
+        setTimeout(goToFeedback, FEEDBACK_DELAY_MS - elapsed);
+      }
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleBrowserWake);
+  window.addEventListener('pageshow', handleBrowserWake);
+  window.addEventListener('focus', handleBrowserWake);
+
+  window.location.href = finalPrimaryUrl;
+};
+
+// ==========================================
+// ROOT APP COMPONENT
+// ==========================================
+export default function App() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const [isMasterView, setIsMasterView] = useState(() => searchParams.has('master'));
+  const [skipEntryPrompt, setSkipEntryPrompt] = useState(false);
+  const roomID = searchParams.get('room') || 'v2-stage';
+
+  return isMasterView ? (
+    <ControlView 
+      roomID={roomID} 
+      onSwitchToHeartbeatView={() => {
+        setSkipEntryPrompt(true);
+        setIsMasterView(false);
+      }}
+    />
+  ) : (
+    <AudienceView 
+      roomID={roomID} 
+      skipEntryPrompt={skipEntryPrompt}
+      onEnterMaster={() => setIsMasterView(true)}
+    />
+  );
+}
+
+// ==========================================
 // AUDIENCE VIEW COMPONENT
 // ==========================================
 function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
@@ -733,6 +814,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [revealWord, setRevealWord] = useState('');
   const [revealTheme, setRevealTheme] = useState('RIPPLE_WAVE');
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const sfxEnabledRef = useRef(true);
   const [holdUpPromptActive, setHoldUpPromptActive] = useState(true);
   const [uiReady, setUiReady] = useState(false);
 
@@ -910,7 +992,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   // PROCEDURAL WEB AUDIO SYNTH FOR REVEAL SFX
   // ==========================================
   const playRevealSubDrone = () => {
-    if (!sfxEnabled || isRedirectingRef.current) return;
+    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
@@ -954,7 +1036,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   const playRevealTensionRiser = () => {
-    if (!sfxEnabled || isRedirectingRef.current) return;
+    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
@@ -1000,7 +1082,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   const playRevealConvergenceImpact = () => {
-    if (!sfxEnabled || isRedirectingRef.current) return;
+    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
@@ -1204,7 +1286,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     playRevealSubDrone();
     const tEmblemIn = setTimeout(() => setEmblemVisible(true), 80);
 
-    // 1.8s: Stage 1 sub-transition
+    // 1.9s: Stage 1 sub-transition
     const tMidStage1 = setTimeout(() => {
       setShutterStage('IRIS_DARK');
     }, 1900);
@@ -1302,7 +1384,10 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     const sfxRef = ref(db, `${roomID}/sfxEnabled`);
     const unsubSfx = onValue(sfxRef, (snapshot) => {
       const val = snapshot.val();
-      setSfxEnabled(val === null ? true : Boolean(val));
+      const enabled = val === null ? true : Boolean(val);
+      setSfxEnabled(enabled);
+      sfxEnabledRef.current = enabled;
+      if (!enabled) stopActiveSynthNodes();
     });
 
     const commandRef = ref(db, `${roomID}/audienceCommand`);
@@ -2198,6 +2283,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     clearMasterPhaseTimeouts();
     setMasterEmblemVisible(false);
     setMasterShutterStage('CLOSED_WHITE');
+    setMasterStormVisible(false);
     setMasterWaveSubStage('RIBBON_BEAM');
     setMasterVortexFlare(false);
     setMasterConvergeActive(false);
