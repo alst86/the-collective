@@ -18,21 +18,59 @@ const EMOTIONAL_TUNING_PROMPTS = [
   "EVERY HEARTBEAT TELLS A STORY"
 ];
 
-// Exact Custom AL Geometric Monogram Logo (Supports Dark & Light Modes)
-function BrandLogoSVG({ className = "w-14 h-14", color = "#000000" }) {
+// Curated 2 3D Holographic Themes
+const REVEAL_THEMES = [
+  { id: 'RIPPLE_WAVE', label: '〰️ Option 1: Resonance Ripple', short: 'HOLO RIPPLE' },
+  { id: 'APERTURE_VORTEX', label: '◎ Option 2: Focus Aperture', short: 'HOLO APERTURE' }
+];
+
+// 3D Holographic AL Monogram Medallion (Neon Cyan & Burnished Gold)
+function BrandLogoSVG({ className = "w-14 h-14", glowMode = "cyanGold" }) {
   const clipId = useMemo(() => `alClip_${Math.random().toString(36).slice(2, 8)}`, []);
+  const strokeColor = glowMode === "gold" ? "#ffd700" : "#00f0ff";
+  const fillColor = glowMode === "gold" ? "#ffec8b" : "#e0ffff";
+
   return (
     <svg viewBox="0 0 200 200" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <clipPath id={clipId}>
           <circle cx="100" cy="100" r="84" />
         </clipPath>
+        <filter id="logoBloom" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="3.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
-      <circle cx="100" cy="100" r="84" stroke={color} strokeWidth="17" />
+      <circle 
+        cx="100" 
+        cy="100" 
+        r="84" 
+        stroke={strokeColor} 
+        strokeWidth="16" 
+        filter="url(#logoBloom)"
+        strokeOpacity="0.95"
+      />
+      <circle 
+        cx="100" 
+        cy="100" 
+        r="84" 
+        stroke="#ffffff" 
+        strokeWidth="3" 
+        strokeOpacity="0.8"
+      />
       <g clipPath={`url(#${clipId})`}>
         <path
           d="M 20 115 L 109 26 L 109 152 L 178 152 L 178 169 L 92 169 L 92 67 L 26 133 Z"
-          fill={color}
+          fill={fillColor}
+          filter="url(#logoBloom)"
+        />
+        <path
+          d="M 20 115 L 109 26 L 109 152 L 178 152 L 178 169 L 92 169 L 92 67 L 26 133 Z"
+          fill="#ffffff"
+          fillOpacity="0.85"
         />
       </g>
     </svg>
@@ -40,11 +78,198 @@ function BrandLogoSVG({ className = "w-14 h-14", color = "#000000" }) {
 }
 
 // ==========================================
-// STAGE 1: 100% MATCH MECHANICAL SHUTTER IRIS (0:00 - 0:04)
+// OPTION 1: 3D HOLOGRAPHIC RESONANCE RIPPLE (STAGE 1)
 // ==========================================
-const MechanicalShutterIris = React.memo(function MechanicalShutterIris({
-  shutterStage, // 'CLOSED_WHITE' (0-2.2s) -> 'IRIS_DARK' (2.2-3.6s) -> 'OPEN_VORTEX' (3.6-4.6s)
-}) {
+const HolographicResonanceRipple = React.memo(function HolographicResonanceRipple() {
+  const waves = [0, 0.45, 1.25, 1.7, 2.5, 2.95];
+  const rays = useMemo(() => Array.from({ length: 16 }).map((_, i) => i * 22.5), []);
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden bg-black select-none">
+      {/* 3D Hologram Volumetric Cyan/Gold Core Fog */}
+      <div 
+        className="absolute w-[115vmax] h-[115vmax] rounded-full pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle at center, rgba(0,240,255,0.18) 0%, rgba(255,215,0,0.12) 26%, rgba(0,120,255,0.04) 52%, transparent 72%)',
+          animation: 'sonarCoreBreathe 2.4s ease-in-out infinite'
+        }}
+      />
+
+      {/* Holographic 3D Grid Scanline Grid */}
+      <div 
+        className="absolute inset-0 opacity-20 pointer-events-none"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(0,240,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,215,0,0.1) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+          maskImage: 'radial-gradient(circle, black 30%, transparent 70%)'
+        }}
+      />
+
+      {/* Optical Rangefinder Vectors & Radar HUD */}
+      <svg viewBox="-500 -500 1000 1000" className="absolute w-[115vmin] h-[115vmin] overflow-visible">
+        <defs>
+          <filter id="holoGlowCyan" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* Counter-Rotating Cyan Range Rings */}
+        <g style={{ animation: 'vortexSpinCounter 24s linear infinite' }}>
+          <circle cx="0" cy="0" r="160" fill="none" stroke="#00f0ff" strokeWidth="1" strokeOpacity="0.45" strokeDasharray="4 10" />
+          <circle cx="0" cy="0" r="280" fill="none" stroke="#ffd700" strokeWidth="1" strokeOpacity="0.5" strokeDasharray="3 14" />
+          <circle cx="0" cy="0" r="410" fill="none" stroke="#00f0ff" strokeWidth="0.8" strokeOpacity="0.3" strokeDasharray="80 20 10 20" />
+        </g>
+
+        {/* 16 Radial Holographic Acoustic Projection Rays */}
+        {rays.map((deg) => {
+          const isMajor = deg % 45 === 0;
+          const rad = (deg * Math.PI) / 180;
+          return (
+            <line
+              key={deg}
+              x1={(120 * Math.cos(rad)).toFixed(1)}
+              y1={(120 * Math.sin(rad)).toFixed(1)}
+              x2={(460 * Math.cos(rad)).toFixed(1)}
+              y2={(460 * Math.sin(rad)).toFixed(1)}
+              stroke={isMajor ? "#ffd700" : "#00f0ff"}
+              strokeOpacity={isMajor ? "0.35" : "0.15"}
+              strokeWidth={isMajor ? "1.2" : "0.75"}
+            />
+          );
+        })}
+      </svg>
+
+      {/* Pulsing Concentric Neon Cyan / Gold Shockwaves */}
+      {waves.map((delay, idx) => {
+        const isGoldWave = idx % 2 === 1;
+        return (
+          <div
+            key={idx}
+            className="absolute w-40 h-40 rounded-full pointer-events-none will-change-transform"
+            style={{
+              border: isGoldWave 
+                ? '2px solid rgba(255, 215, 0, 0.85)' 
+                : '2px solid rgba(0, 240, 255, 0.95)',
+              boxShadow: isGoldWave
+                ? '0 0 35px rgba(255, 215, 0, 0.45), inset 0 0 20px rgba(255, 215, 0, 0.25)'
+                : '0 0 45px rgba(0, 240, 255, 0.55), inset 0 0 25px rgba(0, 240, 255, 0.35)',
+              animation: 'organicSonarWave 3.6s cubic-bezier(0.16, 0.84, 0.44, 1) infinite',
+              animationDelay: `${delay}s`,
+              opacity: 0,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+});
+
+// ==========================================
+// OPTION 1: 3D HOLOGRAPHIC SOUNDWAVE LETTERS (STAGE 2)
+// ==========================================
+const HolographicSoundwaveLetters = React.memo(function HolographicSoundwaveLetters({ particles }) {
+  const bars = useMemo(() => Array.from({ length: 48 }).map((_, i) => ({
+    id: i,
+    delay: `${(i * 0.06).toFixed(2)}s`,
+    maxH: 30 + Math.sin((i / 48) * Math.PI) * 155,
+    isGold: i % 3 === 0
+  })), []);
+
+  return (
+    <div className="relative w-full h-full min-h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none pointer-events-none">
+      {/* Horizontal Hologram Light Beam Horizon */}
+      <div
+        className="absolute inset-x-0 h-64 pointer-events-none"
+        style={{
+          background: 'linear-gradient(180deg, transparent 0%, rgba(0,240,255,0.08) 30%, rgba(255,215,0,0.18) 50%, rgba(0,240,255,0.08) 70%, transparent 100%)'
+        }}
+      />
+
+      {/* Volumetric Neon Sine Waveforms */}
+      <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-x-0 w-full h-72 opacity-65">
+        <defs>
+          <filter id="waveGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <path
+          d="M 0 150 Q 125 30, 250 150 T 500 150 T 750 150 T 1000 150"
+          fill="none"
+          stroke="#00f0ff"
+          strokeWidth="2.5"
+          filter="url(#waveGlow)"
+          style={{ animation: 'soundwaveMorph 1.1s ease-in-out infinite alternate' }}
+        />
+        <path
+          d="M 0 150 Q 125 250, 250 150 T 500 150 T 750 150 T 1000 150"
+          fill="none"
+          stroke="#ffd700"
+          strokeWidth="2"
+          strokeOpacity="0.85"
+          filter="url(#waveGlow)"
+          style={{ animation: 'soundwaveMorph 0.85s ease-in-out infinite alternate-reverse' }}
+        />
+        <line x1="0" y1="150" x2="1000" y2="150" stroke="#00f0ff" strokeWidth="1" strokeOpacity="0.45" strokeDasharray="6 8" />
+      </svg>
+
+      {/* Holographic Equalizer Matrix Filaments */}
+      <div className="absolute inset-x-0 flex items-center justify-between px-3 opacity-40">
+        {bars.map((b) => (
+          <div
+            key={b.id}
+            className="w-[2px] rounded-full"
+            style={{
+              height: `${b.maxH}px`,
+              backgroundColor: b.isGold ? '#ffd700' : '#00f0ff',
+              boxShadow: b.isGold ? '0 0 12px #ffd700' : '0 0 12px #00f0ff',
+              animation: 'frequencyBarPulse 0.65s ease-in-out infinite alternate',
+              animationDelay: b.delay
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Shimmering Holographic Typographic Fragments */}
+      {particles.map((p, i) => {
+        const bandTop = 28 + ((i * 13) % 44);
+        const isGold = i % 2 === 0;
+        return (
+          <span
+            key={p.id}
+            style={{
+              left: p.left,
+              top: `${bandTop}%`,
+              fontSize: p.size,
+              color: isGold ? '#fff8dc' : '#e0ffff',
+              '--amp': `${(i % 2 === 0 ? -1 : 1) * (18 + (i % 5) * 12)}px`,
+              animation: `shimmerSoundwaveChar ${0.55 + (i % 5) * 0.14}s ease-in-out infinite alternate`,
+              animationDelay: `${(i % 7) * 0.08}s`,
+              textShadow: isGold 
+                ? '0 0 12px rgba(255,215,0,0.95), 0 0 25px rgba(255,215,0,0.5)'
+                : '0 0 12px rgba(0,240,255,0.95), 0 0 25px rgba(0,240,255,0.5)'
+            }}
+            className="absolute font-mono font-bold select-none pointer-events-none"
+          >
+            {p.char}
+          </span>
+        );
+      })}
+    </div>
+  );
+});
+
+// ==========================================
+// OPTION 2: 3D HOLOGRAPHIC FOCUS APERTURE (STAGE 1)
+// ==========================================
+const HolographicFocusAperture = React.memo(function HolographicFocusAperture({ shutterStage }) {
   const tickAngles = useMemo(() => Array.from({ length: 72 }).map((_, i) => i * 5), []);
   const bladeAngles = useMemo(() => Array.from({ length: 12 }).map((_, i) => i * 30), []);
 
@@ -53,51 +278,50 @@ const MechanicalShutterIris = React.memo(function MechanicalShutterIris({
 
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden bg-black select-none">
-      {/* Subtle Radial Vignette */}
+      {/* Volumetric Hologram Cyan Core Vignette */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(circle at center, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.92) 68%, #000000 100%)'
+          background: 'radial-gradient(circle at center, rgba(0,240,255,0.12) 0%, rgba(255,215,0,0.06) 35%, rgba(0,0,0,0.92) 68%, #000000 100%)'
         }}
       />
 
       <div className="relative flex items-center justify-center w-[96vmin] h-[96vmin] max-w-[520px] max-h-[520px]">
         <svg viewBox="-500 -500 1000 1000" className="w-full h-full overflow-visible">
           <defs>
-            {/* Circular Clip Path so the 12 Shutter Blades stay cleanly inside the lens housing */}
-            <clipPath id="shutterBarrelClip">
+            <clipPath id="shutterHoloBarrelClip">
               <circle cx="0" cy="0" r="248" />
             </clipPath>
 
-            {/* Realistic Brushed Metallic Blade Gradient */}
-            <linearGradient id="shutterBladeMetallic" x1="0%" y1="0%" x2="100%" y2="85%">
-              <stop offset="0%" stopColor="#b8b8c0" stopOpacity="0.92" />
-              <stop offset="38%" stopColor="#6c6c74" stopOpacity="0.88" />
-              <stop offset="75%" stopColor="#2c2c32" stopOpacity="0.95" />
-              <stop offset="100%" stopColor="#121215" stopOpacity="0.98" />
+            {/* 3D Brushed Gold & Cyan Titanium Shutter Blade Gradient */}
+            <linearGradient id="bladeHoloGrad" x1="0%" y1="0%" x2="100%" y2="85%">
+              <stop offset="0%" stopColor="#ffd700" stopOpacity="0.9" />
+              <stop offset="35%" stopColor="#b8860b" stopOpacity="0.8" />
+              <stop offset="70%" stopColor="#003844" stopOpacity="0.92" />
+              <stop offset="100%" stopColor="#00141a" stopOpacity="0.98" />
             </linearGradient>
 
-            {/* Glowing Rim Sweep Gradient */}
-            <linearGradient id="rimSweepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-              <stop offset="35%" stopColor="#ffffff" stopOpacity="0.45" />
-              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            {/* Neon Cyan to Gold Sweep Arc Gradient */}
+            <linearGradient id="neonSweepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#00f0ff" stopOpacity="1" />
+              <stop offset="45%" stopColor="#ffd700" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#00f0ff" stopOpacity="0" />
             </linearGradient>
 
-            <filter id="bladeDropShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="-3" dy="4" stdDeviation="5" floodColor="#000000" floodOpacity="0.92" />
-            </filter>
-
-            <filter id="rimGlowFilter" x="-30%" y="-30%" width="160%" height="160%">
+            <filter id="holoGlow" x="-30%" y="-30%" width="160%" height="160%">
               <feGaussianBlur stdDeviation="5" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+
+            <filter id="bladeShadow3D" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="-3" dy="5" stdDeviation="6" floodColor="#000000" floodOpacity="0.95" />
+            </filter>
           </defs>
 
-          {/* OUTER HUD & TICK RINGS (Expands outward at 0:04 when shutter opens) */}
+          {/* 3D HOLOGRAPHIC OUTER HUD & DEGREE TICKS */}
           <g
             className="transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
@@ -105,43 +329,42 @@ const MechanicalShutterIris = React.memo(function MechanicalShutterIris({
               opacity: isOpening ? 0.72 : 1,
             }}
           >
-            {/* Outermost Thin Guide Circle */}
-            <circle cx="0" cy="0" r="425" fill="none" stroke="#ffffff" strokeOpacity="0.42" strokeWidth="1.2" />
+            {/* Outermost Gold Guide Circle */}
+            <circle cx="0" cy="0" r="425" fill="none" stroke="#ffd700" strokeOpacity="0.5" strokeWidth="1.2" />
 
-            {/* 4 Cardinal Axis Lines extending inward from the outer circle */}
-            <line x1="0" y1="-425" x2="0" y2="-362" stroke="#ffffff" strokeOpacity="0.65" strokeWidth="1.5" />
-            <line x1="0" y1="362" x2="0" y2="425" stroke="#ffffff" strokeOpacity="0.65" strokeWidth="1.5" />
-            <line x1="-425" y1="0" x2="-362" y2="0" stroke="#ffffff" strokeOpacity="0.65" strokeWidth="1.5" />
-            <line x1="362" y1="0" x2="425" y2="0" stroke="#ffffff" strokeOpacity="0.65" strokeWidth="1.5" />
+            {/* 4 Cardinal Axis Crosshair Vectors (Neon Blue) */}
+            <line x1="0" y1="-425" x2="0" y2="-362" stroke="#00f0ff" strokeOpacity="0.85" strokeWidth="2" filter="url(#holoGlow)" />
+            <line x1="0" y1="362" x2="0" y2="425" stroke="#00f0ff" strokeOpacity="0.85" strokeWidth="2" filter="url(#holoGlow)" />
+            <line x1="-425" y1="0" x2="-362" y2="0" stroke="#00f0ff" strokeOpacity="0.85" strokeWidth="2" filter="url(#holoGlow)" />
+            <line x1="362" y1="0" x2="425" y2="0" stroke="#00f0ff" strokeOpacity="0.85" strokeWidth="2" filter="url(#holoGlow)" />
 
-            {/* Radial Graduation Tick Marks Ring */}
-            {tickAngles.map((deg) => {
-              const isCardinal = deg % 90 === 0;
-              const isMajor = deg % 30 === 0;
-              const r1 = isCardinal ? 292 : isMajor ? 298 : 304;
-              const r2 = isCardinal ? 338 : isMajor ? 324 : 316;
-              const rad = (deg * Math.PI) / 180;
-              return (
-                <line
-                  key={deg}
-                  x1={(r1 * Math.cos(rad)).toFixed(1)}
-                  y1={(r1 * Math.sin(rad)).toFixed(1)}
-                  x2={(r2 * Math.cos(rad)).toFixed(1)}
-                  y2={(r2 * Math.sin(rad)).toFixed(1)}
-                  stroke="#ffffff"
-                  strokeOpacity={isCardinal ? '0.9' : isMajor ? '0.6' : '0.28'}
-                  strokeWidth={isCardinal ? '2.2' : isMajor ? '1.4' : '0.9'}
-                />
-              );
-            })}
+            {/* Radial Ticks Ring */}
+            <g>
+              <circle cx="0" cy="0" r="310" fill="none" stroke="#00f0ff" strokeOpacity="0.35" strokeWidth="0.75" />
+              {tickAngles.map((deg) => {
+                const isCardinal = deg % 90 === 0;
+                const isMajor = deg % 30 === 0;
+                const r1 = isCardinal ? 288 : isMajor ? 296 : 304;
+                const r2 = isCardinal ? 338 : isMajor ? 324 : 316;
+                const rad = (deg * Math.PI) / 180;
+                return (
+                  <line
+                    key={deg}
+                    x1={(r1 * Math.cos(rad)).toFixed(1)}
+                    y1={(r1 * Math.sin(rad)).toFixed(1)}
+                    x2={(r2 * Math.cos(rad)).toFixed(1)}
+                    y2={(r2 * Math.sin(rad)).toFixed(1)}
+                    stroke={isCardinal ? '#ffd700' : '#00f0ff'}
+                    strokeOpacity={isCardinal ? '0.95' : isMajor ? '0.7' : '0.35'}
+                    strokeWidth={isCardinal ? '2.4' : isMajor ? '1.5' : '0.9'}
+                  />
+                );
+              })}
+            </g>
           </g>
 
-          {/* DARK SWIRLING VORTEX TUNNEL UNDERNEATH THE BLADES (Revealed at 0:04) */}
-          <g
-            clipPath="url(#shutterBarrelClip)"
-            className="transition-opacity duration-700"
-            style={{ opacity: isOpening ? 1 : 0 }}
-          >
+          {/* VORTEX TUNNEL PREVIEW UNDER BLADES */}
+          <g clipPath="url(#shutterHoloBarrelClip)" style={{ opacity: isOpening ? 1 : 0 }} className="transition-opacity duration-700">
             <g style={{ animation: 'vortexSpinClockwise 6s linear infinite' }}>
               {[75, 110, 145, 180, 215, 240].map((r, i) => (
                 <ellipse
@@ -152,23 +375,18 @@ const MechanicalShutterIris = React.memo(function MechanicalShutterIris({
                   ry={Math.round(r * 0.9)}
                   transform={`rotate(${i * 30})`}
                   fill="none"
-                  stroke="#ffffff"
-                  strokeWidth={i % 2 === 0 ? "1.4" : "0.8"}
-                  strokeOpacity={0.14 + (i % 3) * 0.08}
+                  stroke={i % 2 === 0 ? "#00f0ff" : "#ffd700"}
+                  strokeWidth={i % 2 === 0 ? "1.8" : "1"}
+                  strokeOpacity={0.25 + (i % 3) * 0.12}
                   strokeDasharray={`${60 + i * 25} ${35 + i * 15}`}
                 />
               ))}
             </g>
           </g>
 
-          {/* CLIPPED 12-BLADE MECHANICAL IRIS */}
-          <g clipPath="url(#shutterBarrelClip)">
-            <g
-              className="transition-all duration-900 ease-[cubic-bezier(0.22,1,0.36,1)]"
-              style={{
-                animation: !isOpening ? 'shutterSubtlePulse 2.2s ease-in-out infinite' : 'none',
-              }}
-            >
+          {/* 12 METALLIC GOLD / TITANIUM IRIS BLADES */}
+          <g clipPath="url(#shutterHoloBarrelClip)">
+            <g style={{ animation: !isOpening ? 'shutterSubtlePulse 2.2s ease-in-out infinite' : 'none' }}>
               {bladeAngles.map((deg) => (
                 <g key={deg} transform={`rotate(${deg})`}>
                   <g
@@ -181,21 +399,20 @@ const MechanicalShutterIris = React.memo(function MechanicalShutterIris({
                           : 'translate(0px, 0px) rotate(0deg)',
                     }}
                   >
-                    {/* Curved Lens Shutter Blade */}
                     <path
                       d="M 58 -38 C 120 -130, 225 -155, 290 -65 L 290 85 C 205 60, 115 25, 58 -38 Z"
-                      fill="url(#shutterBladeMetallic)"
-                      stroke="#0a0a0d"
-                      strokeWidth="1.5"
-                      filter="url(#bladeDropShadow)"
+                      fill="url(#bladeHoloGrad)"
+                      stroke="#00f0ff"
+                      strokeWidth="1.2"
+                      strokeOpacity="0.4"
+                      filter="url(#bladeShadow3D)"
                     />
-                    {/* Specular Blade Edge Highlight */}
                     <path
                       d="M 62 -36 C 122 -122, 215 -145, 275 -65"
                       fill="none"
-                      stroke="#ffffff"
-                      strokeOpacity="0.38"
-                      strokeWidth="1"
+                      stroke="#ffd700"
+                      strokeOpacity="0.65"
+                      strokeWidth="1.2"
                     />
                   </g>
                 </g>
@@ -203,67 +420,41 @@ const MechanicalShutterIris = React.memo(function MechanicalShutterIris({
             </g>
           </g>
 
-          {/* SHUTTER BARREL METALLIC DOUBLE RIM */}
-          <circle
-            cx="0"
-            cy="0"
-            r="250"
-            fill="none"
-            stroke="#ffffff"
-            strokeOpacity={isOpening ? "0.35" : "0.65"}
-            strokeWidth="2"
-            className="transition-all duration-700"
-          />
-          <circle
-            cx="0"
-            cy="0"
-            r="260"
-            fill="none"
-            stroke="#ffffff"
-            strokeOpacity="0.28"
-            strokeWidth="1"
-          />
+          {/* DUAL METALLIC RIM RINGS */}
+          <circle cx="0" cy="0" r="250" fill="none" stroke="#00f0ff" strokeOpacity="0.8" strokeWidth="2.5" filter="url(#holoGlow)" />
+          <circle cx="0" cy="0" r="260" fill="none" stroke="#ffd700" strokeOpacity="0.6" strokeWidth="1.2" />
 
-          {/* Thin Concentric Inner Rings (Visible at 0:04 when blades open) */}
-          <g
-            className="transition-opacity duration-700"
-            style={{ opacity: isOpening ? 0.65 : 0 }}
-          >
-            <circle cx="0" cy="0" r="175" fill="none" stroke="#ffffff" strokeWidth="1" strokeOpacity="0.5" />
-            <circle cx="0" cy="0" r="205" fill="none" stroke="#ffffff" strokeWidth="0.8" strokeOpacity="0.35" />
-          </g>
-
-          {/* SWEEPING WHITE RIM LIGHT ARC (Matches 0:02 - 0:03) */}
+          {/* 360-DEGREE SWEEPING LASER BEAM */}
           <circle
             cx="0"
             cy="0"
             r="255"
             fill="none"
-            stroke="url(#rimSweepGrad)"
-            strokeWidth="4.5"
-            strokeDasharray="130 480"
+            stroke="url(#neonSweepGrad)"
+            strokeWidth="5"
+            strokeDasharray="140 480"
             strokeLinecap="round"
-            filter="url(#rimGlowFilter)"
+            filter="url(#holoGlow)"
             style={{
-              opacity: isOpening ? 0 : 0.95,
+              opacity: isOpening ? 0 : 1,
               animation: 'rimLightOrbit 2.4s linear infinite',
               transition: 'opacity 0.5s ease'
             }}
           />
         </svg>
 
-        {/* CENTER AL EMBLEM: Transitions from Solid White Badge (0:00-0:02) to Dark Core White Monogram (0:03-0:04) */}
+        {/* CENTER 3D MEDALLION (Solid White Gold in 0-2.2s -> Deep Cyan Void in 2.2s+) */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div
             className={`rounded-full flex items-center justify-center transition-all duration-700 ease-in-out ${
               isDarkCore
-                ? 'w-24 h-24 bg-black/75 shadow-[0_0_30px_rgba(0,0,0,0.9)] scale-90'
-                : 'w-[22.5vmin] h-[22.5vmin] max-w-[122px] max-h-[122px] bg-white shadow-[0_0_35px_rgba(255,255,255,0.65)] scale-100'
+                ? 'w-24 h-24 bg-black/85 border border-cyan-400/60 shadow-[0_0_35px_rgba(0,240,255,0.7)] scale-90'
+                : 'w-[22.5vmin] h-[22.5vmin] max-w-[122px] max-h-[122px] bg-gradient-to-br from-white via-amber-50 to-amber-100 shadow-[0_0_45px_rgba(255,215,0,0.8)] scale-100'
             }`}
           >
             <BrandLogoSVG
               className="w-11 h-11 sm:w-12 sm:h-12 transition-transform duration-700"
-              color={isDarkCore ? '#ffffff' : '#000000'}
+              glowMode={isDarkCore ? "cyan" : "gold"}
             />
           </div>
         </div>
@@ -273,22 +464,22 @@ const MechanicalShutterIris = React.memo(function MechanicalShutterIris({
 });
 
 // ==========================================
-// STAGE 2: 100% MATCH MAGNETIC VORTEX LETTER STORM (0:04 - 0:07)
+// OPTION 2: 3D HOLOGRAPHIC MAGNETIC VORTEX (STAGE 2)
 // ==========================================
-const MagneticVortexStorm = React.memo(function MagneticVortexStorm() {
+const HolographicMagneticVortex = React.memo(function HolographicMagneticVortex() {
   const glyphPool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  // Concentric Spiral Letter Streams matching 0:05 - 0:06
   const vortexParticles = useMemo(() => {
     const items = [];
-    const total = 84;
+    const total = 88;
     for (let i = 0; i < total; i++) {
-      const progress = i / total; // 0 (inner) -> 1 (outer)
+      const progress = i / total;
       const angleDeg = (i * 47.5) % 360;
       const angleRad = (angleDeg * Math.PI) / 180;
-      const radiusVmin = 12 + Math.pow(progress, 1.12) * 39; // 12vmin to 51vmin
+      const radiusVmin = 12 + Math.pow(progress, 1.12) * 39;
       const char = glyphPool[(i * 7 + 3) % glyphPool.length];
       const tangRot = angleDeg + 90 + (i % 2 === 0 ? -12 : 12);
+      const isGold = i % 3 === 0;
 
       items.push({
         id: i,
@@ -296,8 +487,9 @@ const MagneticVortexStorm = React.memo(function MagneticVortexStorm() {
         angleRad,
         radiusVmin,
         tangRot,
-        sizeRem: 0.72 + progress * 0.75,
-        opacity: 0.35 + (1 - Math.abs(progress - 0.55)) * 0.6,
+        isGold,
+        sizeRem: 0.75 + progress * 0.8,
+        opacity: 0.4 + (1 - Math.abs(progress - 0.55)) * 0.6,
         pulseDelay: `${(i % 9) * 0.18}s`
       });
     }
@@ -306,61 +498,54 @@ const MagneticVortexStorm = React.memo(function MagneticVortexStorm() {
 
   return (
     <div className="relative w-full h-full min-h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none pointer-events-none">
-      {/* Dark Fibrous Swirling Vortex Rings */}
+      {/* 3D Cyan & Gold Gravitational Concentric Ripples */}
       <svg
         viewBox="-500 -500 1000 1000"
         className="absolute w-[125vmin] h-[125vmin] will-change-transform"
         style={{ animation: 'vortexSpinClockwise 9s linear infinite' }}
       >
-        {[75, 110, 148, 190, 235, 285, 340, 400, 460].map((r, idx) => (
-          <g key={idx} transform={`rotate(${idx * 25})`}>
-            <circle
-              cx="0"
-              cy="0"
-              r={r}
-              fill="none"
-              stroke="#ffffff"
-              strokeWidth={idx % 2 === 0 ? "1.6" : "0.9"}
-              strokeOpacity={0.14 + (idx % 3) * 0.1}
-              strokeDasharray={`${120 + idx * 35} ${45 + idx * 18}`}
-              strokeLinecap="round"
-            />
-            <ellipse
-              cx="0"
-              cy="0"
-              rx={r}
-              ry={Math.round(r * 0.93)}
-              fill="none"
-              stroke="#ffffff"
-              strokeWidth="3.5"
-              strokeOpacity="0.05"
-            />
-          </g>
-        ))}
+        <defs>
+          <filter id="vortexGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {[75, 110, 148, 190, 235, 285, 340, 400, 460].map((r, idx) => {
+          const isGold = idx % 2 === 1;
+          return (
+            <g key={idx} transform={`rotate(${idx * 25})`}>
+              <circle
+                cx="0"
+                cy="0"
+                r={r}
+                fill="none"
+                stroke={isGold ? "#ffd700" : "#00f0ff"}
+                strokeWidth={isGold ? "1.8" : "1.2"}
+                strokeOpacity={0.25 + (idx % 3) * 0.15}
+                strokeDasharray={`${120 + idx * 35} ${45 + idx * 18}`}
+                strokeLinecap="round"
+                filter="url(#vortexGlow)"
+              />
+              <ellipse
+                cx="0"
+                cy="0"
+                rx={r}
+                ry={Math.round(r * 0.93)}
+                fill="none"
+                stroke={isGold ? "#ffd700" : "#00f0ff"}
+                strokeWidth="2.5"
+                strokeOpacity="0.08"
+              />
+            </g>
+          );
+        })}
       </svg>
 
-      {/* Counter-Rotating Fine Ripple Filaments */}
-      <svg
-        viewBox="-500 -500 1000 1000"
-        className="absolute w-[115vmin] h-[115vmin] will-change-transform opacity-45"
-        style={{ animation: 'vortexSpinCounter 13s linear infinite' }}
-      >
-        {[125, 175, 225, 275, 330, 390].map((r, idx) => (
-          <circle
-            key={idx}
-            cx="0"
-            cy="0"
-            r={r}
-            fill="none"
-            stroke="#ffffff"
-            strokeWidth="0.85"
-            strokeOpacity="0.32"
-            strokeDasharray="70 90 25 60"
-          />
-        ))}
-      </svg>
-
-      {/* Swirling Orbital Letter Cloud */}
+      {/* Swirling Inward Hologram Letter Band */}
       <div
         className="absolute inset-0 flex items-center justify-center will-change-transform"
         style={{ animation: 'vortexLettersPull 5.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards' }}
@@ -374,11 +559,14 @@ const MagneticVortexStorm = React.memo(function MagneticVortexStorm() {
               style={{
                 transform: `translate(${x}vmin, ${y}vmin) rotate(${p.tangRot}deg)`,
                 fontSize: `${p.sizeRem}rem`,
+                color: p.isGold ? '#fff8dc' : '#e0ffff',
                 opacity: p.opacity,
-                textShadow: '0 0 10px rgba(255,255,255,0.75)',
+                textShadow: p.isGold 
+                  ? '0 0 12px rgba(255,215,0,0.9), 0 0 25px rgba(255,215,0,0.45)'
+                  : '0 0 12px rgba(0,240,255,0.9), 0 0 25px rgba(0,240,255,0.45)',
                 animationDelay: p.pulseDelay,
               }}
-              className="absolute font-sans font-bold text-white select-none pointer-events-none tracking-wider"
+              className="absolute font-sans font-black select-none pointer-events-none tracking-wider"
             >
               {p.char}
             </span>
@@ -386,14 +574,15 @@ const MagneticVortexStorm = React.memo(function MagneticVortexStorm() {
         })}
       </div>
 
-      {/* Center Dark-Core White AL Monogram (Matches 0:04 - 0:06) */}
-      <div className="relative z-10 w-20 h-20 rounded-full bg-black/85 shadow-[0_0_30px_rgba(0,0,0,0.95)] flex items-center justify-center">
-        <BrandLogoSVG className="w-11 h-11" color="#ffffff" />
+      {/* Central Holographic Medallion */}
+      <div className="relative z-10 w-22 h-22 rounded-full bg-black/85 border border-cyan-400/50 shadow-[0_0_40px_rgba(0,240,255,0.7)] flex items-center justify-center">
+        <BrandLogoSVG className="w-11 h-11" glowMode="cyan" />
       </div>
     </div>
   );
 });
 
+// Format URL helper
 const formatValidUrl = (rawUrl, fallbackUrl) => {
   let clean = (rawUrl || fallbackUrl || '').trim();
   if (!clean) return fallbackUrl;
@@ -484,6 +673,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [kickerWord, setKickerWord] = useState('');
   const kickerWordRef = useRef('');
   const [revealWord, setRevealWord] = useState('');
+  const [revealTheme, setRevealTheme] = useState('RIPPLE_WAVE');
   const [holdUpPromptActive, setHoldUpPromptActive] = useState(true);
   const [uiReady, setUiReady] = useState(false);
 
@@ -493,11 +683,11 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [thumbFocused, setThumbFocused] = useState(false);
   const thumbHoldTimerRef = useRef(null);
 
-  // STAGES: PULSE -> SHUTTER -> VORTEX -> CONVERGE -> LOCKED
+  // STAGES: PULSE -> STAGE_1 (0-4.5s) -> STAGE_2 (4.5-9.8s) -> CONVERGE (9.8-11s) -> LOCKED
   const [stagePhase, setStagePhase] = useState('PULSE');
-  const [shutterVisible, setShutterVisible] = useState(false);
-  const [shutterStage, setShutterStage] = useState('CLOSED_WHITE'); // 'CLOSED_WHITE' | 'IRIS_DARK' | 'OPEN_VORTEX'
-  const [vortexVisible, setVortexVisible] = useState(false);
+  const [emblemVisible, setEmblemVisible] = useState(false);
+  const [shutterStage, setShutterStage] = useState('CLOSED_WHITE');
+  const [stormVisible, setStormVisible] = useState(false);
   const [convergeActive, setConvergeActive] = useState(false);
   const phaseTimeoutsRef = useRef([]);
 
@@ -560,6 +750,18 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       };
     });
   }, [revealWord, kickerWord]);
+
+  const decoyParticles = useMemo(() => {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return Array.from({ length: 32 }).map((_, i) => ({
+      id: i,
+      char: alphabet[Math.floor(Math.random() * alphabet.length)],
+      left: `${6 + Math.floor(Math.random() * 84)}%`,
+      top: `${8 + Math.floor(Math.random() * 82)}%`,
+      size: `${1.4 + (i % 4) * 0.9}rem`,
+      opacity: 0.2 + (i % 5) * 0.18,
+    }));
+  }, []);
 
   useEffect(() => {
     const checkPendingFeedbackRedirect = () => {
@@ -777,66 +979,67 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     clearTimeout(thumbHoldTimerRef.current);
   };
 
-  // REVEAL TIMELINE MATCHING ATTACHED SHUTTER -> VORTEX -> CLEAN SINGLE NAME REVEAL
-  const runRevealSequence = (wordToReveal) => {
+  const runRevealSequence = (wordToReveal, incomingTheme) => {
     clearPhaseTimeouts();
     clearTimeout(timerRef.current);
     applyTorch(false);
 
+    if (incomingTheme) setRevealTheme(incomingTheme);
+
     const finalWord = (wordToReveal || kickerWordRef.current || 'JAMES').trim();
     setRevealWord(finalWord);
     setConvergeActive(false);
-    setShutterVisible(false);
+    setEmblemVisible(false);
     setShutterStage('CLOSED_WHITE');
-    setVortexVisible(false);
+    setStormVisible(false);
 
-    // 0.0s: Shutter Iris with White Center AL Medallion (0:00 - 0:02)
-    setStagePhase('SHUTTER');
-    const tIrisIn = setTimeout(() => setShutterVisible(true), 80);
+    // 0.0s: Stage 1 (Iris / Resonance Ripple)
+    setStagePhase('STAGE_1');
+    const tEmblemIn = setTimeout(() => setEmblemVisible(true), 80);
 
-    // 2.2s: Center white disc contracts to dark aperture core + white AL monogram (0:03)
+    // 2.2s: Iris darkens / Ripple deepens
     const tDarkCore = setTimeout(() => {
       setShutterStage('IRIS_DARK');
     }, 2200);
 
-    // 3.5s: Shutter blades twist wide open revealing dark vortex tunnel + outer HUD expands (0:04)
+    // 3.5s: Shutter snaps open / Ripple expands
     const tOpenIris = setTimeout(() => {
       setShutterStage('OPEN_VORTEX');
     }, 3500);
 
-    // 4.4s: Fade shutter assembly into full Magnetic Vortex Letter Storm (0:05 - 0:07)
-    const tShutterOut = setTimeout(() => {
-      setShutterVisible(false);
+    // 4.4s: Cut to Stage 2 (Vortex Letter Storm / Soundwave Letters)
+    const tEmblemOut = setTimeout(() => {
+      setEmblemVisible(false);
     }, 4350);
 
-    const tVortexIn = setTimeout(() => {
-      setStagePhase('VORTEX');
-      setTimeout(() => setVortexVisible(true), 60);
+    const tStormIn = setTimeout(() => {
+      setStagePhase('STAGE_2');
+      setTimeout(() => setStormVisible(true), 60);
     }, 4550);
 
-    // 9.1s: Fade out Vortex & Center AL Logo completely so NOTHING blocks the word reveal
-    const tVortexOut = setTimeout(() => {
-      setVortexVisible(false);
+    // 9.1s: Storm fades completely so NOTHING blocks the revealed name
+    const tStormOut = setTimeout(() => {
+      setStormVisible(false);
     }, 9100);
 
-    // 9.8s: Pure black screen — ONLY the single target name converges into center
+    // 9.8s: Clean convergence of the single name
     const tConverge = setTimeout(() => {
       setStagePhase('CONVERGE');
       setTimeout(() => setConvergeActive(true), 60);
     }, 9800);
 
-    // 11.1s: Single name locked in place
+    // 11.1s: Name locked
     const tLocked = setTimeout(() => {
       setStagePhase('LOCKED');
     }, 11100);
 
     phaseTimeoutsRef.current = [
-      tIrisIn,
+      tEmblemIn,
       tDarkCore,
       tOpenIris,
-      tShutterOut,
-      tVortexIn,
-      tVortexOut,
+      tEmblemOut,
+      tStormIn,
+      tStormOut,
       tConverge,
       tLocked
     ];
@@ -866,6 +1069,12 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       setHoldUpPromptActive(val === null ? true : Boolean(val));
     });
 
+    const themeRef = ref(db, `${roomID}/revealStyle`);
+    const unsubTheme = onValue(themeRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) setRevealTheme(String(val));
+    });
+
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
@@ -891,6 +1100,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       unsubCommand();
       unsubText();
       unsubHoldUp();
+      unsubTheme();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
       if (silentAudioRef.current) {
@@ -916,14 +1126,15 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       clearPhaseTimeouts();
       applyTorch(false);
       setThumbFocused(false);
-      setShutterVisible(false);
+      setEmblemVisible(false);
       setShutterStage('CLOSED_WHITE');
-      setVortexVisible(false);
+      setStormVisible(false);
       setConvergeActive(false);
       setStagePhase('PULSE');
     } else if (baseCmd === 'PHASE_REVEAL') {
       const passedWord = (parts[2] || '').trim();
-      runRevealSequence(passedWord);
+      const passedTheme = (parts[3] || '').trim();
+      runRevealSequence(passedWord, passedTheme);
     } else if (baseCmd === 'ON') {
       isRedirectingRef.current = false;
       setStagePhase('PULSE');
@@ -1050,6 +1261,28 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
           85% { opacity: 1; }
           100% { transform: rotate(260deg) scale(0.76); opacity: 0.9; }
         }
+        @keyframes organicSonarWave {
+          0% { transform: scale(0.85); opacity: 0.95; }
+          70% { opacity: 0.35; }
+          100% { transform: scale(6.2); opacity: 0; }
+        }
+        @keyframes sonarCoreBreathe {
+          0%, 100% { transform: scale(0.92); opacity: 0.65; }
+          50% { transform: scale(1.12); opacity: 1; }
+        }
+        @keyframes soundwaveMorph {
+          0% { transform: scaleY(0.35); }
+          100% { transform: scaleY(1.35); }
+        }
+        @keyframes frequencyBarPulse {
+          0% { transform: scaleY(0.2); opacity: 0.25; }
+          100% { transform: scaleY(1.15); opacity: 0.85; }
+        }
+        @keyframes shimmerSoundwaveChar {
+          0% { transform: translateY(calc(var(--amp) * -1)) scale(0.85); opacity: 0.18; filter: blur(1px); }
+          50% { opacity: 0.95; filter: blur(0px); }
+          100% { transform: translateY(var(--amp)) scale(1.12); opacity: 0.3; filter: blur(0.5px); }
+        }
         @keyframes artisticHeartbeat {
           0%, 100% { transform: scale(1); }
           14% { transform: scale(1.06); }
@@ -1080,21 +1313,34 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
-      {/* STAGE 1: MECHANICAL SHUTTER IRIS (0.0s - 4.55s) */}
-      {stagePhase === 'SHUTTER' && (
-        <div className={`relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-black select-none pointer-events-none transition-opacity duration-500 ease-in-out ${shutterVisible ? 'opacity-100' : 'opacity-0'}`}>
-          <MechanicalShutterIris shutterStage={shutterStage} />
+      {/* STAGE 1: 3D HOLOGRAPHIC EMBLEM (0.0s – 4.55s) */}
+      {stagePhase === 'STAGE_1' && (
+        <div className={`relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-black select-none pointer-events-none transition-opacity duration-500 ease-in-out ${emblemVisible ? 'opacity-100' : 'opacity-0'}`}>
+          {revealTheme === 'APERTURE_VORTEX' ? (
+            <HolographicFocusAperture shutterStage={shutterStage} />
+          ) : (
+            <>
+              <HolographicResonanceRipple />
+              <div className="relative z-10 w-40 h-40 rounded-full bg-black/80 border border-amber-400/60 shadow-[0_0_55px_rgba(255,215,0,0.7)] flex items-center justify-center">
+                <BrandLogoSVG className="w-14 h-14" glowMode="gold" />
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* STAGE 2: MAGNETIC VORTEX STORM (4.55s - 9.8s ONLY) */}
-      {stagePhase === 'VORTEX' && (
-        <div className={`relative w-full min-h-[100dvh] bg-black overflow-hidden transition-opacity duration-700 ease-in-out ${vortexVisible ? 'opacity-100' : 'opacity-0'}`}>
-          <MagneticVortexStorm />
+      {/* STAGE 2: 3D HOLOGRAPHIC LETTER CLUSTER (4.55s – 9.8s ONLY) */}
+      {stagePhase === 'STAGE_2' && (
+        <div className={`relative w-full min-h-[100dvh] bg-black overflow-hidden transition-opacity duration-700 ease-in-out ${stormVisible ? 'opacity-100' : 'opacity-0'}`}>
+          {revealTheme === 'APERTURE_VORTEX' ? (
+            <HolographicMagneticVortex />
+          ) : (
+            <HolographicSoundwaveLetters particles={decoyParticles} />
+          )}
         </div>
       )}
 
-      {/* STAGE 3: UNOBSTRUCTED SINGLE NAME REVEAL ON PURE BLACK (9.8s+) */}
+      {/* STAGE 3: UNOBSTRUCTED NAME CONVERGENCE (9.8s+) */}
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 overflow-hidden pointer-events-none">
           <div className="flex items-center justify-center space-x-2 sm:space-x-3 whitespace-nowrap">
@@ -1107,6 +1353,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
                     ? 'translate(0px, 0px) scale(1)'
                     : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
                   transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
+                  textShadow: '0 0 20px rgba(0,240,255,0.95), 0 0 45px rgba(255,215,0,0.75), 0 0 60px rgba(255,255,255,0.5)'
                 }}
                 className={`text-white font-black uppercase inline-block ${revealFontSizeClass}`}
               >
@@ -1149,7 +1396,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
                   viewBox="0 0 24 24" 
                   className="w-full h-full text-[#d91b1b] fill-current drop-shadow-[0_22px_45px_rgba(217,27,27,0.32)]"
                 >
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                 </svg>
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center pb-5 px-8 text-center pointer-events-none">
@@ -1294,6 +1541,10 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [activePhase, setActivePhase] = useState('PHASE_1');
 
+  // LIVE THEME STATE (Option 1 vs Option 2)
+  const [revealTheme, setRevealTheme] = useState(() => localStorage.getItem('magicRevealStyle') || 'RIPPLE_WAVE');
+  const revealThemeRef = useRef(revealTheme);
+
   // PALM-LOCK DOUBLE-TAP STATES (Starts LOCKED by default)
   const [isCuesTouchLocked, setIsCuesTouchLocked] = useState(true);
   const isCuesTouchLockedRef = useRef(true);
@@ -1303,9 +1554,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   // MASTER MONITOR OVERLAY STATES
   const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE');
   const masterMonitorPhaseRef = useRef('NONE');
-  const [masterShutterVisible, setMasterShutterVisible] = useState(false);
+  const [masterEmblemVisible, setMasterEmblemVisible] = useState(false);
   const [masterShutterStage, setMasterShutterStage] = useState('CLOSED_WHITE');
-  const [masterVortexVisible, setMasterVortexVisible] = useState(false);
+  const [masterStormVisible, setMasterStormVisible] = useState(false);
   const [masterConvergeActive, setMasterConvergeActive] = useState(false);
   const [masterRevealWord, setMasterRevealWord] = useState('');
   const masterPhaseTimeoutsRef = useRef([]);
@@ -1382,6 +1633,18 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     });
   }, [masterRevealWord, peekedWord, customText]);
 
+  const masterDecoyParticles = useMemo(() => {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return Array.from({ length: 32 }).map((_, i) => ({
+      id: i,
+      char: alphabet[Math.floor(Math.random() * alphabet.length)],
+      left: `${6 + Math.floor(Math.random() * 84)}%`,
+      top: `${8 + Math.floor(Math.random() * 82)}%`,
+      size: `${1.4 + (i % 4) * 0.9}rem`,
+      opacity: 0.2 + (i % 5) * 0.18,
+    }));
+  }, []);
+
   const clearMasterPhaseTimeouts = () => {
     masterPhaseTimeoutsRef.current.forEach(clearTimeout);
     masterPhaseTimeoutsRef.current = [];
@@ -1397,6 +1660,13 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       }
     } catch (e) {}
   }, [roomID]);
+
+  // Sync Theme to LocalStorage & Firebase
+  useEffect(() => {
+    revealThemeRef.current = revealTheme;
+    localStorage.setItem('magicRevealStyle', revealTheme);
+    set(ref(db, `${roomID}/revealStyle`), revealTheme).catch(() => {});
+  }, [revealTheme, roomID]);
 
   useEffect(() => {
     const textRef = ref(db, `${roomID}/buttonText`);
@@ -1620,7 +1890,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}|${getTargetFeedbackUrl()}`;
     } else if (cmd === 'PHASE_REVEAL') {
       const wordToBroadcast = peekedWordRef.current || customText || 'JAMES';
-      payload = `PHASE_REVEAL|${Date.now()}|${wordToBroadcast}`;
+      payload = `PHASE_REVEAL|${Date.now()}|${wordToBroadcast}|${revealThemeRef.current}`;
     }
     
     return set(ref(db, `${roomID}/audienceCommand`), payload).catch(err => {
@@ -1632,23 +1902,23 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     clearMasterPhaseTimeouts();
     setMasterRevealWord(wordToReveal);
     setMasterConvergeActive(false);
-    setMasterShutterVisible(false);
+    setMasterEmblemVisible(false);
     setMasterShutterStage('CLOSED_WHITE');
-    setMasterVortexVisible(false);
+    setMasterStormVisible(false);
 
-    updateMasterMonitorPhase('SHUTTER');
-    const tIrisIn = setTimeout(() => setMasterShutterVisible(true), 80);
+    updateMasterMonitorPhase('STAGE_1');
+    const tEmblemIn = setTimeout(() => setMasterEmblemVisible(true), 80);
     const tDarkCore = setTimeout(() => setMasterShutterStage('IRIS_DARK'), 2200);
     const tOpenIris = setTimeout(() => setMasterShutterStage('OPEN_VORTEX'), 3500);
-    const tShutterOut = setTimeout(() => setMasterShutterVisible(false), 4350);
+    const tEmblemOut = setTimeout(() => setMasterEmblemVisible(false), 4350);
 
-    const tVortexIn = setTimeout(() => {
-      updateMasterMonitorPhase('VORTEX');
-      setTimeout(() => setMasterVortexVisible(true), 60);
+    const tStormIn = setTimeout(() => {
+      updateMasterMonitorPhase('STAGE_2');
+      setTimeout(() => setMasterStormVisible(true), 60);
     }, 4550);
 
-    const tVortexOut = setTimeout(() => {
-      setMasterVortexVisible(false);
+    const tStormOut = setTimeout(() => {
+      setMasterStormVisible(false);
     }, 9100);
 
     const tConverge = setTimeout(() => {
@@ -1662,12 +1932,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }, 11100);
 
     masterPhaseTimeoutsRef.current = [
-      tIrisIn,
+      tEmblemIn,
       tDarkCore,
       tOpenIris,
-      tShutterOut,
-      tVortexIn,
-      tVortexOut,
+      tEmblemOut,
+      tStormIn,
+      tStormOut,
       tConverge,
       tLocked
     ];
@@ -1675,9 +1945,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
   const resetToPhase1Pulse = () => {
     clearMasterPhaseTimeouts();
-    setMasterShutterVisible(false);
+    setMasterEmblemVisible(false);
     setMasterShutterStage('CLOSED_WHITE');
-    setMasterVortexVisible(false);
+    setMasterStormVisible(false);
     setMasterConvergeActive(false);
     updateMasterMonitorPhase('NONE');
     setActivePhase('PHASE_1');
@@ -1921,14 +2191,13 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
   };
 
-  // PALM-PROOF SWIPE-RIGHT GESTURE ON MASTER MONITOR
   const handleOverlayTouchStart = (clientX, clientY, touchCount = 1) => {
     const phase = masterMonitorPhaseRef.current;
     if (touchCount > 1) {
       overlaySwipeRef.current = { startX: null, startY: null, startTime: 0, swiped: false, multiTouch: true };
       return;
     }
-    if (phase === 'SHUTTER' || phase === 'VORTEX') {
+    if (phase === 'STAGE_1' || phase === 'STAGE_2') {
       if (clientX <= 110) {
         overlaySwipeRef.current = {
           startX: clientX,
@@ -1948,7 +2217,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
   const handleOverlayTouchMove = (clientX, clientY, touchCount = 1) => {
     const phase = masterMonitorPhaseRef.current;
-    if (phase !== 'SHUTTER' && phase !== 'VORTEX') return;
+    if (phase !== 'STAGE_1' && phase !== 'STAGE_2') return;
     if (touchCount > 1) {
       overlaySwipeRef.current.multiTouch = true;
       return;
@@ -2111,15 +2380,28 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             className="absolute bottom-0 right-0 w-32 h-32 z-[95] bg-black/0 touch-none"
           />
 
-          {masterMonitorPhase === 'SHUTTER' && (
-            <div className={`relative flex items-center justify-center w-full h-full overflow-hidden pointer-events-none bg-black transition-opacity duration-500 ease-in-out ${masterShutterVisible ? 'opacity-100' : 'opacity-0'}`}>
-              <MechanicalShutterIris shutterStage={masterShutterStage} />
+          {masterMonitorPhase === 'STAGE_1' && (
+            <div className={`relative flex items-center justify-center w-full h-full overflow-hidden pointer-events-none bg-black transition-opacity duration-500 ease-in-out ${masterEmblemVisible ? 'opacity-100' : 'opacity-0'}`}>
+              {revealTheme === 'APERTURE_VORTEX' ? (
+                <HolographicFocusAperture shutterStage={masterShutterStage} />
+              ) : (
+                <>
+                  <HolographicResonanceRipple />
+                  <div className="relative z-10 w-40 h-40 rounded-full bg-black/80 border border-amber-400/60 shadow-[0_0_55px_rgba(255,215,0,0.7)] flex items-center justify-center">
+                    <BrandLogoSVG className="w-14 h-14" glowMode="gold" />
+                  </div>
+                </>
+              )}
             </div>
           )}
 
-          {masterMonitorPhase === 'VORTEX' && (
-            <div className={`relative w-full h-full bg-black overflow-hidden pointer-events-none transition-opacity duration-700 ease-in-out ${masterVortexVisible ? 'opacity-100' : 'opacity-0'}`}>
-              <MagneticVortexStorm />
+          {masterMonitorPhase === 'STAGE_2' && (
+            <div className={`relative w-full h-full bg-black overflow-hidden pointer-events-none transition-opacity duration-700 ease-in-out ${masterStormVisible ? 'opacity-100' : 'opacity-0'}`}>
+              {revealTheme === 'APERTURE_VORTEX' ? (
+                <HolographicMagneticVortex />
+              ) : (
+                <HolographicSoundwaveLetters particles={masterDecoyParticles} />
+              )}
             </div>
           )}
 
@@ -2135,6 +2417,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                         ? 'translate(0px, 0px) scale(1)'
                         : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
                       transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
+                      textShadow: '0 0 20px rgba(0,240,255,0.95), 0 0 45px rgba(255,215,0,0.75), 0 0 60px rgba(255,255,255,0.5)'
                     }}
                     className={`text-white font-black uppercase inline-block ${masterFontSizeClass}`}
                   >
@@ -2247,6 +2530,32 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             </button>
           </div>
 
+          {/* DUAL THEME SELECTOR: OPTION 1 & OPTION 2 */}
+          <div className="flex flex-col w-full">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1.5">
+              Climax Reveal Theme ({revealTheme === 'APERTURE_VORTEX' ? 'OPTION 2' : 'OPTION 1'})
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {REVEAL_THEMES.map((themeItem) => {
+                const isSelected = revealTheme === themeItem.id;
+                return (
+                  <button
+                    key={themeItem.id}
+                    type="button"
+                    onClick={() => setRevealTheme(themeItem.id)}
+                    className={`py-3 px-3 rounded-lg border text-[10px] font-bold tracking-wider uppercase transition-all text-left truncate ${
+                      isSelected
+                        ? 'bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(0,240,255,0.4)]'
+                        : 'bg-black border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    {themeItem.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="w-full bg-black/50 border border-zinc-800 rounded-lg p-3 flex flex-col space-y-2">
             <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Keyboard / Flic Triggers</span>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono">
@@ -2340,17 +2649,17 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             onClick={triggerPhase2Reveal}
             className={`w-full py-2.5 px-2 rounded-lg text-[10px] font-black tracking-wider uppercase border transition-colors truncate ${
               activePhase === 'REVEALING'
-                ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_15px_rgba(147,51,234,0.5)] animate-pulse'
+                ? 'bg-cyan-600 border-cyan-400 text-white shadow-[0_0_15px_rgba(0,240,255,0.6)] animate-pulse'
                 : activePhase === 'PHASE_2_DONE'
-                  ? 'bg-green-900/40 border-green-500 text-green-300'
-                  : 'bg-purple-950/60 border-purple-500/70 text-purple-200'
+                  ? 'bg-amber-950/60 border-amber-400 text-amber-200'
+                  : 'bg-cyan-950/60 border-cyan-500/70 text-cyan-200'
             }`}
           >
             {activePhase === 'REVEALING'
               ? '🌀 REVEALING...'
               : activePhase === 'PHASE_2_DONE'
                 ? `✓ ${peekedWord || customText || 'LOCKED'} [R]`
-                : '🌀 REVEAL SHUTTER [R]'}
+                : `🌀 REVEAL (${revealTheme === 'APERTURE_VORTEX' ? 'APERTURE' : 'RIPPLE'}) [R]`}
           </button>
         </div>
 
