@@ -18,20 +18,21 @@ const EMOTIONAL_TUNING_PROMPTS = [
   "EVERY HEARTBEAT TELLS A STORY"
 ];
 
-// Exact Custom AL Geometric Monogram Logo
-function BrandLogoSVG({ className = "w-14 h-14" }) {
+// Exact Custom AL Geometric Monogram Logo (Supports Dark & Light Modes)
+function BrandLogoSVG({ className = "w-14 h-14", color = "#000000" }) {
+  const clipId = useMemo(() => `alClip_${Math.random().toString(36).slice(2, 8)}`, []);
   return (
     <svg viewBox="0 0 200 200" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <clipPath id="alCircleClip">
+        <clipPath id={clipId}>
           <circle cx="100" cy="100" r="84" />
         </clipPath>
       </defs>
-      <circle cx="100" cy="100" r="84" stroke="#000000" strokeWidth="17" />
-      <g clipPath="url(#alCircleClip)">
+      <circle cx="100" cy="100" r="84" stroke={color} strokeWidth="17" />
+      <g clipPath={`url(#${clipId})`}>
         <path
           d="M 20 115 L 109 26 L 109 152 L 178 152 L 178 169 L 92 169 L 92 67 L 26 133 Z"
-          fill="#000000"
+          fill={color}
         />
       </g>
     </svg>
@@ -39,51 +40,56 @@ function BrandLogoSVG({ className = "w-14 h-14" }) {
 }
 
 // ==========================================
-// 100% MATCH: MECHANICAL SHUTTER IRIS (STAGE 1)
+// STAGE 1: 100% MATCH MECHANICAL SHUTTER IRIS (0:00 - 0:04)
 // ==========================================
-const MechanicalShutterIris = React.memo(function MechanicalShutterIris({ isDilating }) {
-  const tickAngles = useMemo(() => Array.from({ length: 60 }).map((_, i) => i * 6), []);
-  const bladeAngles = useMemo(() => Array.from({ length: 16 }).map((_, i) => i * 22.5), []);
+const MechanicalShutterIris = React.memo(function MechanicalShutterIris({
+  shutterStage, // 'CLOSED_WHITE' (0-2.2s) -> 'IRIS_DARK' (2.2-3.6s) -> 'OPEN_VORTEX' (3.6-4.6s)
+}) {
+  const tickAngles = useMemo(() => Array.from({ length: 72 }).map((_, i) => i * 5), []);
+  const bladeAngles = useMemo(() => Array.from({ length: 12 }).map((_, i) => i * 30), []);
+
+  const isDarkCore = shutterStage === 'IRIS_DARK' || shutterStage === 'OPEN_VORTEX';
+  const isOpening = shutterStage === 'OPEN_VORTEX';
 
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden bg-black select-none">
-      {/* Background Radial Vignette */}
-      <div 
+      {/* Subtle Radial Vignette */}
+      <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(circle at center, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.92) 70%, #000000 100%)'
+          background: 'radial-gradient(circle at center, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.92) 68%, #000000 100%)'
         }}
       />
 
-      {/* Complete Precision Reticle System */}
-      <div 
-        className={`relative flex items-center justify-center w-[110vmin] h-[110vmin] will-change-transform transition-all duration-700 ease-out ${
-          isDilating ? 'scale-[2.8] opacity-0' : 'scale-100 opacity-100'
-        }`}
-      >
-        <svg viewBox="-500 -500 1000 1000" className="w-full h-full">
+      <div className="relative flex items-center justify-center w-[96vmin] h-[96vmin] max-w-[520px] max-h-[520px]">
+        <svg viewBox="-500 -500 1000 1000" className="w-full h-full overflow-visible">
           <defs>
-            {/* Shutter Blade Metallic Gradient */}
-            <linearGradient id="irisBladeGrad" x1="0%" y1="0%" x2="100%" y2="80%">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
-              <stop offset="25%" stopColor="#c4c4c7" stopOpacity="0.8" />
-              <stop offset="60%" stopColor="#4b4b52" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#18181b" stopOpacity="0.98" />
+            {/* Circular Clip Path so the 12 Shutter Blades stay cleanly inside the lens housing */}
+            <clipPath id="shutterBarrelClip">
+              <circle cx="0" cy="0" r="248" />
+            </clipPath>
+
+            {/* Realistic Brushed Metallic Blade Gradient */}
+            <linearGradient id="shutterBladeMetallic" x1="0%" y1="0%" x2="100%" y2="85%">
+              <stop offset="0%" stopColor="#b8b8c0" stopOpacity="0.92" />
+              <stop offset="38%" stopColor="#6c6c74" stopOpacity="0.88" />
+              <stop offset="75%" stopColor="#2c2c32" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#121215" stopOpacity="0.98" />
             </linearGradient>
 
-            {/* Sweep Light Beam */}
-            <linearGradient id="sweepBeam" x1="0%" y1="0%" x2="100%" y2="100%">
+            {/* Glowing Rim Sweep Gradient */}
+            <linearGradient id="rimSweepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-              <stop offset="40%" stopColor="#ffffff" stopOpacity="0.4" />
+              <stop offset="35%" stopColor="#ffffff" stopOpacity="0.45" />
               <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
             </linearGradient>
 
-            <filter id="bladeShadow" x="-20%" y="-20%" width="150%" height="150%">
-              <feDropShadow dx="-2" dy="4" stdDeviation="4" floodColor="#000000" floodOpacity="0.9" />
+            <filter id="bladeDropShadow" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="-3" dy="4" stdDeviation="5" floodColor="#000000" floodOpacity="0.92" />
             </filter>
 
-            <filter id="arcGlow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="6" result="blur" />
+            <filter id="rimGlowFilter" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
@@ -91,25 +97,29 @@ const MechanicalShutterIris = React.memo(function MechanicalShutterIris({ isDila
             </filter>
           </defs>
 
-          {/* Cardinal Axis Crosshairs */}
-          <g stroke="#ffffff" strokeOpacity="0.4" strokeWidth="1">
-            <line x1="0" y1="-480" x2="0" y2="-320" />
-            <line x1="0" y1="320" x2="0" y2="480" />
-            <line x1="-480" y1="0" x2="-320" y2="0" />
-            <line x1="320" y1="0" x2="480" y2="0" />
-          </g>
+          {/* OUTER HUD & TICK RINGS (Expands outward at 0:04 when shutter opens) */}
+          <g
+            className="transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            style={{
+              transform: isOpening ? 'scale(1.36)' : 'scale(1)',
+              opacity: isOpening ? 0.72 : 1,
+            }}
+          >
+            {/* Outermost Thin Guide Circle */}
+            <circle cx="0" cy="0" r="425" fill="none" stroke="#ffffff" strokeOpacity="0.42" strokeWidth="1.2" />
 
-          {/* Outer Thin Guide Circle */}
-          <circle cx="0" cy="0" r="410" fill="none" stroke="#ffffff" strokeOpacity="0.32" strokeWidth="1" />
+            {/* 4 Cardinal Axis Lines extending inward from the outer circle */}
+            <line x1="0" y1="-425" x2="0" y2="-362" stroke="#ffffff" strokeOpacity="0.65" strokeWidth="1.5" />
+            <line x1="0" y1="362" x2="0" y2="425" stroke="#ffffff" strokeOpacity="0.65" strokeWidth="1.5" />
+            <line x1="-425" y1="0" x2="-362" y2="0" stroke="#ffffff" strokeOpacity="0.65" strokeWidth="1.5" />
+            <line x1="362" y1="0" x2="425" y2="0" stroke="#ffffff" strokeOpacity="0.65" strokeWidth="1.5" />
 
-          {/* Precision Radial Ticks Ring */}
-          <g>
-            <circle cx="0" cy="0" r="310" fill="none" stroke="#ffffff" strokeOpacity="0.22" strokeWidth="0.75" />
+            {/* Radial Graduation Tick Marks Ring */}
             {tickAngles.map((deg) => {
+              const isCardinal = deg % 90 === 0;
               const isMajor = deg % 30 === 0;
-              const isSemi = deg % 12 === 0;
-              const r1 = isMajor ? 288 : isSemi ? 296 : 302;
-              const r2 = 310;
+              const r1 = isCardinal ? 292 : isMajor ? 298 : 304;
+              const r2 = isCardinal ? 338 : isMajor ? 324 : 316;
               const rad = (deg * Math.PI) / 180;
               return (
                 <line
@@ -119,154 +129,271 @@ const MechanicalShutterIris = React.memo(function MechanicalShutterIris({ isDila
                   x2={(r2 * Math.cos(rad)).toFixed(1)}
                   y2={(r2 * Math.sin(rad)).toFixed(1)}
                   stroke="#ffffff"
-                  strokeOpacity={isMajor ? '0.75' : isSemi ? '0.45' : '0.2'}
-                  strokeWidth={isMajor ? '2' : '1'}
+                  strokeOpacity={isCardinal ? '0.9' : isMajor ? '0.6' : '0.28'}
+                  strokeWidth={isCardinal ? '2.2' : isMajor ? '1.4' : '0.9'}
                 />
               );
             })}
           </g>
 
-          {/* Intermediate Reticle Circle */}
-          <circle cx="0" cy="0" r="230" fill="none" stroke="#ffffff" strokeOpacity="0.2" strokeWidth="0.75" strokeDasharray="6 8" />
-
-          {/* 16 Overlapping Mechanical Shutter Blades */}
-          <g style={{ animation: 'irisIdleBreathing 4s ease-in-out infinite' }}>
-            {bladeAngles.map((deg) => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <path
-                  d="M 68 -62 C 145 -145, 238 -125, 275 -35 C 230 45, 140 50, 68 -62 Z"
-                  fill="url(#irisBladeGrad)"
-                  stroke="#000000"
-                  strokeWidth="0.75"
-                  filter="url(#bladeShadow)"
-                />
-                {/* Micro blade accent line */}
-                <path
-                  d="M 85 -55 C 150 -115, 220 -105, 255 -32"
+          {/* DARK SWIRLING VORTEX TUNNEL UNDERNEATH THE BLADES (Revealed at 0:04) */}
+          <g
+            clipPath="url(#shutterBarrelClip)"
+            className="transition-opacity duration-700"
+            style={{ opacity: isOpening ? 1 : 0 }}
+          >
+            <g style={{ animation: 'vortexSpinClockwise 6s linear infinite' }}>
+              {[75, 110, 145, 180, 215, 240].map((r, i) => (
+                <ellipse
+                  key={i}
+                  cx="0"
+                  cy="0"
+                  rx={r}
+                  ry={Math.round(r * 0.9)}
+                  transform={`rotate(${i * 30})`}
                   fill="none"
                   stroke="#ffffff"
-                  strokeOpacity="0.45"
-                  strokeWidth="0.75"
+                  strokeWidth={i % 2 === 0 ? "1.4" : "0.8"}
+                  strokeOpacity={0.14 + (i % 3) * 0.08}
+                  strokeDasharray={`${60 + i * 25} ${35 + i * 15}`}
                 />
-              </g>
-            ))}
+              ))}
+            </g>
           </g>
 
-          {/* Inner Iris Border Rim */}
-          <circle cx="0" cy="0" r="118" fill="none" stroke="#ffffff" strokeOpacity="0.4" strokeWidth="1.5" />
+          {/* CLIPPED 12-BLADE MECHANICAL IRIS */}
+          <g clipPath="url(#shutterBarrelClip)">
+            <g
+              className="transition-all duration-900 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              style={{
+                animation: !isOpening ? 'shutterSubtlePulse 2.2s ease-in-out infinite' : 'none',
+              }}
+            >
+              {bladeAngles.map((deg) => (
+                <g key={deg} transform={`rotate(${deg})`}>
+                  <g
+                    className="transition-transform duration-900 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                    style={{
+                      transform: isOpening
+                        ? 'translate(145px, -105px) rotate(28deg) scale(0.92)'
+                        : isDarkCore
+                          ? 'translate(-8px, 6px) rotate(-4deg)'
+                          : 'translate(0px, 0px) rotate(0deg)',
+                    }}
+                  >
+                    {/* Curved Lens Shutter Blade */}
+                    <path
+                      d="M 58 -38 C 120 -130, 225 -155, 290 -65 L 290 85 C 205 60, 115 25, 58 -38 Z"
+                      fill="url(#shutterBladeMetallic)"
+                      stroke="#0a0a0d"
+                      strokeWidth="1.5"
+                      filter="url(#bladeDropShadow)"
+                    />
+                    {/* Specular Blade Edge Highlight */}
+                    <path
+                      d="M 62 -36 C 122 -122, 215 -145, 275 -65"
+                      fill="none"
+                      stroke="#ffffff"
+                      strokeOpacity="0.38"
+                      strokeWidth="1"
+                    />
+                  </g>
+                </g>
+              ))}
+            </g>
+          </g>
 
-          {/* 360-Degree Sweeping Light Arc */}
+          {/* SHUTTER BARREL METALLIC DOUBLE RIM */}
           <circle
             cx="0"
             cy="0"
-            r="118"
+            r="250"
             fill="none"
-            stroke="url(#sweepBeam)"
-            strokeWidth="3.5"
-            strokeDasharray="90 280"
+            stroke="#ffffff"
+            strokeOpacity={isOpening ? "0.35" : "0.65"}
+            strokeWidth="2"
+            className="transition-all duration-700"
+          />
+          <circle
+            cx="0"
+            cy="0"
+            r="260"
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity="0.28"
+            strokeWidth="1"
+          />
+
+          {/* Thin Concentric Inner Rings (Visible at 0:04 when blades open) */}
+          <g
+            className="transition-opacity duration-700"
+            style={{ opacity: isOpening ? 0.65 : 0 }}
+          >
+            <circle cx="0" cy="0" r="175" fill="none" stroke="#ffffff" strokeWidth="1" strokeOpacity="0.5" />
+            <circle cx="0" cy="0" r="205" fill="none" stroke="#ffffff" strokeWidth="0.8" strokeOpacity="0.35" />
+          </g>
+
+          {/* SWEEPING WHITE RIM LIGHT ARC (Matches 0:02 - 0:03) */}
+          <circle
+            cx="0"
+            cy="0"
+            r="255"
+            fill="none"
+            stroke="url(#rimSweepGrad)"
+            strokeWidth="4.5"
+            strokeDasharray="130 480"
             strokeLinecap="round"
-            filter="url(#arcGlow)"
-            style={{ animation: 'irisLightSweep 2.2s linear infinite' }}
+            filter="url(#rimGlowFilter)"
+            style={{
+              opacity: isOpening ? 0 : 0.95,
+              animation: 'rimLightOrbit 2.4s linear infinite',
+              transition: 'opacity 0.5s ease'
+            }}
           />
         </svg>
+
+        {/* CENTER AL EMBLEM: Transitions from Solid White Badge (0:00-0:02) to Dark Core White Monogram (0:03-0:04) */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div
+            className={`rounded-full flex items-center justify-center transition-all duration-700 ease-in-out ${
+              isDarkCore
+                ? 'w-24 h-24 bg-black/75 shadow-[0_0_30px_rgba(0,0,0,0.9)] scale-90'
+                : 'w-[22.5vmin] h-[22.5vmin] max-w-[122px] max-h-[122px] bg-white shadow-[0_0_35px_rgba(255,255,255,0.65)] scale-100'
+            }`}
+          >
+            <BrandLogoSVG
+              className="w-11 h-11 sm:w-12 sm:h-12 transition-transform duration-700"
+              color={isDarkCore ? '#ffffff' : '#000000'}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
 });
 
 // ==========================================
-// 100% MATCH: THE MAGNETIC VORTEX (STAGE 2)
+// STAGE 2: 100% MATCH MAGNETIC VORTEX LETTER STORM (0:04 - 0:07)
 // ==========================================
 const MagneticVortexStorm = React.memo(function MagneticVortexStorm() {
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789?*#';
+  const glyphPool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  // 4 Curved Inward Orbital Arms matching the video spiral arms
-  const orbitalArms = useMemo(() => {
-    return Array.from({ length: 4 }).map((_, armIdx) => {
-      const armOffset = (armIdx * 90);
-      return Array.from({ length: 24 }).map((_, i) => {
-        const theta = (i / 24) * 3.5 * Math.PI; // Spiral angle
-        const radius = 45 + Math.pow(i / 24, 1.25) * 310; // Inward curved radius
-        const char = letters[(armIdx * 24 + i * 7) % letters.length];
-        const rot = (theta * 180 / Math.PI) + 90;
-        return {
-          id: `${armIdx}-${i}`,
-          armOffset,
-          char,
-          radius,
-          theta,
-          rot,
-          size: `${0.85 + (i / 24) * 1.3}rem`,
-          opacity: 0.2 + (i / 24) * 0.75,
-        };
+  // Concentric Spiral Letter Streams matching 0:05 - 0:06
+  const vortexParticles = useMemo(() => {
+    const items = [];
+    const total = 84;
+    for (let i = 0; i < total; i++) {
+      const progress = i / total; // 0 (inner) -> 1 (outer)
+      const angleDeg = (i * 47.5) % 360;
+      const angleRad = (angleDeg * Math.PI) / 180;
+      const radiusVmin = 12 + Math.pow(progress, 1.12) * 39; // 12vmin to 51vmin
+      const char = glyphPool[(i * 7 + 3) % glyphPool.length];
+      const tangRot = angleDeg + 90 + (i % 2 === 0 ? -12 : 12);
+
+      items.push({
+        id: i,
+        char,
+        angleRad,
+        radiusVmin,
+        tangRot,
+        sizeRem: 0.72 + progress * 0.75,
+        opacity: 0.35 + (1 - Math.abs(progress - 0.55)) * 0.6,
+        pulseDelay: `${(i % 9) * 0.18}s`
       });
-    }).flat();
+    }
+    return items;
   }, []);
 
   return (
     <div className="relative w-full h-full min-h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none pointer-events-none">
-      {/* Background Gravitational Ripple Rings */}
+      {/* Dark Fibrous Swirling Vortex Rings */}
       <svg
         viewBox="-500 -500 1000 1000"
-        className="absolute w-[150vmax] h-[150vmax] opacity-50 will-change-transform"
-        style={{ animation: 'vortexContinuousRotation 6s linear infinite' }}
+        className="absolute w-[125vmin] h-[125vmin] will-change-transform"
+        style={{ animation: 'vortexSpinClockwise 9s linear infinite' }}
       >
-        {[55, 95, 140, 195, 260, 335, 420, 510].map((r, idx) => (
-          <ellipse
+        {[75, 110, 148, 190, 235, 285, 340, 400, 460].map((r, idx) => (
+          <g key={idx} transform={`rotate(${idx * 25})`}>
+            <circle
+              cx="0"
+              cy="0"
+              r={r}
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth={idx % 2 === 0 ? "1.6" : "0.9"}
+              strokeOpacity={0.14 + (idx % 3) * 0.1}
+              strokeDasharray={`${120 + idx * 35} ${45 + idx * 18}`}
+              strokeLinecap="round"
+            />
+            <ellipse
+              cx="0"
+              cy="0"
+              rx={r}
+              ry={Math.round(r * 0.93)}
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth="3.5"
+              strokeOpacity="0.05"
+            />
+          </g>
+        ))}
+      </svg>
+
+      {/* Counter-Rotating Fine Ripple Filaments */}
+      <svg
+        viewBox="-500 -500 1000 1000"
+        className="absolute w-[115vmin] h-[115vmin] will-change-transform opacity-45"
+        style={{ animation: 'vortexSpinCounter 13s linear infinite' }}
+      >
+        {[125, 175, 225, 275, 330, 390].map((r, idx) => (
+          <circle
             key={idx}
             cx="0"
             cy="0"
-            rx={r}
-            ry={Math.round(r * 0.88)}
-            transform={`rotate(${idx * 28})`}
+            r={r}
             fill="none"
             stroke="#ffffff"
-            strokeWidth={idx % 2 === 0 ? "1.8" : "1"}
-            strokeOpacity={0.25 + (idx % 3) * 0.15}
-            strokeDasharray={`${80 + idx * 25} ${40 + idx * 15}`}
-            strokeLinecap="round"
+            strokeWidth="0.85"
+            strokeOpacity="0.32"
+            strokeDasharray="70 90 25 60"
           />
         ))}
       </svg>
 
-      {/* Atmospheric Core Pulse & Golden Glow Eruption (Matches 0:07 - 0:09) */}
-      <div 
-        className="absolute w-[100vmin] h-[100vmin] rounded-full pointer-events-none"
-        style={{
-          background: 'radial-gradient(circle at center, rgba(255,235,170,0.45) 0%, rgba(255,255,255,0.2) 24%, rgba(200,200,200,0.06) 52%, transparent 75%)',
-          animation: 'vortexGoldenGlow 4.5s ease-in-out infinite alternate'
-        }}
-      />
-
-      {/* High-Density Spiral Orbital Letter Cloud */}
-      <div 
+      {/* Swirling Orbital Letter Cloud */}
+      <div
         className="absolute inset-0 flex items-center justify-center will-change-transform"
-        style={{ animation: 'vortexContinuousRotation 3.8s linear infinite' }}
+        style={{ animation: 'vortexLettersPull 5.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards' }}
       >
-        {orbitalArms.map((p) => {
-          const x = (p.radius * Math.cos(p.theta)).toFixed(1);
-          const y = (p.radius * Math.sin(p.theta)).toFixed(1);
+        {vortexParticles.map((p) => {
+          const x = (p.radiusVmin * Math.cos(p.angleRad)).toFixed(2);
+          const y = (p.radiusVmin * Math.sin(p.angleRad)).toFixed(2);
           return (
             <span
               key={p.id}
               style={{
-                transform: `translate(${x}px, ${y}px) rotate(${p.rot}deg)`,
-                fontSize: p.size,
+                transform: `translate(${x}vmin, ${y}vmin) rotate(${p.tangRot}deg)`,
+                fontSize: `${p.sizeRem}rem`,
                 opacity: p.opacity,
-                textShadow: '0 0 12px rgba(255,255,255,0.85), 0 0 24px rgba(255,230,160,0.45)',
+                textShadow: '0 0 10px rgba(255,255,255,0.75)',
+                animationDelay: p.pulseDelay,
               }}
-              className="absolute font-mono font-black text-white pointer-events-none select-none tracking-widest"
+              className="absolute font-sans font-bold text-white select-none pointer-events-none tracking-wider"
             >
               {p.char}
             </span>
           );
         })}
       </div>
+
+      {/* Center Dark-Core White AL Monogram (Matches 0:04 - 0:06) */}
+      <div className="relative z-10 w-20 h-20 rounded-full bg-black/85 shadow-[0_0_30px_rgba(0,0,0,0.95)] flex items-center justify-center">
+        <BrandLogoSVG className="w-11 h-11" color="#ffffff" />
+      </div>
     </div>
   );
 });
 
-// Format URL helper
 const formatValidUrl = (rawUrl, fallbackUrl) => {
   let clean = (rawUrl || fallbackUrl || '').trim();
   if (!clean) return fallbackUrl;
@@ -366,11 +493,10 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [thumbFocused, setThumbFocused] = useState(false);
   const thumbHoldTimerRef = useRef(null);
 
-  // STAGES: PULSE -> SHUTTER (0-5s) -> VORTEX (5-10s) -> CONVERGE (10-11s) -> LOCKED
+  // STAGES: PULSE -> SHUTTER -> VORTEX -> CONVERGE -> LOCKED
   const [stagePhase, setStagePhase] = useState('PULSE');
   const [shutterVisible, setShutterVisible] = useState(false);
-  const [badgeVisible, setBadgeVisible] = useState(false);
-  const [shutterDilating, setShutterDilating] = useState(false);
+  const [shutterStage, setShutterStage] = useState('CLOSED_WHITE'); // 'CLOSED_WHITE' | 'IRIS_DARK' | 'OPEN_VORTEX'
   const [vortexVisible, setVortexVisible] = useState(false);
   const [convergeActive, setConvergeActive] = useState(false);
   const phaseTimeoutsRef = useRef([]);
@@ -651,7 +777,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     clearTimeout(thumbHoldTimerRef.current);
   };
 
-  // REVEAL TIMELINE EXACT 100% MATCH
+  // REVEAL TIMELINE MATCHING ATTACHED SHUTTER -> VORTEX -> CLEAN SINGLE NAME REVEAL
   const runRevealSequence = (wordToReveal) => {
     clearPhaseTimeouts();
     clearTimeout(timerRef.current);
@@ -661,43 +787,59 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     setRevealWord(finalWord);
     setConvergeActive(false);
     setShutterVisible(false);
-    setBadgeVisible(false);
-    setShutterDilating(false);
+    setShutterStage('CLOSED_WHITE');
     setVortexVisible(false);
 
-    // 0.0s: Immediate Transition to Shutter
+    // 0.0s: Shutter Iris with White Center AL Medallion (0:00 - 0:02)
     setStagePhase('SHUTTER');
-    const t0 = setTimeout(() => setBadgeVisible(true), 60);
-    const tIrisIn = setTimeout(() => setShutterVisible(true), 250);
+    const tIrisIn = setTimeout(() => setShutterVisible(true), 80);
 
-    // 3.8s: Shutter Iris Dilation (Rapid expansion out into dark void)
-    const tDilate = setTimeout(() => {
-      setShutterDilating(true);
-    }, 3800);
+    // 2.2s: Center white disc contracts to dark aperture core + white AL monogram (0:03)
+    const tDarkCore = setTimeout(() => {
+      setShutterStage('IRIS_DARK');
+    }, 2200);
 
-    // 4.3s: Clean fade of shutter assembly
-    const tIrisOut = setTimeout(() => {
+    // 3.5s: Shutter blades twist wide open revealing dark vortex tunnel + outer HUD expands (0:04)
+    const tOpenIris = setTimeout(() => {
+      setShutterStage('OPEN_VORTEX');
+    }, 3500);
+
+    // 4.4s: Fade shutter assembly into full Magnetic Vortex Letter Storm (0:05 - 0:07)
+    const tShutterOut = setTimeout(() => {
       setShutterVisible(false);
-    }, 4300);
+    }, 4350);
 
-    // 4.6s: Magnetic Vortex Storm Ignition
-    const tVortex = setTimeout(() => {
+    const tVortexIn = setTimeout(() => {
       setStagePhase('VORTEX');
-      setTimeout(() => setVortexVisible(true), 80);
-    }, 4600);
+      setTimeout(() => setVortexVisible(true), 60);
+    }, 4550);
 
-    // 9.8s: Letters magnetically pull toward center
+    // 9.1s: Fade out Vortex & Center AL Logo completely so NOTHING blocks the word reveal
+    const tVortexOut = setTimeout(() => {
+      setVortexVisible(false);
+    }, 9100);
+
+    // 9.8s: Pure black screen — ONLY the single target name converges into center
     const tConverge = setTimeout(() => {
       setStagePhase('CONVERGE');
       setTimeout(() => setConvergeActive(true), 60);
     }, 9800);
 
-    // 11.2s: Name Locked into place
+    // 11.1s: Single name locked in place
     const tLocked = setTimeout(() => {
       setStagePhase('LOCKED');
-    }, 11200);
+    }, 11100);
 
-    phaseTimeoutsRef.current = [t0, tIrisIn, tDilate, tIrisOut, tVortex, tConverge, tLocked];
+    phaseTimeoutsRef.current = [
+      tIrisIn,
+      tDarkCore,
+      tOpenIris,
+      tShutterOut,
+      tVortexIn,
+      tVortexOut,
+      tConverge,
+      tLocked
+    ];
   };
 
   useEffect(() => {
@@ -775,8 +917,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       applyTorch(false);
       setThumbFocused(false);
       setShutterVisible(false);
-      setBadgeVisible(false);
-      setShutterDilating(false);
+      setShutterStage('CLOSED_WHITE');
       setVortexVisible(false);
       setConvergeActive(false);
       setStagePhase('PULSE');
@@ -874,30 +1015,40 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     }
   };
 
+  const revealFontSizeClass = targetChars.length > 10
+    ? 'text-3xl sm:text-4xl tracking-[0.16em]'
+    : targetChars.length > 7
+      ? 'text-4xl sm:text-5xl tracking-[0.2em]'
+      : 'text-5xl sm:text-6xl tracking-[0.24em]';
+
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-500 overflow-hidden select-none ${
-      stagePhase === 'SHUTTER' ? 'bg-black text-white' :
-      (stagePhase === 'VORTEX' || stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') ? 'bg-black text-white' :
+      stagePhase !== 'PULSE' ? 'bg-black text-white' :
       !cameraReady ? 'bg-[#f4f4f2] text-black' :
       isFlashing ? 'bg-black text-white' : 'bg-white text-black'
     }`}>
-      {/* Precision Animations Matching the Video Asset */}
       <style>{`
-        @keyframes irisIdleBreathing {
+        @keyframes shutterSubtlePulse {
           0%, 100% { transform: scale(1) rotate(0deg); }
-          50% { transform: scale(1.03) rotate(1.5deg); }
+          50% { transform: scale(1.018) rotate(1.2deg); }
         }
-        @keyframes irisLightSweep {
-          0% { transform: rotate(0deg); opacity: 0.9; }
-          100% { transform: rotate(360deg); opacity: 0.9; }
+        @keyframes rimLightOrbit {
+          0% { transform: rotate(-45deg); }
+          100% { transform: rotate(315deg); }
         }
-        @keyframes vortexContinuousRotation {
+        @keyframes vortexSpinClockwise {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
-        @keyframes vortexGoldenGlow {
-          0% { transform: scale(0.92); opacity: 0.45; }
-          100% { transform: scale(1.28); opacity: 0.85; filter: drop-shadow(0 0 45px rgba(255,225,140,0.6)); }
+        @keyframes vortexSpinCounter {
+          0% { transform: rotate(360deg); }
+          100% { transform: rotate(0deg); }
+        }
+        @keyframes vortexLettersPull {
+          0% { transform: rotate(0deg) scale(1.18); opacity: 0; }
+          15% { opacity: 1; }
+          85% { opacity: 1; }
+          100% { transform: rotate(260deg) scale(0.76); opacity: 0.9; }
         }
         @keyframes artisticHeartbeat {
           0%, 100% { transform: scale(1); }
@@ -929,37 +1080,24 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
-      {/* STAGE 1: MECHANICAL CAMERA SHUTTER IRIS (0s - 4.6s) */}
+      {/* STAGE 1: MECHANICAL SHUTTER IRIS (0.0s - 4.55s) */}
       {stagePhase === 'SHUTTER' && (
-        <div className="relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-black select-none pointer-events-none">
-          <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-500 ease-in-out ${shutterVisible ? 'opacity-100' : 'opacity-0'}`}>
-            <MechanicalShutterIris isDilating={shutterDilating} />
-          </div>
-
-          <div className={`relative z-10 w-32 h-32 sm:w-36 sm:h-36 rounded-full bg-white shadow-[0_0_50px_rgba(255,255,255,0.7)] flex items-center justify-center transition-all duration-700 ease-out ${badgeVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
-            <BrandLogoSVG className="w-12 h-12 sm:w-14 sm:h-14" />
-          </div>
+        <div className={`relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-black select-none pointer-events-none transition-opacity duration-500 ease-in-out ${shutterVisible ? 'opacity-100' : 'opacity-0'}`}>
+          <MechanicalShutterIris shutterStage={shutterStage} />
         </div>
       )}
 
-      {/* STAGE 2: THE MAGNETIC VORTEX & ORBITAL LETTER CLOUD (4.6s - 9.8s) */}
-      {(stagePhase === 'VORTEX' || stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
+      {/* STAGE 2: MAGNETIC VORTEX STORM (4.55s - 9.8s ONLY) */}
+      {stagePhase === 'VORTEX' && (
         <div className={`relative w-full min-h-[100dvh] bg-black overflow-hidden transition-opacity duration-700 ease-in-out ${vortexVisible ? 'opacity-100' : 'opacity-0'}`}>
           <MagneticVortexStorm />
-          
-          {/* Centered AL Medallion during the vortex storm */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white shadow-[0_0_40px_rgba(255,255,255,0.85)] flex items-center justify-center">
-              <BrandLogoSVG className="w-10 h-10 sm:w-12 sm:h-12" />
-            </div>
-          </div>
         </div>
       )}
 
-      {/* STAGE 3: MAGNETIC WORD CONVERGENCE (9.8s - 11.2s+) */}
+      {/* STAGE 3: UNOBSTRUCTED SINGLE NAME REVEAL ON PURE BLACK (9.8s+) */}
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
-        <div className="absolute inset-0 flex items-center justify-center px-4 overflow-hidden z-20 pointer-events-none">
-          <div className="flex items-center justify-center space-x-2 sm:space-x-3 flex-wrap">
+        <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 overflow-hidden pointer-events-none">
+          <div className="flex items-center justify-center space-x-2 sm:space-x-3 whitespace-nowrap">
             {targetChars.map((item, idx) => (
               <span
                 key={idx}
@@ -967,11 +1105,10 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
                   opacity: convergeActive || stagePhase === 'LOCKED' ? 1 : 0,
                   transform: convergeActive || stagePhase === 'LOCKED'
                     ? 'translate(0px, 0px) scale(1)'
-                    : `translate(${item.startX}px, ${item.startY}px) scale(0.6)`,
-                  transition: 'transform 1.1s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.75s ease',
-                  textShadow: '0 0 25px rgba(255,255,255,0.95), 0 0 50px rgba(255,220,130,0.6)'
+                    : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
+                  transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
                 }}
-                className="text-white font-black text-5xl sm:text-6xl uppercase tracking-widest inline-block"
+                className={`text-white font-black uppercase inline-block ${revealFontSizeClass}`}
               >
                 {item.ch}
               </span>
@@ -1167,8 +1304,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE');
   const masterMonitorPhaseRef = useRef('NONE');
   const [masterShutterVisible, setMasterShutterVisible] = useState(false);
-  const [masterBadgeVisible, setMasterBadgeVisible] = useState(false);
-  const [masterShutterDilating, setMasterShutterDilating] = useState(false);
+  const [masterShutterStage, setMasterShutterStage] = useState('CLOSED_WHITE');
   const [masterVortexVisible, setMasterVortexVisible] = useState(false);
   const [masterConvergeActive, setMasterConvergeActive] = useState(false);
   const [masterRevealWord, setMasterRevealWord] = useState('');
@@ -1497,21 +1633,23 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     setMasterRevealWord(wordToReveal);
     setMasterConvergeActive(false);
     setMasterShutterVisible(false);
-    setMasterBadgeVisible(false);
-    setMasterShutterDilating(false);
+    setMasterShutterStage('CLOSED_WHITE');
     setMasterVortexVisible(false);
 
     updateMasterMonitorPhase('SHUTTER');
-    const t0 = setTimeout(() => setMasterBadgeVisible(true), 60);
-    const tIrisIn = setTimeout(() => setMasterShutterVisible(true), 250);
+    const tIrisIn = setTimeout(() => setMasterShutterVisible(true), 80);
+    const tDarkCore = setTimeout(() => setMasterShutterStage('IRIS_DARK'), 2200);
+    const tOpenIris = setTimeout(() => setMasterShutterStage('OPEN_VORTEX'), 3500);
+    const tShutterOut = setTimeout(() => setMasterShutterVisible(false), 4350);
 
-    const tDilate = setTimeout(() => setMasterShutterDilating(true), 3800);
-    const tIrisOut = setTimeout(() => setMasterShutterVisible(false), 4300);
-
-    const tVortex = setTimeout(() => {
+    const tVortexIn = setTimeout(() => {
       updateMasterMonitorPhase('VORTEX');
-      setTimeout(() => setMasterVortexVisible(true), 80);
-    }, 4600);
+      setTimeout(() => setMasterVortexVisible(true), 60);
+    }, 4550);
+
+    const tVortexOut = setTimeout(() => {
+      setMasterVortexVisible(false);
+    }, 9100);
 
     const tConverge = setTimeout(() => {
       updateMasterMonitorPhase('CONVERGE');
@@ -1521,16 +1659,24 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     const tLocked = setTimeout(() => {
       updateMasterMonitorPhase('LOCKED');
       setActivePhase('PHASE_2_DONE');
-    }, 11200);
+    }, 11100);
 
-    masterPhaseTimeoutsRef.current = [t0, tIrisIn, tDilate, tIrisOut, tVortex, tConverge, tLocked];
+    masterPhaseTimeoutsRef.current = [
+      tIrisIn,
+      tDarkCore,
+      tOpenIris,
+      tShutterOut,
+      tVortexIn,
+      tVortexOut,
+      tConverge,
+      tLocked
+    ];
   };
 
   const resetToPhase1Pulse = () => {
     clearMasterPhaseTimeouts();
     setMasterShutterVisible(false);
-    setMasterBadgeVisible(false);
-    setMasterShutterDilating(false);
+    setMasterShutterStage('CLOSED_WHITE');
     setMasterVortexVisible(false);
     setMasterConvergeActive(false);
     updateMasterMonitorPhase('NONE');
@@ -1853,6 +1999,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
   };
 
+  const masterFontSizeClass = masterTargetChars.length > 10
+    ? 'text-3xl sm:text-4xl tracking-[0.16em]'
+    : masterTargetChars.length > 7
+      ? 'text-4xl sm:text-5xl tracking-[0.2em]'
+      : 'text-5xl sm:text-6xl tracking-[0.24em]';
+
   if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Master Deck...</div>;
 
   return (
@@ -1863,21 +2015,27 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       className="h-[100dvh] w-full flex flex-col touch-none select-none overflow-hidden bg-[#0a0a0a] text-white relative font-sans outline-none"
     >
       <style>{`
-        @keyframes irisIdleBreathing {
+        @keyframes shutterSubtlePulse {
           0%, 100% { transform: scale(1) rotate(0deg); }
-          50% { transform: scale(1.03) rotate(1.5deg); }
+          50% { transform: scale(1.018) rotate(1.2deg); }
         }
-        @keyframes irisLightSweep {
-          0% { transform: rotate(0deg); opacity: 0.9; }
-          100% { transform: rotate(360deg); opacity: 0.9; }
+        @keyframes rimLightOrbit {
+          0% { transform: rotate(-45deg); }
+          100% { transform: rotate(315deg); }
         }
-        @keyframes vortexContinuousRotation {
+        @keyframes vortexSpinClockwise {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
-        @keyframes vortexGoldenGlow {
-          0% { transform: scale(0.92); opacity: 0.45; }
-          100% { transform: scale(1.28); opacity: 0.85; filter: drop-shadow(0 0 45px rgba(255,225,140,0.6)); }
+        @keyframes vortexSpinCounter {
+          0% { transform: rotate(360deg); }
+          100% { transform: rotate(0deg); }
+        }
+        @keyframes vortexLettersPull {
+          0% { transform: rotate(0deg) scale(1.18); opacity: 0; }
+          15% { opacity: 1; }
+          85% { opacity: 1; }
+          100% { transform: rotate(260deg) scale(0.76); opacity: 0.9; }
         }
       `}</style>
 
@@ -1954,30 +2112,20 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           />
 
           {masterMonitorPhase === 'SHUTTER' && (
-            <div className="relative flex items-center justify-center w-full h-full overflow-hidden pointer-events-none bg-black">
-              <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-500 ease-in-out ${masterShutterVisible ? 'opacity-100' : 'opacity-0'}`}>
-                <MechanicalShutterIris isDilating={masterShutterDilating} />
-              </div>
-              <div className={`relative z-10 w-32 h-32 sm:w-36 sm:h-36 rounded-full bg-white shadow-[0_0_50px_rgba(255,255,255,0.7)] flex items-center justify-center transition-all duration-700 ease-out ${masterBadgeVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
-                <BrandLogoSVG className="w-12 h-12 sm:w-14 sm:h-14" />
-              </div>
+            <div className={`relative flex items-center justify-center w-full h-full overflow-hidden pointer-events-none bg-black transition-opacity duration-500 ease-in-out ${masterShutterVisible ? 'opacity-100' : 'opacity-0'}`}>
+              <MechanicalShutterIris shutterStage={masterShutterStage} />
             </div>
           )}
 
-          {(masterMonitorPhase === 'VORTEX' || masterMonitorPhase === 'CONVERGE' || masterMonitorPhase === 'LOCKED') && (
+          {masterMonitorPhase === 'VORTEX' && (
             <div className={`relative w-full h-full bg-black overflow-hidden pointer-events-none transition-opacity duration-700 ease-in-out ${masterVortexVisible ? 'opacity-100' : 'opacity-0'}`}>
               <MagneticVortexStorm />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white shadow-[0_0_40px_rgba(255,255,255,0.85)] flex items-center justify-center">
-                  <BrandLogoSVG className="w-10 h-10 sm:w-12 sm:h-12" />
-                </div>
-              </div>
             </div>
           )}
 
           {(masterMonitorPhase === 'CONVERGE' || masterMonitorPhase === 'LOCKED') && (
-            <div className="absolute inset-0 flex items-center justify-center px-4 overflow-hidden pointer-events-none z-20">
-              <div className="flex items-center justify-center space-x-2 sm:space-x-3 flex-wrap">
+            <div className="relative flex items-center justify-center w-full h-full bg-black px-4 overflow-hidden pointer-events-none">
+              <div className="flex items-center justify-center space-x-2 sm:space-x-3 whitespace-nowrap">
                 {masterTargetChars.map((item, idx) => (
                   <span
                     key={idx}
@@ -1985,11 +2133,10 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                       opacity: masterConvergeActive || masterMonitorPhase === 'LOCKED' ? 1 : 0,
                       transform: masterConvergeActive || masterMonitorPhase === 'LOCKED'
                         ? 'translate(0px, 0px) scale(1)'
-                        : `translate(${item.startX}px, ${item.startY}px) scale(0.6)`,
-                      transition: 'transform 1.1s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.75s ease',
-                      textShadow: '0 0 25px rgba(255,255,255,0.95), 0 0 50px rgba(255,220,130,0.6)'
+                        : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
+                      transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
                     }}
-                    className="text-white font-black text-5xl sm:text-6xl uppercase tracking-widest inline-block"
+                    className={`text-white font-black uppercase inline-block ${masterFontSizeClass}`}
                   >
                     {item.ch}
                   </span>
