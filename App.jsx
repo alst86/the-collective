@@ -19,10 +19,10 @@ const EMOTIONAL_TUNING_PROMPTS = [
 ];
 
 const REVEAL_THEMES = [
-  { id: 'CLASSIC_SPIRAL', label: '🌀 Classic Spiral', short: 'SPIRAL' },
-  { id: 'RIPPLE_WAVE', label: '〰️ Ripple Wave', short: 'RIPPLE' },
-  { id: 'APERTURE_VORTEX', label: '◎ Aperture Vortex', short: 'APERTURE' },
-  { id: 'CONSTELLATION', label: '✨ Constellation', short: 'STARS' }
+  { id: 'RIPPLE_WAVE', label: '〰️ Option 1: Ripple + Soundwave', short: 'RIPPLE' },
+  { id: 'CONSTELLATION', label: '✨ Option 2: Constellation', short: 'SYNAPSE' },
+  { id: 'APERTURE_VORTEX', label: '◎ Option 3: Aperture + Vortex', short: 'APERTURE' },
+  { id: 'CLASSIC_SPIRAL', label: '🌀 Classic Spiral', short: 'SPIRAL' }
 ];
 
 // Exact Custom AL Geometric Monogram Logo
@@ -45,7 +45,11 @@ function BrandLogoSVG({ className = "w-14 h-14" }) {
   );
 }
 
-// 1. CLASSIC_SPIRAL: True Continuous Archimedean Spiral (Seamless 360-Degree Infinite Loop)
+// ==========================================
+// STAGE 1 EMBLEM ANIMATIONS (0.0s – 5.1s)
+// ==========================================
+
+// CLASSIC_SPIRAL: True Continuous Archimedean Spiral
 const HypnoticSpiralSVG = React.memo(function HypnoticSpiralSVG() {
   const spiralPath = useMemo(() => {
     const pitch = 56;
@@ -81,112 +85,494 @@ const HypnoticSpiralSVG = React.memo(function HypnoticSpiralSVG() {
   );
 });
 
-// 2. RIPPLE_WAVE: Expanding Concentric Resonance Rings
-const RippleWaveSVG = React.memo(function RippleWaveSVG() {
-  const rings = [0, 0.45, 0.9, 1.35, 1.8, 2.25, 2.7, 3.15];
+// OPTION 1 (STAGE 1): The "Expanded Resonance" Ripple (The Heartbeat Wave)
+const ExpandedResonanceRipple = React.memo(function ExpandedResonanceRipple() {
+  constwaves = [0, 0.35, 1.2, 1.55, 2.4, 2.75];
   return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-      {rings.map((delay, idx) => (
-        <div
-          key={idx}
-          className="absolute w-44 h-44 rounded-full border-[14px] border-black will-change-transform"
-          style={{
-            animation: `resonanceRippleExpand 3.6s cubic-bezier(0.15, 0.55, 0.35, 1) infinite`,
-            animationDelay: `${delay}s`,
-            opacity: 0,
-          }}
-        />
-      ))}
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden bg-black">
+      {/* Subtle radial atmospheric glow */}
+      <div 
+        className="absolute w-[110vmax] h-[110vmax] rounded-full pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(220,38,38,0.08) 28%, rgba(0,0,0,0) 68%)',
+          animation: 'sonarCoreBreathe 2.4s ease-in-out infinite'
+        }}
+      />
+
+      {/* Static ultra-thin acoustic rangefinder rings */}
+      <svg viewBox="-500 -500 1000 1000" className="absolute w-[115vmin] h-[115vmin] opacity-25">
+        <circle cx="0" cy="0" r="160" fill="none" stroke="#ffffff" strokeWidth="0.75" strokeDasharray="3 8" />
+        <circle cx="0" cy="0" r="280" fill="none" stroke="#ffffff" strokeWidth="0.75" strokeDasharray="2 12" />
+        <circle cx="0" cy="0" r="410" fill="none" stroke="#ffffff" strokeWidth="0.5" />
+        <line x1="-460" y1="0" x2="-120" y2="0" stroke="#ffffff" strokeWidth="0.5" strokeOpacity="0.4" />
+        <line x1="120" y1="0" x2="460" y2="0" stroke="#ffffff" strokeWidth="0.5" strokeOpacity="0.4" />
+        <line x1="0" y1="-460" x2="0" y2="-120" stroke="#ffffff" strokeWidth="0.5" strokeOpacity="0.4" />
+        <line x1="0" y1="120" x2="0" y2="460" stroke="#ffffff" strokeWidth="0.5" strokeOpacity="0.4" />
+      </svg>
+
+      {/* Expanding Lub-Dub Organic Sonar Shockwaves */}
+      {waves.map((delay, idx) => {
+        const isDub = idx % 2 === 1;
+        return (
+          <div
+            key={idx}
+            className="absolute w-40 h-40 rounded-full pointer-events-none will-change-transform"
+            style={{
+              border: isDub ? '1.5px solid rgba(255, 255, 255, 0.55)' : '2.5px solid rgba(255, 255, 255, 0.85)',
+              boxShadow: isDub
+                ? '0 0 25px rgba(255, 255, 255, 0.2), inset 0 0 18px rgba(220, 38, 38, 0.18)'
+                : '0 0 40px rgba(255, 255, 255, 0.38), inset 0 0 25px rgba(255, 255, 255, 0.22)',
+              animation: 'organicSonarWave 3.6s cubic-bezier(0.16, 0.84, 0.44, 1) infinite',
+              animationDelay: `${delay}s`,
+              opacity: 0,
+            }}
+          />
+        );
+      })}
     </div>
   );
 });
 
-// 3. APERTURE_VORTEX: Counter-Rotating Geometric Camera Iris
-const ApertureVortexSVG = React.memo(function ApertureVortexSVG() {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-      <svg
-        viewBox="-500 -500 1000 1000"
-        className="absolute w-[160vmax] h-[160vmax] will-change-transform"
-        style={{ animation: 'continuousSpiralFlow 9s linear infinite' }}
-      >
-        {[120, 190, 270, 360, 460].map((r, i) => (
-          <polygon
-            key={i}
-            points={Array.from({ length: 8 }).map((_, idx) => {
-              const angle = (idx * 45 + i * 15) * (Math.PI / 180);
-              return `${(r * Math.cos(angle)).toFixed(1)},${(r * Math.sin(angle)).toFixed(1)}`;
-            }).join(' ')}
-            fill="none"
-            stroke="#000000"
-            strokeWidth={18 - i * 2}
-          />
-        ))}
-      </svg>
-      <svg
-        viewBox="-500 -500 1000 1000"
-        className="absolute w-[135vmax] h-[135vmax] will-change-transform opacity-75"
-        style={{ animation: 'continuousSpiralFlowReverse 6.5s linear infinite' }}
-      >
-        {[150, 230, 320, 420].map((r, i) => (
-          <circle
-            key={i}
-            cx="0"
-            cy="0"
-            r={r}
-            fill="none"
-            stroke="#000000"
-            strokeWidth="14"
-            strokeDasharray="48 36"
-          />
-        ))}
-      </svg>
-    </div>
-  );
-});
+// OPTION 2 (STAGE 1): The "Constellation of Thought" (Synapse Network)
+const ConstellationOfThought = React.memo(function ConstellationOfThought() {
+  const { nodes, edges } = useMemo(() => {
+    const pts = [
+      { id: 0, x: -160, y: -260, r: 3.5, delay: '0s' },
+      { id: 1, x: 45, y: -310, r: 2.5, delay: '0.6s' },
+      { id: 2, x: 215, y: -220, r: 4, delay: '1.1s' },
+      { id: 3, x: -310, y: -110, r: 3, delay: '0.3s' },
+      { id: 4, x: -135, y: -125, r: 4.5, delay: '1.5s' },
+      { id: 5, x: 145, y: -120, r: 3.5, delay: '0.8s' },
+      { id: 6, x: 325, y: -75, r: 2.8, delay: '1.9s' },
+      { id: 7, x: -360, y: 55, r: 2.5, delay: '0.4s' },
+      { id: 8, x: -195, y: 35, r: 4.2, delay: '1.2s' },
+      { id: 9, x: 195, y: 45, r: 4, delay: '0.2s' },
+      { id: 10, x: 355, y: 95, r: 3, delay: '1.4s' },
+      { id: 11, x: -245, y: 215, r: 3.5, delay: '0.9s' },
+      { id: 12, x: -95, y: 165, r: 4.5, delay: '1.7s' },
+      { id: 13, x: 110, y: 175, r: 3.8, delay: '0.5s' },
+      { id: 14, x: 265, y: 235, r: 3.2, delay: '1.3s' },
+      { id: 15, x: -40, y: 325, r: 2.8, delay: '0.7s' },
+      { id: 16, x: 135, y: 330, r: 3, delay: '1.6s' },
+      { id: 17, x: -255, y: -340, r: 2.2, delay: '2.1s' },
+      { id: 18, x: 295, y: -330, r: 2.4, delay: '0.4s' },
+      { id: 19, x: -295, y: 345, r: 2.5, delay: '1.8s' },
+    ];
 
-// 4. CONSTELLATION: Rotating Synaptic Neural Web
-const ConstellationSVG = React.memo(function ConstellationSVG() {
-  const nodes = useMemo(() => {
-    return Array.from({ length: 24 }).map((_, i) => {
-      const ring = Math.floor(i / 6) + 1;
-      const r = ring * 105;
-      const angle = ((i % 6) * 60 + ring * 22) * (Math.PI / 180);
-      return {
-        x: Number((r * Math.cos(angle)).toFixed(1)),
-        y: Number((r * Math.sin(angle)).toFixed(1)),
-        r: 9 + (i % 3) * 4
-      };
-    });
+    const connections = [];
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dist = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+        if (dist < 235) {
+          connections.push({
+            id: `${i}-${j}`,
+            x1: pts[i].x,
+            y1: pts[i].y,
+            x2: pts[j].x,
+            y2: pts[j].y,
+            opacity: Number((1 - dist / 250).toFixed(2)) * 0.55,
+            delay: `${((i + j) % 7) * 0.4}s`
+          });
+        }
+      }
+    }
+    return { nodes: pts, edges: connections };
   }, []);
 
   return (
-    <svg
-      viewBox="-500 -500 1000 1000"
-      className="absolute w-[155vmax] h-[155vmax] pointer-events-none will-change-transform"
-      style={{ animation: 'continuousSpiralFlow 14s linear infinite' }}
-    >
-      {nodes.map((n, i) => {
-        const next = nodes[(i + 1) % nodes.length];
-        const cross = nodes[(i + 6) % nodes.length];
-        return (
-          <g key={i}>
-            <line x1={n.x} y1={n.y} x2={next.x} y2={next.y} stroke="#000000" strokeWidth="6" strokeOpacity="0.45" />
-            <line x1={n.x} y1={n.y} x2={cross.x} y2={cross.y} stroke="#000000" strokeWidth="5" strokeOpacity="0.3" />
-            <circle cx={n.x} cy={n.y} r={n.r} fill="#000000" />
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden bg-black">
+      <div 
+        className="absolute w-[95vmin] h-[95vmin] rounded-full opacity-30 pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.03) 45%, transparent 72%)'
+        }}
+      />
+
+      <svg
+        viewBox="-450 -450 900 900"
+        className="absolute w-[115vmax] h-[115vmax] will-change-transform"
+        style={{ animation: 'constellationSlowDrift 22s ease-in-out infinite alternate' }}
+      >
+        <defs>
+          <filter id="synapseGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="3.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* Radial threads linking center AL badge to inner neural ring */}
+        {nodes.slice(0, 14).map((n) => (
+          <line
+            key={`core-${n.id}`}
+            x1="0"
+            y1="0"
+            x2={n.x}
+            y2={n.y}
+            stroke="#ffffff"
+            strokeWidth="0.7"
+            strokeOpacity="0.16"
+            strokeDasharray="4 6"
+          />
+        ))}
+
+        {/* Synaptic Web Connections */}
+        {edges.map((e) => (
+          <line
+            key={e.id}
+            x1={e.x1}
+            y1={e.y1}
+            x2={e.x2}
+            y2={e.y2}
+            stroke="#ffffff"
+            strokeWidth="1.15"
+            strokeOpacity={e.opacity}
+            style={{
+              animation: 'synapseLinePulse 3.4s ease-in-out infinite',
+              animationDelay: e.delay
+            }}
+          />
+        ))}
+
+        {/* Breathing Neural Nodes */}
+        {nodes.map((n) => (
+          <g
+            key={n.id}
+            style={{
+              animation: 'neuralNodeFloat 4.8s ease-in-out infinite alternate',
+              animationDelay: n.delay
+            }}
+          >
+            <circle
+              cx={n.x}
+              cy={n.y}
+              r={n.r * 2.6}
+              fill="rgba(255,255,255,0.14)"
+            />
+            <circle
+              cx={n.x}
+              cy={n.y}
+              r={n.r}
+              fill="#ffffff"
+              filter="url(#synapseGlow)"
+            />
           </g>
-        );
-      })}
-    </svg>
+        ))}
+      </svg>
+    </div>
   );
 });
 
-function ThemeStage1Artwork({ theme }) {
-  if (theme === 'RIPPLE_WAVE') return <RippleWaveSVG />;
-  if (theme === 'APERTURE_VORTEX') return <ApertureVortexSVG />;
-  if (theme === 'CONSTELLATION') return <ConstellationSVG />;
-  return <HypnoticSpiralSVG />;
-}
+// OPTION 3 (STAGE 1): The "Focus Aperture" (The Expanding Mind's Eye)
+const FocusApertureIris = React.memo(function FocusApertureIris({ isDilating }) {
+  const tickAngles = useMemo(() => Array.from({ length: 72 }).map((_, i) => i * 5), []);
+  const bladeAngles = useMemo(() => Array.from({ length: 8 }).map((_, i) => i * 45), []);
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden bg-[#070708]">
+      {/* Subtle optical vignette */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle, rgba(255,255,255,0.09) 0%, rgba(0,0,0,0.85) 68%, #000000 100%)'
+        }}
+      />
+
+      <div
+        className="relative flex items-center justify-center w-[110vmin] h-[110vmin] will-change-transform transition-transform duration-700 ease-in"
+        style={{
+          transform: isDilating ? 'scale(2.65)' : 'scale(1)',
+          animation: isDilating ? 'none' : 'apertureBreathe 3.8s ease-in-out infinite'
+        }}
+      >
+        <svg viewBox="-500 -500 1000 1000" className="w-full h-full">
+          <defs>
+            <linearGradient id="bladeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#27272a" stopOpacity="0.85" />
+              <stop offset="50%" stopColor="#18181b" stopOpacity="0.65" />
+              <stop offset="100%" stopColor="#09090b" stopOpacity="0.92" />
+            </linearGradient>
+          </defs>
+
+          {/* Outer Precision Calibration Ring & Degree Ticks */}
+          <g style={{ animation: 'continuousSpiralFlow 28s linear infinite' }}>
+            <circle cx="0" cy="0" r="420" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
+            <circle cx="0" cy="0" r="385" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="0.75" strokeDasharray="6 10" />
+            {tickAngles.map((deg) => {
+              const isMajor = deg % 30 === 0;
+              const r1 = isMajor ? 402 : 410;
+              const r2 = 420;
+              const rad = (deg * Math.PI) / 180;
+              return (
+                <line
+                  key={deg}
+                  x1={(r1 * Math.cos(rad)).toFixed(1)}
+                  y1={(r1 * Math.sin(rad)).toFixed(1)}
+                  x2={(r2 * Math.cos(rad)).toFixed(1)}
+                  y2={(r2 * Math.sin(rad)).toFixed(1)}
+                  stroke="#ffffff"
+                  strokeOpacity={isMajor ? '0.6' : '0.22'}
+                  strokeWidth={isMajor ? '1.8' : '0.9'}
+                />
+              );
+            })}
+          </g>
+
+          {/* Counter-Rotating Optical Rangefinder Ring */}
+          <g style={{ animation: 'continuousSpiralFlowReverse 18s linear infinite' }}>
+            <circle cx="0" cy="0" r="330" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.2" strokeDasharray="80 40 12 40" />
+            <circle cx="0" cy="0" r="295" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="0.8" />
+          </g>
+
+          {/* 8 Mechanical Camera Shutter Blades */}
+          <g style={{ animation: 'shutterIrisTwist 3.8s ease-in-out infinite' }}>
+            {bladeAngles.map((deg) => (
+              <g key={deg} transform={`rotate(${deg})`}>
+                <path
+                  d="M 105 -45 C 185 -120, 290 -115, 325 -15 C 260 45, 165 55, 105 -45 Z"
+                  fill="url(#bladeGrad)"
+                  stroke="rgba(255,255,255,0.28)"
+                  strokeWidth="1.2"
+                />
+              </g>
+            ))}
+          </g>
+
+          {/* Inner Crisp Lens Reticle */}
+          <circle cx="0" cy="0" r="142" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="1.75" />
+          <circle cx="0" cy="0" r="154" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="0.75" strokeDasharray="4 6" />
+        </svg>
+      </div>
+    </div>
+  );
+});
+
+// ==========================================
+// STAGE 2 LETTER CLOUD ANIMATIONS (5.1s – 10.0s)
+// ==========================================
+
+// OPTION 1A (STAGE 2): The "Shimmering Soundwave"
+const ShimmeringSoundwaveLetters = React.memo(function ShimmeringSoundwaveLetters({ particles }) {
+  const bars = useMemo(() => Array.from({ length: 44 }).map((_, i) => ({
+    id: i,
+    delay: `${(i * 0.07).toFixed(2)}s`,
+    maxH: 25 + Math.sin((i / 44) * Math.PI) * 140
+  })), []);
+
+  return (
+    <div className="relative w-full h-full min-h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none pointer-events-none">
+      {/* Horizontal Acoustic Forcefield Glow */}
+      <div
+        className="absolute inset-x-0 h-56 pointer-events-none"
+        style={{
+          background: 'linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.07) 35%, rgba(255,255,255,0.16) 50%, rgba(255,255,255,0.07) 65%, transparent 100%)'
+        }}
+      />
+
+      {/* Oscillating Multi-Harmonic Sine Waveforms */}
+      <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-x-0 w-full h-64 opacity-45">
+        <path
+          d="M 0 150 Q 125 40, 250 150 T 500 150 T 750 150 T 1000 150"
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth="2"
+          style={{ animation: 'soundwaveMorph 1.1s ease-in-out infinite alternate' }}
+        />
+        <path
+          d="M 0 150 Q 125 240, 250 150 T 500 150 T 750 150 T 1000 150"
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth="1.2"
+          strokeOpacity="0.6"
+          style={{ animation: 'soundwaveMorph 0.85s ease-in-out infinite alternate-reverse' }}
+        />
+        <line x1="0" y1="150" x2="1000" y2="150" stroke="#ffffff" strokeWidth="0.75" strokeOpacity="0.35" strokeDasharray="6 8" />
+      </svg>
+
+      {/* High-Frequency Vertical Equalizer Filaments */}
+      <div className="absolute inset-x-0 flex items-center justify-between px-2 opacity-30">
+        {bars.map((b) => (
+          <div
+            key={b.id}
+            className="w-[1.5px] bg-white rounded-full"
+            style={{
+              height: `${b.maxH}px`,
+              animation: 'frequencyBarPulse 0.65s ease-in-out infinite alternate',
+              animationDelay: b.delay
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Shimmering Typographic Fragments & Alphanumeric Dust */}
+      {particles.map((p, i) => {
+        const bandTop = 28 + ((i * 13) % 44); // Concentrated within the horizontal soundwave band (28% to 72%)
+        return (
+          <span
+            key={p.id}
+            style={{
+              left: p.left,
+              top: `${bandTop}%`,
+              fontSize: p.size,
+              '--amp': `${(i % 2 === 0 ? -1 : 1) * (18 + (i % 5) * 12)}px`,
+              animation: `shimmerSoundwaveChar ${0.55 + (i % 5) * 0.14}s ease-in-out infinite alternate`,
+              animationDelay: `${(i % 7) * 0.08}s`,
+              textShadow: '0 0 14px rgba(255,255,255,0.75)'
+            }}
+            className="absolute font-mono font-bold text-white select-none pointer-events-none"
+          >
+            {p.char}
+          </span>
+        );
+      })}
+    </div>
+  );
+});
+
+// OPTION 1B / OPTION 3 (STAGE 2): The "Magnetic Vortex"
+const MagneticVortexLetters = React.memo(function MagneticVortexLetters({ particles }) {
+  return (
+    <div className="relative w-full h-full min-h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none pointer-events-none">
+      {/* Swirling Gravitational Whirlpool Rings */}
+      <svg
+        viewBox="-500 -500 1000 1000"
+        className="absolute w-[130vmax] h-[130vmax] opacity-35 will-change-transform"
+        style={{ animation: 'continuousSpiralFlow 3.2s linear infinite' }}
+      >
+        {[90, 155, 225, 305, 390].map((r, idx) => (
+          <ellipse
+            key={idx}
+            cx="0"
+            cy="0"
+            rx={r}
+            ry={Math.round(r * 0.86)}
+            transform={`rotate(${idx * 36})`}
+            fill="none"
+            stroke="#ffffff"
+            strokeWidth={2.2 - idx * 0.3}
+            strokeDasharray={`${90 + idx * 30} ${55 + idx * 20}`}
+            strokeLinecap="round"
+          />
+        ))}
+      </svg>
+
+      {/* Center Gravitational Singularity Glow */}
+      <div
+        className="absolute w-44 h-44 rounded-full pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.04) 52%, transparent 75%)'
+        }}
+      />
+
+      {/* Swirling Orbital Letters Pulling Inward */}
+      {particles.map((p, i) => {
+        const startAngle = (i * 360) / particles.length;
+        const startRadius = 150 + (i % 4) * 55;
+        return (
+          <div
+            key={p.id}
+            className="absolute flex items-center justify-center will-change-transform"
+            style={{
+              '--start-angle': `${startAngle}deg`,
+              '--start-radius': `${startRadius}px`,
+              animation: `vortexOrbitInward ${2.4 + (i % 4) * 0.45}s cubic-bezier(0.35, 0, 0.65, 1) infinite`,
+              animationDelay: `${(i % 6) * 0.3}s`
+            }}
+          >
+            <span
+              style={{
+                fontSize: p.size,
+                textShadow: '0 0 16px rgba(255,255,255,0.65)'
+              }}
+              className="font-sans font-extrabold text-white select-none"
+            >
+              {p.char}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
+// OPTION 2B (STAGE 2): "Synaptic Convergence" (Constellation Letter Nodes)
+const SynapticConvergenceLetters = React.memo(function SynapticConvergenceLetters({ particles }) {
+  const synapticMesh = useMemo(() => {
+    const subset = particles.slice(0, 18).map((p, idx) => {
+      const angle = (idx / 18) * 2 * Math.PI;
+      const ring = idx % 2 === 0 ? 150 : 275;
+      return {
+        ...p,
+        nx: Math.round(Math.cos(angle) * ring),
+        ny: Math.round(Math.sin(angle) * ring * 1.25),
+      };
+    });
+
+    const lines = [];
+    for (let i = 0; i < subset.length; i++) {
+      const next = subset[(i + 1) % subset.length];
+      const across = subset[(i + 3) % subset.length];
+      lines.push({ id: `l1-${i}`, x1: subset[i].nx, y1: subset[i].ny, x2: next.nx, y2: next.ny });
+      lines.push({ id: `l2-${i}`, x1: subset[i].nx, y1: subset[i].ny, x2: across.nx, y2: across.ny });
+    }
+    return { subset, lines };
+  }, [particles]);
+
+  return (
+    <div className="relative w-full h-full min-h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none pointer-events-none">
+      <svg
+        viewBox="-400 -500 800 1000"
+        className="w-full h-full max-w-lg will-change-transform"
+        style={{ animation: 'synapticMeshContract 4.2s ease-in-out infinite alternate' }}
+      >
+        {/* Connecting Synaptic Filaments Between Letters */}
+        {synapticMesh.lines.map((l, idx) => (
+          <line
+            key={l.id}
+            x1={l.x1}
+            y1={l.y1}
+            x2={l.x2}
+            y2={l.y2}
+            stroke="#ffffff"
+            strokeWidth="1.1"
+            strokeOpacity="0.28"
+            style={{
+              animation: 'synapseLinePulse 2.2s ease-in-out infinite',
+              animationDelay: `${(idx % 5) * 0.3}s`
+            }}
+          />
+        ))}
+
+        {/* Letter Constellation Nodes */}
+        {synapticMesh.subset.map((node, i) => (
+          <g
+            key={node.id}
+            style={{
+              animation: 'neuralNodeFloat 3.2s ease-in-out infinite alternate',
+              animationDelay: `${(i % 6) * 0.25}s`
+            }}
+          >
+            <circle cx={node.nx} cy={node.ny} r="22" fill="#000000" fillOpacity="0.65" />
+            <circle cx={node.nx} cy={node.ny} r="18" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="1" />
+            <text
+              x={node.nx}
+              y={node.ny + 8}
+              textAnchor="middle"
+              fill="#ffffff"
+              fontSize="24"
+              fontWeight="800"
+              fontFamily="sans-serif"
+            >
+              {node.char}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+});
 
 const formatValidUrl = (rawUrl, fallbackUrl) => {
   let clean = (rawUrl || fallbackUrl || '').trim();
@@ -278,8 +664,8 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [kickerWord, setKickerWord] = useState('');
   const kickerWordRef = useRef('');
   const [revealWord, setRevealWord] = useState('');
-  const [revealTheme, setRevealTheme] = useState('CLASSIC_SPIRAL');
-  const [holdUpPromptActive, setHoldUpPromptActive] = useState(false);
+  const [revealTheme, setRevealTheme] = useState('RIPPLE_WAVE');
+  const [holdUpPromptActive, setHoldUpPromptActive] = useState(true);
   const [uiReady, setUiReady] = useState(false);
 
   const [promptIndex, setPromptIndex] = useState(0);
@@ -291,6 +677,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [stagePhase, setStagePhase] = useState('PULSE');
   const [spiralVisible, setSpiralVisible] = useState(false);
   const [badgeVisible, setBadgeVisible] = useState(false);
+  const [apertureDilating, setApertureDilating] = useState(false);
   const [lettersVisible, setLettersVisible] = useState(false);
   const [convergeActive, setConvergeActive] = useState(false);
   const phaseTimeoutsRef = useRef([]);
@@ -608,11 +995,16 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     setConvergeActive(false);
     setSpiralVisible(false);
     setBadgeVisible(false);
+    setApertureDilating(false);
     setLettersVisible(false);
 
     setStagePhase('SPIRAL');
     const t0 = setTimeout(() => setBadgeVisible(true), 60);
     const tSpiralIn = setTimeout(() => setSpiralVisible(true), 350);
+
+    const tDilate = setTimeout(() => {
+      setApertureDilating(true);
+    }, 4100);
 
     const tSpiralOut = setTimeout(() => {
       setSpiralVisible(false);
@@ -637,7 +1029,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       setStagePhase('LOCKED');
     }, 11200);
 
-    phaseTimeoutsRef.current = [t0, tSpiralIn, tSpiralOut, t1, tLettersOut, t2, t3];
+    phaseTimeoutsRef.current = [t0, tSpiralIn, tDilate, tSpiralOut, t1, tLettersOut, t2, t3];
   };
 
   useEffect(() => {
@@ -663,11 +1055,12 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
     const holdUpRef = ref(db, `${roomID}/promptHoldUp`);
     const unsubHoldUp = onValue(holdUpRef, (snapshot) => {
-      setHoldUpPromptActive(Boolean(snapshot.val()));
+      const val = snapshot.val();
+      setHoldUpPromptActive(val === null ? true : Boolean(val));
     });
 
-    const themeRef = ref(db, `${roomID}/revealTheme`);
-    const unsubTheme = onValue(themeRef, (snapshot) => {
+    const styleRef = ref(db, `${roomID}/revealStyle`);
+    const unsubStyle = onValue(styleRef, (snapshot) => {
       const val = snapshot.val();
       if (val) setRevealTheme(String(val));
     });
@@ -697,7 +1090,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       unsubCommand();
       unsubText();
       unsubHoldUp();
-      unsubTheme();
+      unsubStyle();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
       if (silentAudioRef.current) {
@@ -725,6 +1118,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       setThumbFocused(false);
       setSpiralVisible(false);
       setBadgeVisible(false);
+      setApertureDilating(false);
       setLettersVisible(false);
       setConvergeActive(false);
       setStagePhase('PULSE');
@@ -823,16 +1217,11 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     }
   };
 
-  const getLetterAnimationName = (theme) => {
-    if (theme === 'RIPPLE_WAVE') return 'waveLetter';
-    if (theme === 'APERTURE_VORTEX') return 'vortexLetter';
-    if (theme === 'CONSTELLATION') return 'twinkleLetter';
-    return 'floatLetter';
-  };
+  const isClassicSpiral = revealTheme === 'CLASSIC_SPIRAL';
 
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-500 overflow-hidden select-none ${
-      stagePhase === 'SPIRAL' ? 'bg-white text-black' :
+      stagePhase === 'SPIRAL' ? (isClassicSpiral ? 'bg-white text-black' : 'bg-black text-white') :
       (stagePhase === 'LETTERS' || stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') ? 'bg-black text-white' :
       !cameraReady ? 'bg-[#f4f4f2] text-black' :
       isFlashing ? 'bg-black text-white' : 'bg-white text-black'
@@ -846,29 +1235,68 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
           0% { transform: rotate(360deg); }
           100% { transform: rotate(0deg); }
         }
-        @keyframes resonanceRippleExpand {
-          0% { transform: scale(0.35); opacity: 0.9; }
-          80% { opacity: 0.25; }
-          100% { transform: scale(6.5); opacity: 0; }
+        @keyframes organicSonarWave {
+          0% { transform: scale(0.85); opacity: 0.95; }
+          70% { opacity: 0.35; }
+          100% { transform: scale(6.2); opacity: 0; }
+        }
+        @keyframes sonarCoreBreathe {
+          0%, 100% { transform: scale(0.92); opacity: 0.65; }
+          50% { transform: scale(1.12); opacity: 1; }
+        }
+        @keyframes constellationSlowDrift {
+          0% { transform: rotate(-4deg) scale(0.96); }
+          100% { transform: rotate(4deg) scale(1.06); }
+        }
+        @keyframes synapseLinePulse {
+          0%, 100% { opacity: 0.15; }
+          50% { opacity: 0.72; }
+        }
+        @keyframes neuralNodeFloat {
+          0% { transform: translate(-8px, -6px); }
+          100% { transform: translate(8px, 6px); }
+        }
+        @keyframes apertureBreathe {
+          0%, 100% { transform: scale(0.92); }
+          50% { transform: scale(1.08); }
+        }
+        @keyframes shutterIrisTwist {
+          0%, 100% { transform: rotate(-8deg) scale(0.95); }
+          50% { transform: rotate(10deg) scale(1.06); }
+        }
+        @keyframes soundwaveMorph {
+          0% { transform: scaleY(0.35); }
+          100% { transform: scaleY(1.35); }
+        }
+        @keyframes frequencyBarPulse {
+          0% { transform: scaleY(0.2); opacity: 0.25; }
+          100% { transform: scaleY(1.15); opacity: 0.85; }
+        }
+        @keyframes shimmerSoundwaveChar {
+          0% { transform: translateY(calc(var(--amp) * -1)) scale(0.85); opacity: 0.18; filter: blur(1px); }
+          50% { opacity: 0.95; filter: blur(0px); }
+          100% { transform: translateY(var(--amp)) scale(1.12); opacity: 0.3; filter: blur(0.5px); }
+        }
+        @keyframes vortexOrbitInward {
+          0% {
+            transform: rotate(var(--start-angle)) translateX(var(--start-radius)) rotate(calc(var(--start-angle) * -1)) scale(1.15);
+            opacity: 0;
+          }
+          20% { opacity: 0.85; }
+          80% { opacity: 0.75; }
+          100% {
+            transform: rotate(calc(var(--start-angle) + 540deg)) translateX(12px) rotate(calc((var(--start-angle) + 540deg) * -1)) scale(0.35);
+            opacity: 0;
+          }
+        }
+        @keyframes synapticMeshContract {
+          0% { transform: scale(1.04) rotate(-2deg); }
+          100% { transform: scale(0.86) rotate(2deg); }
         }
         @keyframes floatLetter {
           0% { transform: translate(0px, 0px); opacity: 0.15; }
           50% { transform: translate(var(--dx), var(--dy)); opacity: 0.85; }
           100% { transform: translate(calc(var(--dx) * -0.6), calc(var(--dy) * 0.6)); opacity: 0.2; }
-        }
-        @keyframes waveLetter {
-          0% { transform: translateY(-28px) scaleY(0.85); opacity: 0.2; }
-          50% { transform: translateY(28px) scaleY(1.3); opacity: 0.9; }
-          100% { transform: translateY(-18px) scaleY(0.95); opacity: 0.25; }
-        }
-        @keyframes vortexLetter {
-          0% { transform: rotate(0deg) translate(var(--dx), var(--dy)) scale(0.75); opacity: 0.2; }
-          50% { transform: rotate(180deg) translate(calc(var(--dx) * 0.5), calc(var(--dy) * 0.5)) scale(1.15); opacity: 0.9; }
-          100% { transform: rotate(360deg) translate(0px, 0px) scale(0.6); opacity: 0.25; }
-        }
-        @keyframes twinkleLetter {
-          0%, 100% { transform: scale(0.7); opacity: 0.1; filter: blur(1px); }
-          50% { transform: scale(1.25); opacity: 0.95; filter: blur(0px); text-shadow: 0 0 18px rgba(255,255,255,0.85); }
         }
         @keyframes artisticHeartbeat {
           0%, 100% { transform: scale(1); }
@@ -900,21 +1328,33 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
+      {/* STAGE 1 OF REVEAL: THEMED EMBLEM + CENTER AL LOGO */}
       {stagePhase === 'SPIRAL' && (
-        <div className="relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-white">
+        <div className={`relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden ${isClassicSpiral ? 'bg-white' : 'bg-black'}`}>
           <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-700 ease-in-out ${spiralVisible ? 'opacity-100' : 'opacity-0'}`}>
-            <ThemeStage1Artwork theme={revealTheme} />
+            {revealTheme === 'RIPPLE_WAVE' && <ExpandedResonanceRipple />}
+            {revealTheme === 'CONSTELLATION' && <ConstellationOfThought />}
+            {revealTheme === 'APERTURE_VORTEX' && <FocusApertureIris isDilating={apertureDilating} />}
+            {revealTheme === 'CLASSIC_SPIRAL' && <HypnoticSpiralSVG />}
           </div>
 
-          <div className={`relative z-10 w-44 h-44 rounded-full bg-white shadow-[0_10px_45px_rgba(0,0,0,0.22)] flex items-center justify-center transition-all duration-700 ease-in-out ${badgeVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+          <div className={`relative z-10 w-40 h-40 sm:w-44 sm:h-44 rounded-full bg-white ${
+            isClassicSpiral
+              ? 'shadow-[0_10px_45px_rgba(0,0,0,0.22)]'
+              : 'shadow-[0_0_60px_rgba(255,255,255,0.45)]'
+          } flex items-center justify-center transition-all duration-700 ease-in-out ${badgeVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
             <BrandLogoSVG className="w-14 h-14" />
           </div>
         </div>
       )}
 
+      {/* STAGE 2 OF REVEAL: THEMED LETTER CLOUD */}
       {stagePhase === 'LETTERS' && (
         <div className={`relative w-full min-h-[100dvh] bg-black overflow-hidden transition-opacity duration-700 ease-in-out ${lettersVisible ? 'opacity-100' : 'opacity-0'}`}>
-          {decoyParticles.map((p) => (
+          {revealTheme === 'RIPPLE_WAVE' && <ShimmeringSoundwaveLetters particles={decoyParticles} />}
+          {revealTheme === 'APERTURE_VORTEX' && <MagneticVortexLetters particles={decoyParticles} />}
+          {revealTheme === 'CONSTELLATION' && <SynapticConvergenceLetters particles={decoyParticles} />}
+          {revealTheme === 'CLASSIC_SPIRAL' && decoyParticles.map((p) => (
             <span
               key={p.id}
               style={{
@@ -924,7 +1364,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
                 opacity: p.opacity,
                 '--dx': p.dx,
                 '--dy': p.dy,
-                animation: `${getLetterAnimationName(revealTheme)} ${p.duration} ease-in-out infinite alternate`,
+                animation: `floatLetter ${p.duration} ease-in-out infinite alternate`,
               }}
               className="absolute font-sans font-bold text-white select-none pointer-events-none"
             >
@@ -1096,7 +1536,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
               </div>
             </div>
 
-            {/* BOTTOM TEXT: Starts clean with atmospheric text; automatically transitions to "HOLD UP YOUR PHONE" when the API Poll updates */}
             <div className="absolute bottom-14 left-0 right-0 w-full text-center px-6 pointer-events-none z-20 space-y-2.5">
               <div
                 className={`transition-all duration-1000 ease-in-out ${
@@ -1133,8 +1572,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [activePhase, setActivePhase] = useState('PHASE_1');
 
-  // REVEAL THEME SWITCHER STATE
-  const [revealTheme, setRevealTheme] = useState(() => localStorage.getItem('magicRevealTheme') || 'CLASSIC_SPIRAL');
+  // LIVE REVEAL THEME SELECTOR STATE
+  const [revealTheme, setRevealTheme] = useState(() => localStorage.getItem('magicRevealStyle') || 'RIPPLE_WAVE');
   const revealThemeRef = useRef(revealTheme);
 
   // PALM-LOCK DOUBLE-TAP STATES (Starts LOCKED by default)
@@ -1147,6 +1586,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const masterMonitorPhaseRef = useRef('NONE');
   const [masterSpiralVisible, setMasterSpiralVisible] = useState(false);
   const [masterBadgeVisible, setMasterBadgeVisible] = useState(false);
+  const [masterApertureDilating, setMasterApertureDilating] = useState(false);
   const [masterLettersVisible, setMasterLettersVisible] = useState(false);
   const [masterConvergeActive, setMasterConvergeActive] = useState(false);
   const [masterRevealWord, setMasterRevealWord] = useState('');
@@ -1198,7 +1638,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const overlayExitClickCount = useRef(0);
   const overlayExitLastClickTime = useRef(0);
 
-  // PALM-PROOF SWIPE-RIGHT TO RESET TRACKING (Active only during SPIRAL and LETTERS phases)
   const overlaySwipeRef = useRef({
     startX: null,
     startY: null,
@@ -1256,14 +1695,13 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     } catch (e) {}
   }, [roomID]);
 
-  // Sync Reveal Theme to LocalStorage & Firebase
+  // Sync Reveal Style to LocalStorage & Firebase
   useEffect(() => {
     revealThemeRef.current = revealTheme;
-    localStorage.setItem('magicRevealTheme', revealTheme);
-    set(ref(db, `${roomID}/revealTheme`), revealTheme).catch(() => {});
+    localStorage.setItem('magicRevealStyle', revealTheme);
+    set(ref(db, `${roomID}/revealStyle`), revealTheme).catch(() => {});
   }, [revealTheme, roomID]);
 
-  // Listen to Firebase buttonText & promptHoldUp so Master Deck always shows live state
   useEffect(() => {
     const textRef = ref(db, `${roomID}/buttonText`);
     const unsubText = onValue(textRef, (snapshot) => {
@@ -1303,7 +1741,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     set(ref(db, `${roomID}/feedbackUrl`), activeFeedback).catch(() => {});
   }, [injectUrl, injectKey, isInjectSyncing, redirectUrl, feedbackUrl, roomID]);
 
-  // ROBUST CACHE-BUSTED API POLLING: Automatically triggers "HOLD UP YOUR PHONE" silently upon new API poll arrival
   useEffect(() => {
     let timer;
     const executeMasterPoll = async () => {
@@ -1508,11 +1945,16 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     setMasterConvergeActive(false);
     setMasterSpiralVisible(false);
     setMasterBadgeVisible(false);
+    setMasterApertureDilating(false);
     setMasterLettersVisible(false);
 
     updateMasterMonitorPhase('SPIRAL');
     const t0 = setTimeout(() => setMasterBadgeVisible(true), 60);
     const tSpiralIn = setTimeout(() => setMasterSpiralVisible(true), 350);
+
+    const tDilate = setTimeout(() => {
+      setMasterApertureDilating(true);
+    }, 4100);
 
     const tSpiralOut = setTimeout(() => {
       setMasterSpiralVisible(false);
@@ -1538,20 +1980,21 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       setActivePhase('PHASE_2_DONE');
     }, 11200);
 
-    masterPhaseTimeoutsRef.current = [t0, tSpiralIn, tSpiralOut, t1, tLettersOut, t2, t3];
+    masterPhaseTimeoutsRef.current = [t0, tSpiralIn, tDilate, tSpiralOut, t1, tLettersOut, t2, t3];
   };
 
   const resetToPhase1Pulse = () => {
     clearMasterPhaseTimeouts();
     setMasterSpiralVisible(false);
     setMasterBadgeVisible(false);
+    setMasterApertureDilating(false);
     setMasterLettersVisible(false);
     setMasterConvergeActive(false);
     updateMasterMonitorPhase('NONE');
     setActivePhase('PHASE_1');
     setAudienceMode('OFF');
     isBaselineCaptureRef.current = true;
-    set(ref(db, `${roomID}/promptHoldUp`), false);
+    set(ref(db, `${roomID}/promptHoldUp`), true);
     fireAudienceCommand('PHASE_1_RESET');
   };
 
@@ -1879,12 +2322,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
   };
 
-  const getMasterLetterAnimationName = (theme) => {
-    if (theme === 'RIPPLE_WAVE') return 'waveLetter';
-    if (theme === 'APERTURE_VORTEX') return 'vortexLetter';
-    if (theme === 'CONSTELLATION') return 'twinkleLetter';
-    return 'floatLetter';
-  };
+  const isClassicSpiral = revealTheme === 'CLASSIC_SPIRAL';
 
   if (!isReady) return <div className="bg-black text-white h-screen flex justify-center items-center font-mono">Initializing Collective V2 Deck...</div>;
 
@@ -1904,29 +2342,68 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           0% { transform: rotate(360deg); }
           100% { transform: rotate(0deg); }
         }
-        @keyframes resonanceRippleExpand {
-          0% { transform: scale(0.35); opacity: 0.9; }
-          80% { opacity: 0.25; }
-          100% { transform: scale(6.5); opacity: 0; }
+        @keyframes organicSonarWave {
+          0% { transform: scale(0.85); opacity: 0.95; }
+          70% { opacity: 0.35; }
+          100% { transform: scale(6.2); opacity: 0; }
+        }
+        @keyframes sonarCoreBreathe {
+          0%, 100% { transform: scale(0.92); opacity: 0.65; }
+          50% { transform: scale(1.12); opacity: 1; }
+        }
+        @keyframes constellationSlowDrift {
+          0% { transform: rotate(-4deg) scale(0.96); }
+          100% { transform: rotate(4deg) scale(1.06); }
+        }
+        @keyframes synapseLinePulse {
+          0%, 100% { opacity: 0.15; }
+          50% { opacity: 0.72; }
+        }
+        @keyframes neuralNodeFloat {
+          0% { transform: translate(-8px, -6px); }
+          100% { transform: translate(8px, 6px); }
+        }
+        @keyframes apertureBreathe {
+          0%, 100% { transform: scale(0.92); }
+          50% { transform: scale(1.08); }
+        }
+        @keyframes shutterIrisTwist {
+          0%, 100% { transform: rotate(-8deg) scale(0.95); }
+          50% { transform: rotate(10deg) scale(1.06); }
+        }
+        @keyframes soundwaveMorph {
+          0% { transform: scaleY(0.35); }
+          100% { transform: scaleY(1.35); }
+        }
+        @keyframes frequencyBarPulse {
+          0% { transform: scaleY(0.2); opacity: 0.25; }
+          100% { transform: scaleY(1.15); opacity: 0.85; }
+        }
+        @keyframes shimmerSoundwaveChar {
+          0% { transform: translateY(calc(var(--amp) * -1)) scale(0.85); opacity: 0.18; filter: blur(1px); }
+          50% { opacity: 0.95; filter: blur(0px); }
+          100% { transform: translateY(var(--amp)) scale(1.12); opacity: 0.3; filter: blur(0.5px); }
+        }
+        @keyframes vortexOrbitInward {
+          0% {
+            transform: rotate(var(--start-angle)) translateX(var(--start-radius)) rotate(calc(var(--start-angle) * -1)) scale(1.15);
+            opacity: 0;
+          }
+          20% { opacity: 0.85; }
+          80% { opacity: 0.75; }
+          100% {
+            transform: rotate(calc(var(--start-angle) + 540deg)) translateX(12px) rotate(calc((var(--start-angle) + 540deg) * -1)) scale(0.35);
+            opacity: 0;
+          }
+        }
+        @keyframes synapticMeshContract {
+          0% { transform: scale(1.04) rotate(-2deg); }
+          100% { transform: scale(0.86) rotate(2deg); }
         }
         @keyframes floatLetter {
           0% { transform: translate(0px, 0px); opacity: 0.15; }
           50% { transform: translate(var(--dx), var(--dy)); opacity: 0.85; }
           100% { transform: translate(calc(var(--dx) * -0.6), calc(var(--dy) * 0.6)); opacity: 0.2; }
-        }
-        @keyframes waveLetter {
-          0% { transform: translateY(-28px) scaleY(0.85); opacity: 0.2; }
-          50% { transform: translateY(28px) scaleY(1.3); opacity: 0.9; }
-          100% { transform: translateY(-18px) scaleY(0.95); opacity: 0.25; }
-        }
-        @keyframes vortexLetter {
-          0% { transform: rotate(0deg) translate(var(--dx), var(--dy)) scale(0.75); opacity: 0.2; }
-          50% { transform: rotate(180deg) translate(calc(var(--dx) * 0.5), calc(var(--dy) * 0.5)) scale(1.15); opacity: 0.9; }
-          100% { transform: rotate(360deg) translate(0px, 0px) scale(0.6); opacity: 0.25; }
-        }
-        @keyframes twinkleLetter {
-          0%, 100% { transform: scale(0.7); opacity: 0.1; filter: blur(1px); }
-          50% { transform: scale(1.25); opacity: 0.95; filter: blur(0px); text-shadow: 0 0 18px rgba(255,255,255,0.85); }
         }
       `}</style>
 
@@ -1997,7 +2474,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           onMouseUp={handleOverlayTouchEnd}
           onContextMenu={(e) => e.preventDefault()}
           className={`fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden select-none touch-none transition-colors duration-500 ${
-            masterMonitorPhase === 'SPIRAL' ? 'bg-white' : 'bg-black'
+            masterMonitorPhase === 'SPIRAL' && isClassicSpiral ? 'bg-white' : 'bg-black'
           }`}
         >
           <div 
@@ -2006,11 +2483,18 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           />
 
           {masterMonitorPhase === 'SPIRAL' && (
-            <div className="relative flex items-center justify-center w-full h-full overflow-hidden bg-white pointer-events-none">
+            <div className={`relative flex items-center justify-center w-full h-full overflow-hidden pointer-events-none ${isClassicSpiral ? 'bg-white' : 'bg-black'}`}>
               <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-700 ease-in-out ${masterSpiralVisible ? 'opacity-100' : 'opacity-0'}`}>
-                <ThemeStage1Artwork theme={revealTheme} />
+                {revealTheme === 'RIPPLE_WAVE' && <ExpandedResonanceRipple />}
+                {revealTheme === 'CONSTELLATION' && <ConstellationOfThought />}
+                {revealTheme === 'APERTURE_VORTEX' && <FocusApertureIris isDilating={masterApertureDilating} />}
+                {revealTheme === 'CLASSIC_SPIRAL' && <HypnoticSpiralSVG />}
               </div>
-              <div className={`relative z-10 w-44 h-44 rounded-full bg-white shadow-[0_10px_45px_rgba(0,0,0,0.22)] flex items-center justify-center transition-all duration-700 ease-in-out ${masterBadgeVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+              <div className={`relative z-10 w-40 h-40 sm:w-44 sm:h-44 rounded-full bg-white ${
+                isClassicSpiral
+                  ? 'shadow-[0_10px_45px_rgba(0,0,0,0.22)]'
+                  : 'shadow-[0_0_60px_rgba(255,255,255,0.45)]'
+              } flex items-center justify-center transition-all duration-700 ease-in-out ${masterBadgeVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                 <BrandLogoSVG className="w-14 h-14" />
               </div>
             </div>
@@ -2018,7 +2502,10 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
           {masterMonitorPhase === 'LETTERS' && (
             <div className={`relative w-full h-full bg-black overflow-hidden pointer-events-none transition-opacity duration-700 ease-in-out ${masterLettersVisible ? 'opacity-100' : 'opacity-0'}`}>
-              {masterDecoyParticles.map((p) => (
+              {revealTheme === 'RIPPLE_WAVE' && <ShimmeringSoundwaveLetters particles={masterDecoyParticles} />}
+              {revealTheme === 'APERTURE_VORTEX' && <MagneticVortexLetters particles={masterDecoyParticles} />}
+              {revealTheme === 'CONSTELLATION' && <SynapticConvergenceLetters particles={masterDecoyParticles} />}
+              {revealTheme === 'CLASSIC_SPIRAL' && masterDecoyParticles.map((p) => (
                 <span
                   key={p.id}
                   style={{
@@ -2028,7 +2515,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                     opacity: p.opacity,
                     '--dx': p.dx,
                     '--dy': p.dy,
-                    animation: `${getMasterLetterAnimationName(revealTheme)} ${p.duration} ease-in-out infinite alternate`,
+                    animation: `floatLetter ${p.duration} ease-in-out infinite alternate`,
                   }}
                   className="absolute font-sans font-bold text-white select-none pointer-events-none"
                 >
@@ -2165,7 +2652,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           {/* REVEAL THEME SWITCHER (2x2 Tactile Grid) */}
           <div className="flex flex-col w-full">
             <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1.5">
-              Phase 2 Reveal Theme ({REVEAL_THEMES.find(t => t.id === revealTheme)?.short || 'SPIRAL'})
+              Phase 2 Reveal Theme ({REVEAL_THEMES.find(t => t.id === revealTheme)?.short || 'RIPPLE'})
             </label>
             <div className="grid grid-cols-2 gap-2">
               {REVEAL_THEMES.map((themeItem) => {
@@ -2291,7 +2778,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               ? '🌀 REVEALING...'
               : activePhase === 'PHASE_2_DONE'
                 ? `✓ ${peekedWord || customText || 'LOCKED'} [R]`
-                : `🌀 REVEAL (${REVEAL_THEMES.find(t => t.id === revealTheme)?.short || 'SPIRAL'}) [R]`}
+                : `🌀 REVEAL (${REVEAL_THEMES.find(t => t.id === revealTheme)?.short || 'RIPPLE'}) [R]`}
           </button>
         </div>
 
