@@ -817,6 +817,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [revealWord, setRevealWord] = useState('');
   const [revealTheme, setRevealTheme] = useState('RIPPLE_WAVE');
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const sfxEnabledRef = useRef(true);
   const [holdUpPromptActive, setHoldUpPromptActive] = useState(true);
   const [uiReady, setUiReady] = useState(false);
 
@@ -856,13 +857,20 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   const stopActiveSynthNodes = () => {
-    activeNodesRef.current.forEach(({ osc, gain }) => {
+    activeNodesRef.current.forEach((item) => {
       try {
-        if (gain && audioCtxRef.current) {
-          gain.gain.setValueAtTime(gain.gain.value, audioCtxRef.current.currentTime);
-          gain.gain.linearRampToValueAtTime(0.0001, audioCtxRef.current.currentTime + 0.08);
+        if (item.timerId) clearTimeout(item.timerId);
+        if (item.gain && audioCtxRef.current) {
+          const now = audioCtxRef.current.currentTime;
+          item.gain.gain.cancelScheduledValues(now);
+          item.gain.gain.setValueAtTime(Math.max(item.gain.gain.value || 0.0001, 0.0001), now);
+          item.gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
         }
-        if (osc) setTimeout(() => { try { osc.stop(); } catch (e) {} }, 100);
+        if (item.osc) {
+          setTimeout(() => {
+            try { item.osc.stop(); } catch (e) {}
+          }, 75);
+        }
       } catch (e) {}
     });
     activeNodesRef.current = [];
@@ -989,98 +997,319 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     } catch (e) {}
   };
 
+  // =========================================================
+  // TRON: LEGACY × HEARTBEAT PROCEDURAL WEB AUDIO SYNTHESIZER
+  // =========================================================
+
+  // Helper: Single Cyber-Heartbeat Thump (Bridges Phase 1 pulse into The Grid)
+  const triggerCyberHeartbeat = (ctx, startTime, intensity = 1.0) => {
+    try {
+      // Lub (Primary ventricular thud + Tron sub-Tail)
+      const oscLub = ctx.createOscillator();
+      const gainLub = ctx.createGain();
+      const filterLub = ctx.createBiquadFilter();
+
+      oscLub.type = 'triangle';
+      oscLub.frequency.setValueAtTime(145, startTime);
+      oscLub.frequency.exponentialRampToValueAtTime(42, startTime + 0.16);
+
+      filterLub.type = 'lowpass';
+      filterLub.frequency.setValueAtTime(260, startTime);
+      filterLub.Q.setValueAtTime(3.0, startTime);
+
+      gainLub.gain.setValueAtTime(0.0001, startTime);
+      gainLub.gain.linearRampToValueAtTime(0.95 * intensity, startTime + 0.012);
+      gainLub.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.19);
+
+      oscLub.connect(filterLub);
+      filterLub.connect(gainLub);
+      gainLub.connect(ctx.destination);
+      oscLub.start(startTime);
+      oscLub.stop(startTime + 0.21);
+
+      // Dub (Secondary harmonic cyber-echo 180ms later)
+      const dubTime = startTime + 0.18;
+      const oscDub = ctx.createOscillator();
+      const gainDub = ctx.createGain();
+      const filterDub = ctx.createBiquadFilter();
+
+      oscDub.type = 'sine';
+      oscDub.frequency.setValueAtTime(175, dubTime);
+      oscDub.frequency.exponentialRampToValueAtTime(52, dubTime + 0.14);
+
+      filterDub.type = 'lowpass';
+      filterDub.frequency.setValueAtTime(320, dubTime);
+
+      gainDub.gain.setValueAtTime(0.0001, dubTime);
+      gainDub.gain.linearRampToValueAtTime(0.65 * intensity, dubTime + 0.01);
+      gainDub.gain.exponentialRampToValueAtTime(0.0001, dubTime + 0.16);
+
+      oscDub.connect(filterDub);
+      filterDub.connect(gainDub);
+      gainDub.connect(ctx.destination);
+      oscDub.start(dubTime);
+      oscDub.stop(dubTime + 0.18);
+
+      activeNodesRef.current.push({ osc: oscLub, gain: gainLub }, { osc: oscDub, gain: gainDub });
+    } catch (e) {}
+  };
+
+  // STAGE 1 (0.0s - 4.4s): TRON CS-80 SUB-BASS DRONE + DIGITAL HEARTBEAT + ARPEGGIATED GRID
   const playRevealSubDrone = () => {
-    if (!sfxEnabled || isRedirectingRef.current) return;
+    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
+
+      // 1. Detuned Analog CS-80 Style Sub-Bass Pad (A1 = 55Hz, detuned saw + sub triangle)
+      const oscSaw1 = ctx.createOscillator();
+      const oscSaw2 = ctx.createOscillator();
+      const oscSub = ctx.createOscillator();
+      const filterPad = ctx.createBiquadFilter();
+      const gainPad = ctx.createGain();
+
+      oscSaw1.type = 'sawtooth';
+      oscSaw1.frequency.setValueAtTime(55.0, now);
+      oscSaw1.frequency.linearRampToValueAtTime(55.2, now + 4.3);
+
+      oscSaw2.type = 'sawtooth';
+      oscSaw2.frequency.setValueAtTime(55.45, now); // Rich analog chorus detune
+      oscSaw2.frequency.linearRampToValueAtTime(110.0, now + 4.3); // Octave bloom at aperture open
+
+      oscSub.type = 'triangle';
+      oscSub.frequency.setValueAtTime(110.0, now);
+
+      filterPad.type = 'lowpass';
+      filterPad.frequency.setValueAtTime(130, now);
+      filterPad.frequency.linearRampToValueAtTime(240, now + 1.9);
+      filterPad.frequency.exponentialRampToValueAtTime(680, now + 3.4); // Opens as iris/horizon opens
+      filterPad.Q.setValueAtTime(4.2, now);
+
+      gainPad.gain.setValueAtTime(0.0001, now);
+      gainPad.gain.linearRampToValueAtTime(0.32, now + 0.45);
+      gainPad.gain.setValueAtTime(0.36, now + 3.6);
+      gainPad.gain.exponentialRampToValueAtTime(0.0001, now + 4.35);
+
+      oscSaw1.connect(filterPad);
+      oscSaw2.connect(filterPad);
+      oscSub.connect(filterPad);
+      filterPad.connect(gainPad);
+      gainPad.connect(ctx.destination);
+
+      oscSaw1.start(now);
+      oscSaw2.start(now);
+      oscSub.start(now);
+      oscSaw1.stop(now + 4.4);
+      oscSaw2.stop(now + 4.4);
+      oscSub.stop(now + 4.4);
+
+      activeNodesRef.current.push(
+        { osc: oscSaw1, gain: gainPad },
+        { osc: oscSaw2, gain: gainPad },
+        { osc: oscSub, gain: gainPad }
+      );
+
+      // 2. Four Steady Cyber-Heartbeats (Tying Phase 1 Pulse into the Hologram)
+      [0.12, 1.15, 2.15, 3.15].forEach((offset, idx) => {
+        triggerCyberHeartbeat(ctx, now + offset, 0.75 + idx * 0.08);
+      });
+
+      // 3. Tron Arpeggiated Cyber-Grid Sequence (A Minor Add9: A3-B3-C4-E4-A4-E4-C4-B3)
+      const arpNotes = [220.0, 246.94, 261.63, 329.63, 440.0, 329.63, 261.63, 246.94];
+      const stepDur = 0.135;
+      for (let i = 0; i < 30; i++) {
+        const noteTime = now + 0.25 + i * stepDur;
+        if (noteTime > now + 4.25) break;
+        const oscArp = ctx.createOscillator();
+        const filterArp = ctx.createBiquadFilter();
+        const gainArp = ctx.createGain();
+
+        oscArp.type = 'sawtooth';
+        oscArp.frequency.setValueAtTime(arpNotes[i % arpNotes.length], noteTime);
+
+        filterArp.type = 'bandpass';
+        // Filter gradually opens as Stage 1 progresses
+        const progress = i / 30;
+        filterArp.frequency.setValueAtTime(450 + progress * 1400, noteTime);
+        filterArp.Q.setValueAtTime(3.5, noteTime);
+
+        const peak = 0.04 + progress * 0.12;
+        gainArp.gain.setValueAtTime(0.0001, noteTime);
+        gainArp.gain.linearRampToValueAtTime(peak, noteTime + 0.012);
+        gainArp.gain.exponentialRampToValueAtTime(0.0001, noteTime + stepDur * 0.85);
+
+        oscArp.connect(filterArp);
+        filterArp.connect(gainArp);
+        gainArp.connect(ctx.destination);
+
+        oscArp.start(noteTime);
+        oscArp.stop(noteTime + stepDur);
+        activeNodesRef.current.push({ osc: oscArp, gain: gainArp });
+      }
+    } catch (e) {}
+  };
+
+  // Cyber-Optic Laser Sweep when Iris snaps open / Horizon flares at 3.1s
+  const playApertureCyberSweep = () => {
+    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      const oscSweep = ctx.createOscillator();
+      const filterSweep = ctx.createBiquadFilter();
+      const gainSweep = ctx.createGain();
+
+      oscSweep.type = 'sawtooth';
+      oscSweep.frequency.setValueAtTime(165, now);
+      oscSweep.frequency.exponentialRampToValueAtTime(660, now + 0.55);
+
+      filterSweep.type = 'bandpass';
+      filterSweep.frequency.setValueAtTime(300, now);
+      filterSweep.frequency.exponentialRampToValueAtTime(2200, now + 0.55);
+      filterSweep.Q.setValueAtTime(5.0, now);
+
+      gainSweep.gain.setValueAtTime(0.0001, now);
+      gainSweep.gain.linearRampToValueAtTime(0.28, now + 0.08);
+      gainSweep.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+
+      oscSweep.connect(filterSweep);
+      filterSweep.connect(gainSweep);
+      gainSweep.connect(ctx.destination);
+
+      oscSweep.start(now);
+      oscSweep.stop(now + 0.7);
+      activeNodesRef.current.push({ osc: oscSweep, gain: gainSweep });
+    } catch (e) {}
+  };
+
+  // STAGE 2 (4.4s - 9.0s): ACCELERATING HEARTBEAT + DAFT PUNK POLY-SYNTH RISER & DATA STREAM
+  const playRevealTensionRiser = () => {
+    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      const now = ctx.currentTime;
+      const duration = 4.55;
+
+      // 1. Dual Detuned Tron Poly-Synth Riser (Octave & Fifth Harmonic Climb)
       const oscLow = ctx.createOscillator();
-      const oscHarmonic = ctx.createOscillator();
-      const filter = ctx.createBiquadFilter();
-      const gain = ctx.createGain();
+      const oscDetune = ctx.createOscillator();
+      const oscFifth = ctx.createOscillator();
+      const filterRiser = ctx.createBiquadFilter();
+      const gainRiser = ctx.createGain();
 
-      oscLow.type = 'triangle';
-      oscLow.frequency.setValueAtTime(55, now);
-      oscLow.frequency.linearRampToValueAtTime(62, now + 4.2);
+      oscLow.type = 'sawtooth';
+      oscLow.frequency.setValueAtTime(110, now);
+      oscLow.frequency.exponentialRampToValueAtTime(440, now + duration);
 
-      oscHarmonic.type = 'sine';
-      oscHarmonic.frequency.setValueAtTime(110, now);
-      oscHarmonic.frequency.linearRampToValueAtTime(124, now + 4.2);
+      oscDetune.type = 'sawtooth';
+      oscDetune.frequency.setValueAtTime(110.8, now);
+      oscDetune.frequency.exponentialRampToValueAtTime(443.2, now + duration);
 
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(180, now);
-      filter.frequency.linearRampToValueAtTime(320, now + 4.2);
+      oscFifth.type = 'triangle';
+      oscFifth.frequency.setValueAtTime(164.81, now);
+      oscFifth.frequency.exponentialRampToValueAtTime(659.25, now + duration);
 
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(0.45, now + 0.5);
-      gain.gain.setValueAtTime(0.45, now + 3.8);
-      gain.gain.linearRampToValueAtTime(0.0001, now + 4.3);
+      filterRiser.type = 'lowpass';
+      filterRiser.frequency.setValueAtTime(220, now);
+      filterRiser.frequency.exponentialRampToValueAtTime(3800, now + duration);
+      filterRiser.Q.setValueAtTime(4.5, now);
 
-      oscLow.connect(filter);
-      oscHarmonic.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
+      gainRiser.gain.setValueAtTime(0.0001, now);
+      gainRiser.gain.linearRampToValueAtTime(0.24, now + 0.5);
+      gainRiser.gain.exponentialRampToValueAtTime(0.55, now + duration - 0.12);
+      gainRiser.gain.linearRampToValueAtTime(0.0001, now + duration);
+
+      oscLow.connect(filterRiser);
+      oscDetune.connect(filterRiser);
+      oscFifth.connect(filterRiser);
+      filterRiser.connect(gainRiser);
+      gainRiser.connect(ctx.destination);
 
       oscLow.start(now);
-      oscHarmonic.start(now);
-      oscLow.stop(now + 4.4);
-      oscHarmonic.stop(now + 4.4);
+      oscDetune.start(now);
+      oscFifth.start(now);
+      oscLow.stop(now + duration + 0.05);
+      oscDetune.stop(now + duration + 0.05);
+      oscFifth.stop(now + duration + 0.05);
 
-      activeNodesRef.current.push({ osc: oscLow, gain }, { osc: oscHarmonic, gain });
+      activeNodesRef.current.push(
+        { osc: oscLow, gain: gainRiser },
+        { osc: oscDetune, gain: gainRiser },
+        { osc: oscFifth, gain: gainRiser }
+      );
+
+      // 2. Accelerating Heartbeat Pulse (Ties emotional memory rush to the spinning vortex)
+      const beatOffsets = [0.05, 0.85, 1.55, 2.15, 2.65, 3.08, 3.44, 3.74, 3.99, 4.20, 4.38];
+      beatOffsets.forEach((offset, idx) => {
+        const progress = idx / beatOffsets.length;
+        triggerCyberHeartbeat(ctx, now + offset, 0.7 + progress * 0.5);
+      });
+
+      // 3. High-Speed Holographic Data-Stream Arpeggiator
+      const crystalNotes = [440, 523.25, 659.25, 783.99, 880, 1046.5, 1318.5, 1567.98];
+      const totalArpSteps = 44;
+      const arpStep = duration / totalArpSteps;
+      for (let i = 0; i < totalArpSteps; i++) {
+        const t = now + i * arpStep;
+        const progress = i / totalArpSteps;
+        const oscBlip = ctx.createOscillator();
+        const gainBlip = ctx.createGain();
+
+        oscBlip.type = 'sine';
+        const baseFreq = crystalNotes[i % crystalNotes.length] * (1 + progress * 0.5);
+        oscBlip.frequency.setValueAtTime(baseFreq, t);
+
+        const blipPeak = 0.03 + Math.pow(progress, 1.6) * 0.16;
+        gainBlip.gain.setValueAtTime(0.0001, t);
+        gainBlip.gain.linearRampToValueAtTime(blipPeak, t + 0.008);
+        gainBlip.gain.exponentialRampToValueAtTime(0.0001, t + arpStep * 0.85);
+
+        oscBlip.connect(gainBlip);
+        gainBlip.connect(ctx.destination);
+
+        oscBlip.start(t);
+        oscBlip.stop(t + arpStep);
+        activeNodesRef.current.push({ osc: oscBlip, gain: gainBlip });
+      }
     } catch (e) {}
   };
 
-  const playRevealTensionRiser = () => {
-    if (!sfxEnabled || isRedirectingRef.current) return;
+  // 9.0s: Vacuum Sub Power-Down before the 600ms dramatic silence
+  const playVacuumPowerDown = () => {
+    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-
       const now = ctx.currentTime;
-      const duration = 4.8;
-      const oscA = ctx.createOscillator();
-      const oscB = ctx.createOscillator();
-      const filter = ctx.createBiquadFilter();
-      const gain = ctx.createGain();
 
-      oscA.type = 'sawtooth';
-      oscA.frequency.setValueAtTime(120, now);
-      oscA.frequency.exponentialRampToValueAtTime(740, now + duration);
+      const oscDown = ctx.createOscillator();
+      const gainDown = ctx.createGain();
 
-      oscB.type = 'sine';
-      oscB.frequency.setValueAtTime(122, now);
-      oscB.frequency.exponentialRampToValueAtTime(748, now + duration);
+      oscDown.type = 'sine';
+      oscDown.frequency.setValueAtTime(380, now);
+      oscDown.frequency.exponentialRampToValueAtTime(34, now + 0.22);
 
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(240, now);
-      filter.frequency.exponentialRampToValueAtTime(1400, now + duration);
-      filter.Q.setValueAtTime(2.2, now);
+      gainDown.gain.setValueAtTime(0.35, now);
+      gainDown.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
 
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(0.38, now + 0.6);
-      gain.gain.linearRampToValueAtTime(0.68, now + duration - 0.2);
-      gain.gain.linearRampToValueAtTime(0.0001, now + duration);
-
-      oscA.connect(filter);
-      oscB.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
-
-      oscA.start(now);
-      oscB.start(now);
-      oscA.stop(now + duration + 0.05);
-      oscB.stop(now + duration + 0.05);
-
-      activeNodesRef.current.push({ osc: oscA, gain }, { osc: oscB, gain });
+      oscDown.connect(gainDown);
+      gainDown.connect(ctx.destination);
+      oscDown.start(now);
+      oscDown.stop(now + 0.25);
     } catch (e) {}
   };
 
+  // STAGE 3 (9.6s): SINGULARITY IMPACT — TRON LEGACY BRASS CHORD + SUB-DROP + CRYSTAL LOCK
   const playRevealConvergenceImpact = () => {
-    if (!sfxEnabled || isRedirectingRef.current) return;
+    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
@@ -1088,38 +1317,84 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
       const now = ctx.currentTime;
 
+      // 1. Seismic Sub-Drop (150Hz -> 28Hz)
       const oscSub = ctx.createOscillator();
       const gainSub = ctx.createGain();
       oscSub.type = 'sine';
-      oscSub.frequency.setValueAtTime(130, now);
-      oscSub.frequency.exponentialRampToValueAtTime(32, now + 0.65);
+      oscSub.frequency.setValueAtTime(150, now);
+      oscSub.frequency.exponentialRampToValueAtTime(28, now + 0.75);
 
       gainSub.gain.setValueAtTime(0.0001, now);
-      gainSub.gain.linearRampToValueAtTime(1.8, now + 0.02);
-      gainSub.gain.exponentialRampToValueAtTime(0.0001, now + 0.95);
+      gainSub.gain.linearRampToValueAtTime(1.85, now + 0.018);
+      gainSub.gain.exponentialRampToValueAtTime(0.0001, now + 1.15);
 
       oscSub.connect(gainSub);
       gainSub.connect(ctx.destination);
       oscSub.start(now);
-      oscSub.stop(now + 1.0);
+      oscSub.stop(now + 1.2);
 
-      [528, 1056].forEach((freq, idx) => {
-        const oscChime = ctx.createOscillator();
-        const gainChime = ctx.createGain();
-        oscChime.type = 'sine';
-        oscChime.frequency.setValueAtTime(freq, now);
+      // 2. Daft Punk / Tron: Legacy Detuned CS-80 Synth Brass Chord (A2 - E3 - A3 - B3 - C4 - E4 - A4)
+      const brassFilter = ctx.createBiquadFilter();
+      const brassGain = ctx.createGain();
 
-        gainChime.gain.setValueAtTime(0.0001, now);
-        gainChime.gain.linearRampToValueAtTime(idx === 0 ? 0.35 : 0.22, now + 0.015);
-        gainChime.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
+      brassFilter.type = 'lowpass';
+      brassFilter.frequency.setValueAtTime(180, now);
+      brassFilter.frequency.exponentialRampToValueAtTime(2600, now + 0.08); // Brass bite on impact
+      brassFilter.frequency.exponentialRampToValueAtTime(580, now + 1.4);   // Warm cinematic sustain
+      brassFilter.frequency.exponentialRampToValueAtTime(220, now + 3.2);
+      brassFilter.Q.setValueAtTime(2.4, now);
 
-        oscChime.connect(gainChime);
-        gainChime.connect(ctx.destination);
-        oscChime.start(now);
-        oscChime.stop(now + 2.5);
+      brassGain.gain.setValueAtTime(0.0001, now);
+      brassGain.gain.linearRampToValueAtTime(0.42, now + 0.035);
+      brassGain.gain.setValueAtTime(0.36, now + 0.9);
+      brassGain.gain.exponentialRampToValueAtTime(0.0001, now + 3.3);
+
+      brassFilter.connect(brassGain);
+      brassGain.connect(ctx.destination);
+
+      const chordVoicing = [
+        { freq: 110.0, type: 'sawtooth' },   // A2
+        { freq: 110.45, type: 'sawtooth' },  // A2 detuned
+        { freq: 164.81, type: 'sawtooth' },  // E3 (5th)
+        { freq: 220.0, type: 'sawtooth' },   // A3
+        { freq: 246.94, type: 'triangle' },  // B3 (Emotional 9th)
+        { freq: 329.63, type: 'sawtooth' },  // E4
+        { freq: 440.0, type: 'triangle' },   // A4
+      ];
+
+      chordVoicing.forEach(({ freq, type }) => {
+        const osc = ctx.createOscillator();
+        const voiceGain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        voiceGain.gain.setValueAtTime(0.18, now);
+        osc.connect(voiceGain);
+        voiceGain.connect(brassFilter);
+        osc.start(now);
+        osc.stop(now + 3.4);
       });
 
-      if (navigator.vibrate) navigator.vibrate([40, 70, 110]);
+      // 3. Holographic Glass Data-Lock Ping (High Crystalline E6 + A6)
+      [1318.51, 1760.0].forEach((freq, idx) => {
+        const oscPing = ctx.createOscillator();
+        const gainPing = ctx.createGain();
+        oscPing.type = 'sine';
+        oscPing.frequency.setValueAtTime(freq, now);
+
+        gainPing.gain.setValueAtTime(0.0001, now);
+        gainPing.gain.linearRampToValueAtTime(idx === 0 ? 0.28 : 0.2, now + 0.01);
+        gainPing.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
+
+        oscPing.connect(gainPing);
+        gainPing.connect(ctx.destination);
+        oscPing.start(now);
+        oscPing.stop(now + 2.3);
+      });
+
+      // 4. Final Echo Heartbeat 1.1s after the name locks (The memory lives on)
+      triggerCyberHeartbeat(ctx, now + 1.15, 0.55);
+
+      if (navigator.vibrate) navigator.vibrate([50, 60, 140]);
     } catch (e) {}
   };
 
@@ -1286,6 +1561,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
     const tOpenStage1 = setTimeout(() => {
       setShutterStage('OPEN_VORTEX');
+      playApertureCyberSweep();
     }, 3100);
 
     const tEmblemOut = setTimeout(() => {
@@ -1310,6 +1586,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     const tStormOut = setTimeout(() => {
       setStormVisible(false);
       stopActiveSynthNodes();
+      playVacuumPowerDown();
     }, 9000);
 
     const tConverge = setTimeout(() => {
@@ -1369,7 +1646,9 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     const sfxRef = ref(db, `${roomID}/sfxEnabled`);
     const unsubSfx = onValue(sfxRef, (snapshot) => {
       const val = snapshot.val();
-      setSfxEnabled(val === null ? true : Boolean(val));
+      const enabled = val === null ? true : Boolean(val);
+      setSfxEnabled(enabled);
+      sfxEnabledRef.current = enabled;
     });
 
     const commandRef = ref(db, `${roomID}/audienceCommand`);
