@@ -1817,8 +1817,9 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   const revealCharCount = Math.max(targetChars.length, 1);
-  const revealFontSizeVw = Math.min(14.5, 78.0 / (revealCharCount * 0.90)).toFixed(2);
-  const revealLetterSpacingEm = (revealCharCount <= 5 ? 0.14 : revealCharCount <= 8 ? 0.09 : 0.06).toFixed(2);
+  const revealLetterSpacingEm = (revealCharCount <= 5 ? 0.12 : revealCharCount <= 8 ? 0.08 : 0.05).toFixed(2);
+  const revealWidthFactor = revealCharCount * 0.76 + (revealCharCount - 1) * Number(revealLetterSpacingEm);
+  const revealFontSizeVw = Math.min(17.5, 88.0 / Math.max(revealWidthFactor, 1)).toFixed(2);
 
   const mappedRippleSubStage = shutterStage === 'CLOSED_WHITE'
     ? 'RIPPLE_PURE'
@@ -1932,12 +1933,12 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-6 sm:px-10 overflow-hidden pointer-events-none select-none">
-          <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[85vw]">
+          <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[92vw]">
             {targetChars.map((item, idx) => (
               <span
                 key={idx}
                 style={{
-                  fontSize: `clamp(1.6rem, min(${revealFontSizeVw}vw, 12vh), 6.5rem)`,
+                  fontSize: `clamp(1.8rem, min(${revealFontSizeVw}vw, 14vh), 7.5rem)`,
                   letterSpacing: `${revealLetterSpacingEm}em`,
                   opacity: convergeActive || stagePhase === 'LOCKED' ? 1 : 0,
                   transform: convergeActive || stagePhase === 'LOCKED'
@@ -2869,8 +2870,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   };
 
   const masterCharCount = Math.max(masterTargetChars.length, 1);
-  const masterFontSizeVw = Math.min(14.5, 78.0 / (masterCharCount * 0.90)).toFixed(2);
-  const masterLetterSpacingEm = (masterCharCount <= 5 ? 0.14 : masterCharCount <= 8 ? 0.09 : 0.06).toFixed(2);
+  const masterLetterSpacingEm = (masterCharCount <= 5 ? 0.12 : masterCharCount <= 8 ? 0.08 : 0.05).toFixed(2);
+  const masterWidthFactor = masterCharCount * 0.76 + (masterCharCount - 1) * Number(masterLetterSpacingEm);
+  const masterFontSizeVw = Math.min(17.5, 88.0 / Math.max(masterWidthFactor, 1)).toFixed(2);
 
   const mappedMasterRippleSubStage = masterShutterStage === 'CLOSED_WHITE'
     ? 'RIPPLE_PURE'
@@ -3029,12 +3031,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
           {(masterMonitorPhase === 'CONVERGE' || masterMonitorPhase === 'LOCKED') && (
             <div className="relative flex items-center justify-center w-full h-full bg-black px-6 sm:px-10 overflow-hidden pointer-events-none select-none">
-              <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[85vw]">
+              <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[92vw]">
                 {masterTargetChars.map((item, idx) => (
                   <span
                     key={idx}
                     style={{
-                      fontSize: `clamp(1.6rem, min(${masterFontSizeVw}vw, 12vh), 6.5rem)`,
+                      fontSize: `clamp(1.8rem, min(${masterFontSizeVw}vw, 14vh), 7.5rem)`,
                       letterSpacing: `${masterLetterSpacingEm}em`,
                       opacity: masterConvergeActive || masterMonitorPhase === 'LOCKED' ? 1 : 0,
                       transform: masterConvergeActive || masterMonitorPhase === 'LOCKED'
