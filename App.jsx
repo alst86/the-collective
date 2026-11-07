@@ -406,7 +406,7 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             <linearGradient id="rimSweepCyan" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
               <stop offset="40%" stopColor="#00f0ff" stopOpacity="0.85" />
-              <stop offset="100%" stopColor="#00f0ff" stopOpacity="0" />
+              <stop offset="100%" stopColor="#00f0ff" stopOpacity="0.0" />
             </linearGradient>
 
             <filter id="bladeDropShadow" x="-25%" y="-25%" width="150%" height="150%">
@@ -422,6 +422,7 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             </filter>
           </defs>
 
+          {/* Outer Precision HUD & Degree Ticks */}
           <g
             className="transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
@@ -457,6 +458,7 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             })}
           </g>
 
+          {/* Swirling Fibrous Vortex Tunnel Underneath Blades */}
           <g
             clipPath="url(#shutterBarrelClip)"
             className="transition-opacity duration-700"
@@ -481,6 +483,7 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
             </g>
           </g>
 
+          {/* Clipped 12-Blade Mechanical Iris */}
           <g clipPath="url(#shutterBarrelClip)">
             <g
               className="transition-all duration-900 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -563,6 +566,7 @@ const FocusApertureIrisStage1 = React.memo(function FocusApertureIrisStage1({
           />
         </svg>
 
+        {/* Center AL Emblem */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div
             className={`rounded-full flex items-center justify-center transition-all duration-700 ease-in-out ${
@@ -717,7 +721,7 @@ const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlar
 });
 
 // ==========================================
-// URL & GUARANTEED REDIRECT HELPERS
+// REDIRECT LOGIC
 // ==========================================
 const formatValidUrl = (rawUrl, fallbackUrl) => {
   let clean = (rawUrl || fallbackUrl || '').trim();
@@ -728,7 +732,6 @@ const formatValidUrl = (rawUrl, fallbackUrl) => {
   return clean;
 };
 
-// Arms both a 30-second live tab timer AND a one-time sessionStorage return trap
 const executeGuaranteedRedirect = (rawPrimaryUrl, rawFeedbackUrl, isAudience = true) => {
   const finalPrimaryUrl = formatValidUrl(rawPrimaryUrl, DEFAULT_REDIRECT_URL);
   const finalFeedbackUrl = formatValidUrl(rawFeedbackUrl, DEFAULT_FEEDBACK_URL);
@@ -776,10 +779,10 @@ const executeGuaranteedRedirect = (rawPrimaryUrl, rawFeedbackUrl, isAudience = t
 };
 
 // ==========================================
-// ROOT APP COMPONENT
+// MAIN APP COMPONENT (CLEAN ROUTING: ?master OR 5-TAP)
 // ==========================================
 export default function App() {
-  const searchParams = new URLSearchParams(window.location.search);
+  const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [isMasterView, setIsMasterView] = useState(() => searchParams.has('master'));
   const [skipEntryPrompt, setSkipEntryPrompt] = useState(false);
   const roomID = searchParams.get('room') || 'v2-stage';
@@ -802,7 +805,7 @@ export default function App() {
 }
 
 // ==========================================
-// AUDIENCE VIEW COMPONENT
+// AUDIENCE VIEW (Spectator's Phone)
 // ==========================================
 function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [cameraReady, setCameraReady] = useState(skipEntryPrompt);
@@ -814,7 +817,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [revealWord, setRevealWord] = useState('');
   const [revealTheme, setRevealTheme] = useState('RIPPLE_WAVE');
   const [sfxEnabled, setSfxEnabled] = useState(true);
-  const sfxEnabledRef = useRef(true);
   const [holdUpPromptActive, setHoldUpPromptActive] = useState(true);
   const [uiReady, setUiReady] = useState(false);
 
@@ -824,7 +826,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [thumbFocused, setThumbFocused] = useState(false);
   const thumbHoldTimerRef = useRef(null);
 
-  // STAGES: PULSE -> STAGE_1 (0-4.4s) -> STAGE_2 (4.4-9.6s) -> CONVERGE (9.6-11.0s) -> LOCKED
   const [stagePhase, setStagePhase] = useState('PULSE');
   const [emblemVisible, setEmblemVisible] = useState(false);
   const [shutterStage, setShutterStage] = useState('CLOSED_WHITE');
@@ -988,11 +989,8 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     } catch (e) {}
   };
 
-  // ==========================================
-  // PROCEDURAL WEB AUDIO SYNTH FOR REVEAL SFX
-  // ==========================================
   const playRevealSubDrone = () => {
-    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
+    if (!sfxEnabled || isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
@@ -1036,7 +1034,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   const playRevealTensionRiser = () => {
-    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
+    if (!sfxEnabled || isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
@@ -1082,7 +1080,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   const playRevealConvergenceImpact = () => {
-    if (!sfxEnabledRef.current || isRedirectingRef.current) return;
+    if (!sfxEnabled || isRedirectingRef.current) return;
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
@@ -1090,7 +1088,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
       const now = ctx.currentTime;
 
-      // 1. Deep Sub Drop (130Hz -> 32Hz)
       const oscSub = ctx.createOscillator();
       const gainSub = ctx.createGain();
       oscSub.type = 'sine';
@@ -1106,7 +1103,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       oscSub.start(now);
       oscSub.stop(now + 1.0);
 
-      // 2. High Crystalline Chime Chord (528Hz + 1056Hz)
       [528, 1056].forEach((freq, idx) => {
         const oscChime = ctx.createOscillator();
         const gainChime = ctx.createGain();
@@ -1263,7 +1259,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     clearTimeout(thumbHoldTimerRef.current);
   };
 
-  // REVEAL TIMELINE WITH PROCEDURAL SYNTH SOUNDSCAPE
   const runRevealSequence = (wordToReveal, incomingTheme) => {
     clearPhaseTimeouts();
     stopActiveSynthNodes();
@@ -1281,58 +1276,48 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     setWaveSubStage('RIBBON_BEAM');
     setVortexFlare(false);
 
-    // 0.0s: Stage 1 Begins + Start Sub Drone SFX
     setStagePhase('STAGE_1');
     playRevealSubDrone();
     const tEmblemIn = setTimeout(() => setEmblemVisible(true), 80);
 
-    // 1.9s: Stage 1 sub-transition
     const tMidStage1 = setTimeout(() => {
       setShutterStage('IRIS_DARK');
     }, 1900);
 
-    // 3.1s: Shutter open / ripple expand
     const tOpenStage1 = setTimeout(() => {
       setShutterStage('OPEN_VORTEX');
     }, 3100);
 
-    // 4.2s: Fade out Stage 1
     const tEmblemOut = setTimeout(() => {
       setEmblemVisible(false);
     }, 4200);
 
-    // 4.4s: Stage 2 Enters + Start Harmonic Tension Riser SFX
     const tStormIn = setTimeout(() => {
       setStagePhase('STAGE_2');
       playRevealTensionRiser();
       setTimeout(() => setStormVisible(true), 60);
     }, 4400);
 
-    // 5.4s: Option 1 Seismograph burst
     const tSpikeBurst = setTimeout(() => {
       setWaveSubStage('SPIKE_BURST');
     }, 5400);
 
-    // 7.4s: Compression & Core Flare
     const tClimaxFlare = setTimeout(() => {
       setWaveSubStage('LETTER_COMPRESS');
       setVortexFlare(true);
     }, 7400);
 
-    // 9.0s: Total Silence (Duck all audio in anticipation of impact)
     const tStormOut = setTimeout(() => {
       setStormVisible(false);
       stopActiveSynthNodes();
     }, 9000);
 
-    // 9.6s: Single Name Converges + Convergence Impact SFX & Sub-Drop
     const tConverge = setTimeout(() => {
       setStagePhase('CONVERGE');
       playRevealConvergenceImpact();
       setTimeout(() => setConvergeActive(true), 60);
     }, 9600);
 
-    // 10.9s: Name Locked
     const tLocked = setTimeout(() => {
       setStagePhase('LOCKED');
     }, 10900);
@@ -1384,10 +1369,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     const sfxRef = ref(db, `${roomID}/sfxEnabled`);
     const unsubSfx = onValue(sfxRef, (snapshot) => {
       const val = snapshot.val();
-      const enabled = val === null ? true : Boolean(val);
-      setSfxEnabled(enabled);
-      sfxEnabledRef.current = enabled;
-      if (!enabled) stopActiveSynthNodes();
+      setSfxEnabled(val === null ? true : Boolean(val));
     });
 
     const commandRef = ref(db, `${roomID}/audienceCommand`);
@@ -1396,12 +1378,16 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       const command = snapshot.val();
       if (command) {
         const safeCommand = String(command);
-        const baseCmd = safeCommand.split('|')[0];
-        const isInitialLoad = initialLoadRef.current;
+        const parts = safeCommand.split('|');
+        const timestamp = Number(parts[1] || 0);
         
+        // Discard stale commands older than 4 seconds
+        if (Date.now() - timestamp > 4000) return;
+
+        const isInitialLoad = initialLoadRef.current;
         if (isInitialLoad) {
           initialLoadRef.current = false;
-          if (baseCmd === 'REDIRECT' || baseCmd === 'PHASE_REVEAL') return; 
+          if (parts[0] === 'REDIRECT' || parts[0] === 'PHASE_REVEAL') return; 
         }
         handleCommand(command, isInitialLoad);
       }
@@ -1530,10 +1516,14 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     }
   };
 
+  // 5-Tap Secret Zone in Bottom Right
   const handleSecretClick = () => {
     const currentTime = new Date().getTime();
-    if (currentTime - secretLastClickTime.current < 500) secretClickCount.current += 1;
-    else secretClickCount.current = 1;
+    if (currentTime - secretLastClickTime.current < 500) {
+      secretClickCount.current += 1;
+    } else {
+      secretClickCount.current = 1;
+    }
     secretLastClickTime.current = currentTime;
 
     if (secretClickCount.current === 5) {
@@ -1635,6 +1625,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         <div className={`w-3 h-3 rounded-full ${dbStatus === 'live' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : dbStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 animate-pulse'}`}></div>
       </div>
 
+      {/* Secret Tap Area Restored */}
       <div 
         onPointerDown={(e) => { e.stopPropagation(); handleSecretClick(); }} 
         className="absolute bottom-0 right-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
@@ -1642,7 +1633,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
       <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
 
-      {/* STAGE 1: 3D HOLOGRAPHIC EMBLEM (0.0s – 4.4s) */}
       {stagePhase === 'STAGE_1' && (
         <div className={`relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-black select-none pointer-events-none transition-opacity duration-500 ease-in-out ${emblemVisible ? 'opacity-100' : 'opacity-0'}`}>
           {revealTheme === 'APERTURE_VORTEX' ? (
@@ -1653,7 +1643,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         </div>
       )}
 
-      {/* STAGE 2: 3D HOLOGRAPHIC WAVE / VORTEX STORM (4.4s – 9.6s ONLY) */}
       {stagePhase === 'STAGE_2' && (
         <div className={`relative w-full min-h-[100dvh] bg-black overflow-hidden transition-opacity duration-700 ease-in-out ${stormVisible ? 'opacity-100' : 'opacity-0'}`}>
           {revealTheme === 'APERTURE_VORTEX' ? (
@@ -1664,7 +1653,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         </div>
       )}
 
-      {/* STAGE 3: UNOBSTRUCTED SINGLE NAME REVEAL ON PURE BLACK (9.6s+) */}
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
         <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 overflow-hidden pointer-events-none">
           <div className="flex items-center justify-center space-x-2 sm:space-x-3 whitespace-nowrap">
@@ -1688,7 +1676,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         </div>
       )}
 
-      {/* PHASE 1: COLLECTIVE RESONANCE PULSE */}
       {stagePhase === 'PULSE' && (
         !cameraReady ? (
           <div 
@@ -1865,7 +1852,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [audienceMode, setAudienceMode] = useState('OFF');
   const [activePhase, setActivePhase] = useState('PHASE_1');
 
-  // LIVE THEME & SFX STATES
   const [revealTheme, setRevealTheme] = useState(() => localStorage.getItem('magicRevealStyle') || 'RIPPLE_WAVE');
   const revealThemeRef = useRef(revealTheme);
   const [sfxEnabled, setSfxEnabled] = useState(() => {
@@ -1873,13 +1859,11 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     return saved !== null ? JSON.parse(saved) : true;
   });
 
-  // PALM-LOCK DOUBLE-TAP STATES (Starts LOCKED by default)
   const [isCuesTouchLocked, setIsCuesTouchLocked] = useState(true);
   const isCuesTouchLockedRef = useRef(true);
   const [cueLockConfirmArmed, setCueLockConfirmArmed] = useState(false);
   const cueLockConfirmTimeoutRef = useRef(null);
 
-  // MASTER MONITOR OVERLAY STATES
   const [masterMonitorPhase, setMasterMonitorPhase] = useState('NONE');
   const masterMonitorPhaseRef = useRef('NONE');
   const [masterEmblemVisible, setMasterEmblemVisible] = useState(false);
@@ -1979,7 +1963,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     } catch (e) {}
   }, [roomID]);
 
-  // Sync Theme & SFX to LocalStorage & Firebase
   useEffect(() => {
     revealThemeRef.current = revealTheme;
     localStorage.setItem('magicRevealStyle', revealTheme);
@@ -2095,7 +2078,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     return () => clearInterval(timer);
   }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
-  // Permanent Flic Focus Lock
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
@@ -2105,7 +2087,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       const activeEl = document.activeElement;
       const isTypingInSettings = activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'text' && activeEl !== hiddenInputRef.current;
       if (!isTypingInSettings) {
-        if (hiddenInputRef.current) hiddenInputRef.current.focus({ preventScroll: true });
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.focus({ preventScroll: true });
+        }
       }
     };
 
@@ -2283,7 +2267,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     clearMasterPhaseTimeouts();
     setMasterEmblemVisible(false);
     setMasterShutterStage('CLOSED_WHITE');
-    setMasterStormVisible(false);
     setMasterWaveSubStage('RIBBON_BEAM');
     setMasterVortexFlare(false);
     setMasterConvergeActive(false);
@@ -2720,7 +2703,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         </div>
       )}
 
-      {/* MASTER LIVE MONITOR OVERLAY */}
       {masterMonitorPhase !== 'NONE' && (
         <div 
           onTouchStart={(e) => {
