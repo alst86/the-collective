@@ -2388,7 +2388,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       if (k === 'r' || k === 'R') { e.preventDefault(); triggerPhase2Reveal(); return; }
       if (k === 'q' || k === 'Q') { e.preventDefault(); setShowQrModal((prev) => !prev); return; }
       if (isPlayingRef.current) { handleStopPlayback(); return; }
-      if (k === 'p' || k === 'P' || k === 'VolumeDown' || k === 'ArrowDown' || k === 'PageDown') { e.preventDefault(); handlePlayToggle(); return; }
+      if (k === 'p' || k === 'P') { e.preventDefault(); handlePlayToggle(); return; }
       
       if (k === 'u' || k === 'U') { e.preventDefault(); toggleLocalTorch(); }
       else if (k === 'b' || k === 'B') { e.preventDefault(); startLocalHeartbeat(); }
@@ -3214,7 +3214,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               <div className="col-span-2 h-px bg-zinc-800 my-0.5"></div>
 
               <div className="flex justify-between text-zinc-300"><span>Phase 2 Reveal</span><span className="text-cyan-400 font-bold">[R]</span></div>
-              <div className="flex justify-between text-zinc-300"><span>Play / Stop Seq</span><span className="text-green-400 font-bold">[P/Vol-]</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Play / Stop Seq</span><span className="text-green-400 font-bold">[P]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Toggle QR Code</span><span className="text-zinc-200 font-bold">[Q]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Phase 3 Redirect</span><span className="text-red-500 font-bold">[I]</span></div>
             </div>
