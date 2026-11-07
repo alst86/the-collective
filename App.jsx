@@ -1817,8 +1817,8 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   const revealCharCount = Math.max(targetChars.length, 1);
-  const revealFontSize = `${Math.min(22, 92 / (revealCharCount * 0.68)).toFixed(2)}vw`;
-  const revealLetterSpacing = `${Math.min(2.5, 18 / revealCharCount).toFixed(2)}vw`;
+  const revealFontSizeVw = Math.min(14.5, 78.0 / (revealCharCount * 0.90)).toFixed(2);
+  const revealLetterSpacingEm = (revealCharCount <= 5 ? 0.14 : revealCharCount <= 8 ? 0.09 : 0.06).toFixed(2);
 
   const mappedRippleSubStage = shutterStage === 'CLOSED_WHITE'
     ? 'RIPPLE_PURE'
@@ -1931,14 +1931,14 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       )}
 
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
-        <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-2 sm:px-4 overflow-hidden pointer-events-none">
-          <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[96vw]">
+        <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-6 sm:px-10 overflow-hidden pointer-events-none select-none">
+          <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[85vw]">
             {targetChars.map((item, idx) => (
               <span
                 key={idx}
                 style={{
-                  fontSize: `clamp(2rem, ${revealFontSize}, 18vh)`,
-                  letterSpacing: revealLetterSpacing,
+                  fontSize: `clamp(1.6rem, min(${revealFontSizeVw}vw, 12vh), 6.5rem)`,
+                  letterSpacing: `${revealLetterSpacingEm}em`,
                   opacity: convergeActive || stagePhase === 'LOCKED' ? 1 : 0,
                   transform: convergeActive || stagePhase === 'LOCKED'
                     ? 'translate(0px, 0px) scale(1)'
@@ -2378,7 +2378,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       if (e.repeat) return; 
       const activeEl = document.activeElement;
       const isTypingInSettings = activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'text' && activeEl !== hiddenInputRef.current;
-      if (isTypingInSettings) return; 
+      if (isTypingInSettings) return;
       
       const k = e.key;
       setLastKey(k);
@@ -2869,8 +2869,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   };
 
   const masterCharCount = Math.max(masterTargetChars.length, 1);
-  const masterFontSize = `${Math.min(22, 92 / (masterCharCount * 0.68)).toFixed(2)}vw`;
-  const masterLetterSpacing = `${Math.min(2.5, 18 / masterCharCount).toFixed(2)}vw`;
+  const masterFontSizeVw = Math.min(14.5, 78.0 / (masterCharCount * 0.90)).toFixed(2);
+  const masterLetterSpacingEm = (masterCharCount <= 5 ? 0.14 : masterCharCount <= 8 ? 0.09 : 0.06).toFixed(2);
 
   const mappedMasterRippleSubStage = masterShutterStage === 'CLOSED_WHITE'
     ? 'RIPPLE_PURE'
@@ -3028,14 +3028,14 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           )}
 
           {(masterMonitorPhase === 'CONVERGE' || masterMonitorPhase === 'LOCKED') && (
-            <div className="relative flex items-center justify-center w-full h-full bg-black px-2 sm:px-4 overflow-hidden pointer-events-none">
-              <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[96vw]">
+            <div className="relative flex items-center justify-center w-full h-full bg-black px-6 sm:px-10 overflow-hidden pointer-events-none select-none">
+              <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[85vw]">
                 {masterTargetChars.map((item, idx) => (
                   <span
                     key={idx}
                     style={{
-                      fontSize: `clamp(2rem, ${masterFontSize}, 18vh)`,
-                      letterSpacing: masterLetterSpacing,
+                      fontSize: `clamp(1.6rem, min(${masterFontSizeVw}vw, 12vh), 6.5rem)`,
+                      letterSpacing: `${masterLetterSpacingEm}em`,
                       opacity: masterConvergeActive || masterMonitorPhase === 'LOCKED' ? 1 : 0,
                       transform: masterConvergeActive || masterMonitorPhase === 'LOCKED'
                         ? 'translate(0px, 0px) scale(1)'
