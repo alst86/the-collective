@@ -1684,7 +1684,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         const isInitialLoad = initialLoadRef.current;
         if (isInitialLoad) {
           initialLoadRef.current = false;
-          if (parts[0] === 'REDIRECT' || parts[0] === 'PHASE_REVEAL') return; 
         }
         handleCommand(command, isInitialLoad);
       }
@@ -2490,12 +2489,13 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       setAudienceMode(cmd);
     }
     
-    let payload = `${cmd}|${Date.now()}`;
+    const nonce = Math.random().toString(36).slice(2, 8);
+    let payload = `${cmd}|${Date.now()}|${nonce}`;
     if (cmd === 'REDIRECT') {
-      payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}|${getTargetFeedbackUrl()}`;
+      payload = `REDIRECT|${Date.now()}|${getTargetRedirectUrl()}|${getTargetFeedbackUrl()}|${nonce}`;
     } else if (cmd === 'PHASE_REVEAL') {
       const wordToBroadcast = peekedWordRef.current || customText || 'JAMES';
-      payload = `PHASE_REVEAL|${Date.now()}|${wordToBroadcast}|${revealThemeRef.current}`;
+      payload = `PHASE_REVEAL|${Date.now()}|${wordToBroadcast}|${revealThemeRef.current}|${nonce}`;
     }
     
     return set(ref(db, `${roomID}/audienceCommand`), payload).catch(err => {
