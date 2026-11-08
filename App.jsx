@@ -1473,7 +1473,10 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   }, [cameraReady]);
 
   const startCamera = async () => {
+    // Instantly transition to the active pulse screen on tap
+    setCameraReady(true);
     unlockAudio();
+
     try {
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -1483,24 +1486,24 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     } catch (err) {}
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: { ideal: 'environment' }
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: 'environment' }
+          }
+        });
+        const videoTrack = stream.getVideoTracks()[0];
+        trackRef.current = videoTrack;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          videoRef.current.setAttribute('webkit-playsinline', 'true');
+          videoRef.current.play().catch(() => {});
         }
-      });
-      const videoTrack = stream.getVideoTracks()[0];
-      trackRef.current = videoTrack;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        videoRef.current.setAttribute('webkit-playsinline', 'true');
-        videoRef.current.play().catch(() => {});
       }
     } catch (err) {
-      // Fallback
-    } finally {
-      setCameraReady(true); 
+      // Fallback: visual screen flash handles the pulse
     }
   };
 
@@ -1524,7 +1527,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     if (!trackRef.current) return;
     try {
       const capabilities = trackRef.current.getCapabilities ? trackRef.current.getCapabilities() : {};
-      if ('torch' in capabilities || 'fillLightMode' in capabilities) {
+      if (capabilities.torch || 'torch' in capabilities || 'fillLightMode' in capabilities) {
         await trackRef.current.applyConstraints({ advanced: [{ torch: active }] });
       } else {
         await trackRef.current.applyConstraints({ advanced: [{ torch: active }] });
@@ -1977,7 +1980,10 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         !cameraReady ? (
           <div 
             onClick={startCamera}
-            className={`relative flex flex-col items-center justify-between w-full min-h-[100dvh] py-12 px-6 z-10 cursor-pointer transition-opacity duration-700 ease-in-out overflow-hidden ${uiReady ? 'opacity-100' : 'opacity-0'}`}
+            onPointerDown={startCamera}
+            role="button"
+            tabIndex={0}
+            className={`relative flex flex-col items-center justify-between w-full min-h-[100dvh] py-12 px-6 z-10 cursor-pointer select-none transition-opacity duration-700 ease-in-out overflow-hidden ${uiReady ? 'opacity-100' : 'opacity-0'}`}
           >
             <div className="flex items-center space-x-2.5 pt-2 opacity-80">
               <span className="w-1.5 h-1.5 rounded-full bg-[#d91b1b] shadow-[0_0_8px_#d91b1b] animate-pulse"></span>
