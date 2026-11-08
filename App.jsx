@@ -992,7 +992,9 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
-        if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume().catch(() => {});
+        if (audioCtxRef.current.state === 'suspended' || audioCtxRef.current.state === 'interrupted') {
+          audioCtxRef.current.resume().catch(() => {});
+        }
       }
     } catch (e) {}
   };
@@ -1060,7 +1062,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
 
@@ -1193,7 +1195,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
       const duration = 4.55;
@@ -1313,7 +1315,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
 
@@ -1403,7 +1405,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
       const oscSub = ctx.createOscillator();
@@ -1477,13 +1479,26 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
+      } else if (document.documentElement.webkitRequestFullscreen) {
+        document.documentElement.webkitRequestFullscreen();
       }
     } catch (err) {}
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      trackRef.current = stream.getVideoTracks()[0];
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' }
+        }
+      });
+      const videoTrack = stream.getVideoTracks()[0];
+      trackRef.current = videoTrack;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('webkit-playsinline', 'true');
+        videoRef.current.play().catch(() => {});
+      }
     } catch (err) {
       // Fallback
     } finally {
@@ -1510,7 +1525,12 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
     if (!trackRef.current) return;
     try {
-      await trackRef.current.applyConstraints({ advanced: [{ torch: active }] });
+      const capabilities = trackRef.current.getCapabilities ? trackRef.current.getCapabilities() : {};
+      if ('torch' in capabilities || 'fillLightMode' in capabilities) {
+        await trackRef.current.applyConstraints({ advanced: [{ torch: active }] });
+      } else {
+        await trackRef.current.applyConstraints({ advanced: [{ torch: active }] });
+      }
     } catch (err) {}
   };
 
@@ -2152,7 +2172,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [masterWaveSubStage, setMasterWaveSubStage] = useState('RIBBON_BEAM');
   const [masterVortexFlare, setMasterVortexFlare] = useState(false);
   const [masterConvergeActive, setMasterConvergeActive] = useState(false);
-  const [masterRevealWord, setMasterRevealWord] = useState('');
+  const masterRevealWord, setMasterRevealWord] = useState('');
   const masterPhaseTimeoutsRef = useRef([]);
 
   const [redirectUrl, setRedirectUrl] = useState(() => localStorage.getItem('magicRedirectUrl') || '');
@@ -2936,6 +2956,23 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           0% { transform: translate(0px, 0px); opacity: 0.25; }
           100% { transform: translate(var(--dx), var(--dy)); opacity: 0.95; }
         }
+        @keyframes artisticHeartbeat {
+          0%, 100% { transform: scale(1); }
+          14% { transform: scale(1.06); }
+          28% { transform: scale(0.99); }
+          42% { transform: scale(1.035); }
+          70% { transform: scale(1); }
+        }
+        @keyframes subtleAura {
+          0%, 100% { transform: scale(0.95); opacity: 0.18; }
+          50% { transform: scale(1.12); opacity: 0.04; }
+        }
+        @keyframes inwardThoughtWave {
+          0% { transform: scale(3.6); opacity: 0; }
+          25% { opacity: 0.28; }
+          85% { opacity: 0.12; }
+          100% { transform: scale(0.15); opacity: 0; }
+        }
       `}</style>
 
       <input 
@@ -3150,7 +3187,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             </div>
             <button 
               onClick={() => setIsInjectSyncing(!isInjectSyncing)}
-              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
+              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
             >
               {isInjectSyncing ? 'SYNCING' : 'AUTO-SYNC'}
             </button>
@@ -3215,7 +3252,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
               <div className="flex justify-between text-zinc-300"><span>Phase 2 Reveal</span><span className="text-cyan-400 font-bold">[R]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Play / Stop Seq</span><span className="text-green-400 font-bold">[P]</span></div>
-              <div className="flex justify-between text-zinc-300"><span>Toggle QR Code</span><span className="text-zinc-200 font-bold">[Q]</span></div>
+              <div className="flex justify-between text-zinc-200"><span>Toggle QR Code</span><span className="text-zinc-200 font-bold">[Q]</span></div>
               <div className="flex justify-between text-zinc-300"><span>Phase 3 Redirect</span><span className="text-red-500 font-bold">[I]</span></div>
             </div>
           </div>
