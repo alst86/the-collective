@@ -842,6 +842,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const initialLoadRef = useRef(true); 
   const isRedirectingRef = useRef(false);
   const feedbackUrlRef = useRef(DEFAULT_FEEDBACK_URL);
+  const desiredTorchRef = useRef(false);
 
   const audioCtxRef = useRef(null);
   const silentAudioRef = useRef(null);
@@ -1487,14 +1488,57 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: 'environment' }
-          }
-        });
-        const videoTrack = stream.getVideoTracks()[0];
+        let stream = null;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: 'environment' }
+          });
+        } catch (e) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: { ideal: 'environment' } }
+          });
+        }
+
+        let videoTrack = stream.getVideoTracks()[0];
+        let caps = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+
+        // Multi-lens Android fix: if primary device lacks torch, find the 1x sensor
+        if (!caps.torch && navigator.mediaDevices.enumerateDevices) {
+          try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+            for (const dev of videoDevices) {
+              if (videoTrack.getSettings && dev.deviceId === videoTrack.getSettings().deviceId) continue;
+              try {
+                const altStream = await navigator.mediaDevices.getUserMedia({
+                  audio: false,
+                  video: { deviceId: { exact: dev.deviceId } }
+                });
+                const altTrack = altStream.getVideoTracks()[0];
+                const altCaps = altTrack.getCapabilities ? altTrack.getCapabilities() : {};
+                if (altCaps.torch) {
+                  videoTrack.stop();
+                  stream = altStream;
+                  videoTrack = altTrack;
+                  caps = altCaps;
+                  break;
+                } else {
+                  altTrack.stop();
+                }
+              } catch (errDev) {}
+            }
+          } catch (enumErr) {}
+        }
+
         trackRef.current = videoTrack;
+
+        // Apply pending cue if received during camera startup
+        if (desiredTorchRef.current) {
+          applyTorch(desiredTorchRef.current);
+        }
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.setAttribute('playsinline', 'true');
@@ -1503,11 +1547,12 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         }
       }
     } catch (err) {
-      // Fallback: visual screen flash handles the pulse
+      // Visual screen flash provides fallback
     }
   };
 
   const applyTorch = async (active, beatType = 'lub') => {
+    desiredTorchRef.current = active;
     if (isRedirectingRef.current && active) return;
     setIsFlashing(active); 
 
@@ -2960,6 +3005,23 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           0% { transform: translate(0px, 0px); opacity: 0.25; }
           100% { transform: translate(var(--dx), var(--dy)); opacity: 0.95; }
         }
+        @keyframes artisticHeartbeat {
+          0%, 100% { transform: scale(1); }
+          14% { transform: scale(1.06); }
+          28% { transform: scale(0.99); }
+          42% { transform: scale(1.035); }
+          70% { transform: scale(1); }
+        }
+        @keyframes subtleAura {
+          0%, 100% { transform: scale(0.95); opacity: 0.18; }
+          50% { transform: scale(1.12); opacity: 0.04; }
+        }
+        @keyframes inwardThoughtWave {
+          0% { transform: scale(3.6); opacity: 0; }
+          25% { opacity: 0.28; }
+          85% { opacity: 0.12; }
+          100% { transform: scale(0.15); opacity: 0; }
+        }
       `}</style>
 
       <input 
@@ -3174,7 +3236,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             </div>
             <button 
               onClick={() => setIsInjectSyncing(!isInjectSyncing)}
-              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
+              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
             >
               {isInjectSyncing ? 'SYNCING' : 'AUTO-SYNC'}
             </button>
