@@ -24,6 +24,153 @@ const REVEAL_THEMES = [
   { id: 'APERTURE_VORTEX', label: '◎ Option 2: Focus Aperture', short: 'APERTURE' }
 ];
 
+// =========================================================
+// SAMSUNG ULTRA & UNIVERSAL HARDWARE TORCH ENGINE
+// =========================================================
+async function acquireTorchCapableRearStream(videoEl) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
+
+  const attachAndWaitPlay = async (stream) => {
+    if (!videoEl) return;
+    videoEl.srcObject = stream;
+    videoEl.muted = true;
+    videoEl.setAttribute('playsinline', 'true');
+    videoEl.setAttribute('webkit-playsinline', 'true');
+    try {
+      await videoEl.play();
+    } catch (e) {}
+    // Wait briefly so Samsung Camera2 HAL populates getCapabilities().torch
+    await new Promise((r) => setTimeout(r, 180));
+  };
+
+  const hasTorchSupport = async (track) => {
+    try {
+      if (track.getCapabilities) {
+        const caps = track.getCapabilities();
+        if (caps && (caps.torch === true || 'torch' in caps)) return true;
+      }
+      if (typeof window !== 'undefined' && 'ImageCapture' in window) {
+        const ic = new window.ImageCapture(track);
+        const photoCaps = await ic.getPhotoCapabilities();
+        if (
+          photoCaps &&
+          Array.isArray(photoCaps.fillLightMode) &&
+          (photoCaps.fillLightMode.includes('flash') || photoCaps.fillLightMode.includes('torch'))
+        ) {
+          return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  };
+
+  let initialStream = null;
+  try {
+    initialStream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: 'environment' } }
+    });
+  } catch (e) {
+    try {
+      initialStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+    } catch (e2) {
+      return null;
+    }
+  }
+
+  await attachAndWaitPlay(initialStream);
+  let activeTrack = initialStream.getVideoTracks()[0];
+  if (!activeTrack) return null;
+
+  if (await hasTorchSupport(activeTrack)) {
+    return { stream: initialStream, track: activeTrack };
+  }
+
+  // Samsung S21/S22/S23/S24 Ultra Multi-Lens Fix:
+  // Enumerate rear cameras (testing in reverse order + label priority, as Samsung places main 1x wide camera with LED flash last or as camera2 0)
+  if (navigator.mediaDevices.enumerateDevices) {
+    try {
+      const allDevices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = allDevices.filter((d) => d.kind === 'videoinput');
+      const currentDeviceId = activeTrack.getSettings ? activeTrack.getSettings().deviceId : null;
+
+      // Sort back/environment cameras first, prioritizing '0' / main wide sensor or reverse order
+      const backCandidates = videoInputs.filter((d) => {
+        const lbl = (d.label || '').toLowerCase();
+        return !lbl.includes('front') && !lbl.includes('user') && !lbl.includes('selfie');
+      });
+      const orderedCandidates = (backCandidates.length > 0 ? backCandidates : videoInputs).slice().reverse();
+
+      for (const dev of orderedCandidates) {
+        if (!dev.deviceId || dev.deviceId === currentDeviceId) continue;
+
+        // Release current camera lock first so Samsung HAL can open the next lens
+        try { activeTrack.stop(); } catch (e) {}
+        try { initialStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+
+        try {
+          const candidateStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              deviceId: { exact: dev.deviceId },
+              facingMode: { ideal: 'environment' }
+            }
+          });
+          await attachAndWaitPlay(candidateStream);
+          const candidateTrack = candidateStream.getVideoTracks()[0];
+          if (candidateTrack && (await hasTorchSupport(candidateTrack))) {
+            return { stream: candidateStream, track: candidateTrack };
+          }
+          // Keep last valid candidate if none report explicit capability yet
+          initialStream = candidateStream;
+          activeTrack = candidateTrack;
+        } catch (errTry) {}
+      }
+    } catch (e) {}
+  }
+
+  return { stream: initialStream, track: activeTrack };
+}
+
+function createTorchController(trackRef) {
+  let busy = false;
+  let queuedState = null;
+
+  const setHardwareTorch = async (track, active) => {
+    if (!track || track.readyState === 'ended') return;
+    const flag = Boolean(active);
+    try {
+      await track.applyConstraints({ advanced: [{ torch: flag }] });
+      return;
+    } catch (e1) {}
+    try {
+      await track.applyConstraints({ torch: flag });
+      return;
+    } catch (e2) {}
+    try {
+      await track.applyConstraints({
+        advanced: [{ torch: flag, fillLightMode: flag ? 'flash' : 'off' }]
+      });
+    } catch (e3) {}
+  };
+
+  return (desiredActive) => {
+    queuedState = Boolean(desiredActive);
+    if (busy) return;
+    busy = true;
+    (async () => {
+      while (queuedState !== null) {
+        const nextState = queuedState;
+        queuedState = null;
+        if (trackRef.current) {
+          await setHardwareTorch(trackRef.current, nextState);
+        }
+      }
+      busy = false;
+    })();
+  };
+}
+
 // Exact Custom AL Geometric Monogram Logo (Supports Dark & Light Modes)
 function BrandLogoSVG({ className = "w-14 h-14", variant = "darkOnLight" }) {
   const clipId = useMemo(() => 'alClip_' + Math.random().toString(36).slice(2, 8), []);
@@ -838,11 +985,16 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
   const trackRef = useRef(null);
   const videoRef = useRef(null);
+  const desiredTorchRef = useRef(false);
+  const isStartingCameraRef = useRef(false);
+  const torchControllerRef = useRef(null);
+  if (!torchControllerRef.current) {
+    torchControllerRef.current = createTorchController(trackRef);
+  }
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
   const isRedirectingRef = useRef(false);
   const feedbackUrlRef = useRef(DEFAULT_FEEDBACK_URL);
-  const desiredTorchRef = useRef(false);
 
   const audioCtxRef = useRef(null);
   const silentAudioRef = useRef(null);
@@ -1474,7 +1626,10 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   }, [cameraReady]);
 
   const startCamera = async () => {
-    // Instantly transition to the active pulse screen on tap
+    // Guard against duplicate invocation from onPointerDown + onClick firing together
+    if (isStartingCameraRef.current) return;
+    isStartingCameraRef.current = true;
+
     setCameraReady(true);
     unlockAudio();
 
@@ -1487,72 +1642,21 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     } catch (err) {}
 
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        let stream = null;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: { facingMode: 'environment' }
-          });
-        } catch (e) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: { facingMode: { ideal: 'environment' } }
-          });
-        }
-
-        let videoTrack = stream.getVideoTracks()[0];
-        let caps = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
-
-        // Multi-lens Android fix: if primary device lacks torch, find the 1x sensor
-        if (!caps.torch && navigator.mediaDevices.enumerateDevices) {
-          try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoDevices = devices.filter(d => d.kind === 'videoinput');
-            for (const dev of videoDevices) {
-              if (videoTrack.getSettings && dev.deviceId === videoTrack.getSettings().deviceId) continue;
-              try {
-                const altStream = await navigator.mediaDevices.getUserMedia({
-                  audio: false,
-                  video: { deviceId: { exact: dev.deviceId } }
-                });
-                const altTrack = altStream.getVideoTracks()[0];
-                const altCaps = altTrack.getCapabilities ? altTrack.getCapabilities() : {};
-                if (altCaps.torch) {
-                  videoTrack.stop();
-                  stream = altStream;
-                  videoTrack = altTrack;
-                  caps = altCaps;
-                  break;
-                } else {
-                  altTrack.stop();
-                }
-              } catch (errDev) {}
-            }
-          } catch (enumErr) {}
-        }
-
-        trackRef.current = videoTrack;
-
-        // Apply pending cue if received during camera startup
-        if (desiredTorchRef.current) {
-          applyTorch(desiredTorchRef.current);
-        }
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', 'true');
-          videoRef.current.setAttribute('webkit-playsinline', 'true');
-          videoRef.current.play().catch(() => {});
+      const result = await acquireTorchCapableRearStream(videoRef.current);
+      if (result && result.track) {
+        trackRef.current = result.track;
+        // Brief hardware prime pulse to wake Samsung/Android LED driver
+        if (desiredTorchRef.current && !isRedirectingRef.current) {
+          torchControllerRef.current(true);
         }
       }
     } catch (err) {
-      // Visual screen flash provides fallback
+      // Fallback: visual screen flash handles the pulse
     }
   };
 
   const applyTorch = async (active, beatType = 'lub') => {
-    desiredTorchRef.current = active;
+    desiredTorchRef.current = Boolean(active);
     if (isRedirectingRef.current && active) return;
     setIsFlashing(active); 
 
@@ -1569,15 +1673,9 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       }
     }
 
-    if (!trackRef.current) return;
-    try {
-      const capabilities = trackRef.current.getCapabilities ? trackRef.current.getCapabilities() : {};
-      if (capabilities.torch || 'torch' in capabilities || 'fillLightMode' in capabilities) {
-        await trackRef.current.applyConstraints({ advanced: [{ torch: active }] });
-      } else {
-        await trackRef.current.applyConstraints({ advanced: [{ torch: active }] });
-      }
-    } catch (err) {}
+    if (torchControllerRef.current) {
+      torchControllerRef.current(active);
+    }
   };
 
   const handleThumbDown = (e) => {
@@ -1974,7 +2072,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         className="absolute bottom-0 right-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
       />
 
-      <video ref={videoRef} autoPlay playsInline muted className="absolute opacity-0 w-1 h-1 pointer-events-none" />
+      <video ref={videoRef} autoPlay playsInline muted className="fixed top-0 left-0 opacity-[0.01] w-px h-px pointer-events-none -z-10" />
 
       {stagePhase === 'STAGE_1' && (
         <div className={`relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-black select-none pointer-events-none transition-opacity duration-500 ease-in-out ${emblemVisible ? 'opacity-100' : 'opacity-0'}`}>
@@ -2193,6 +2291,11 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [isReady, setIsReady] = useState(false);
   const trackRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const localTorchControllerRef = useRef(null);
+  if (!localTorchControllerRef.current) {
+    localTorchControllerRef.current = createTorchController(trackRef);
+  }
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
@@ -2427,9 +2530,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   }, [isInjectSyncing, injectUrl, injectKey, roomID]);
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(stream => { trackRef.current = stream.getVideoTracks()[0]; setIsReady(true); })
-      .catch(() => { setIsReady(true); });
+    setIsReady(true);
+    acquireTorchCapableRearStream(localVideoRef.current)
+      .then(res => {
+        if (res && res.track) trackRef.current = res.track;
+      })
+      .catch(() => {});
 
     const keepRemoteLocked = () => {
       const activeEl = document.activeElement;
@@ -2737,8 +2843,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   };
 
   const applyLocalTorch = (active) => {
-    if (trackRef.current) {
-      trackRef.current.applyConstraints({ advanced: [{ torch: active }] }).catch(() => {});
+    if (localTorchControllerRef.current) {
+      localTorchControllerRef.current(active);
     }
   };
 
@@ -3005,25 +3111,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           0% { transform: translate(0px, 0px); opacity: 0.25; }
           100% { transform: translate(var(--dx), var(--dy)); opacity: 0.95; }
         }
-        @keyframes artisticHeartbeat {
-          0%, 100% { transform: scale(1); }
-          14% { transform: scale(1.06); }
-          28% { transform: scale(0.99); }
-          42% { transform: scale(1.035); }
-          70% { transform: scale(1); }
-        }
-        @keyframes subtleAura {
-          0%, 100% { transform: scale(0.95); opacity: 0.18; }
-          50% { transform: scale(1.12); opacity: 0.04; }
-        }
-        @keyframes inwardThoughtWave {
-          0% { transform: scale(3.6); opacity: 0; }
-          25% { opacity: 0.28; }
-          85% { opacity: 0.12; }
-          100% { transform: scale(0.15); opacity: 0; }
-        }
       `}</style>
 
+      <video ref={localVideoRef} autoPlay playsInline muted className="fixed top-0 left-0 opacity-[0.01] w-px h-px pointer-events-none -z-10" />
       <input 
         ref={hiddenInputRef}
         type="text"
@@ -3236,7 +3326,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             </div>
             <button 
               onClick={() => setIsInjectSyncing(!isInjectSyncing)}
-              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
+              className={`w-20 h-10 rounded font-bold text-[9px] tracking-widest transition-colors border ${isInjectSyncing ? 'bg-green-600 border-green-500 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' : 'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
             >
               {isInjectSyncing ? 'SYNCING' : 'AUTO-SYNC'}
             </button>
@@ -3547,11 +3637,3 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             isPlaying ? 'text-green-400 font-bold animate-pulse' : 
             'text-zinc-600'
           }>
-            {isRecording ? '● REC ACTIVE' : isPlaying ? '▶ SEQ PLAYING' : `${recordedSequence.length} Cues`}
-          </span>
-        </div>
-      </div>
-
-    </div>
-  );
-}
