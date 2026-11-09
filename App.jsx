@@ -3637,3 +3637,11 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             isPlaying ? 'text-green-400 font-bold animate-pulse' : 
             'text-zinc-600'
           }>
+            {isRecording ? '● REC ACTIVE' : isPlaying ? '▶ SEQ PLAYING' : `${recordedSequence.length} Cues`}
+          </span>
+        </div>
+      </div>
+
+    </div>
+  );
+}
