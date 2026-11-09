@@ -3637,4 +3637,14 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           <span>•</span>
           <span className={
             isRecording ? 'text-red-500 font-bold animate-pulse' : 
-            isPlaying ? 'text-green-4
+            isPlaying ? 'text-green-400 font-bold animate-pulse' : 
+            'text-zinc-600'
+          }>
+            {isRecording ? '● REC ACTIVE' : isPlaying ? '▶ SEQ PLAYING' : `${recordedSequence.length} Cues`}
+          </span>
+        </div>
+      </div>
+
+    </div>
+  );
+}
