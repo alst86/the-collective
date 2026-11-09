@@ -25,7 +25,7 @@ const REVEAL_THEMES = [
 ];
 
 // =========================================================
-// SAMSUNG ULTRA & UNIVERSAL HARDWARE TORCH ENGINE
+// UNIVERSAL HARDWARE TORCH ENGINE (iOS & ANDROID BULLETPROOF)
 // =========================================================
 async function acquireTorchCapableRearStream(videoEl) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
@@ -92,14 +92,12 @@ async function acquireTorchCapableRearStream(videoEl) {
   }
 
   // Step 2: Samsung Ultra Multi-Lens Probe (Android only)
-  // On Samsung S21/S22/S23/S24/S25 Ultra, Camera 0 (the primary wide lens) is wired to the LED flash.
   if (navigator.mediaDevices.enumerateDevices) {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter((d) => d.kind === 'videoinput');
       const currentId = activeTrack.getSettings ? activeTrack.getSettings().deviceId : null;
 
-      // Filter for back cameras, testing camera 0 / primary sensors first
       const backDevices = videoDevices.filter((d) => {
         const lbl = (d.label || '').toLowerCase();
         return !lbl.includes('front') && !lbl.includes('user') && !lbl.includes('selfie');
@@ -123,12 +121,10 @@ async function acquireTorchCapableRearStream(videoEl) {
           const candidateTrack = candidateStream.getVideoTracks()[0];
 
           if (candidateTrack && (await testTorchDirectly(candidateTrack))) {
-            // Stop old stream only after confirming new track is operational
             try { activeTrack.stop(); } catch (e) {}
             try { activeStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
             return { stream: candidateStream, track: candidateTrack };
           } else {
-            // Lens does not have flash, close and test next
             try { candidateTrack.stop(); } catch (e) {}
             try { candidateStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
           }
@@ -144,8 +140,9 @@ function createTorchController(trackRef) {
   let busy = false;
   let pendingState = null;
 
-  const applyHardwareTorch = async (track, flag) => {
+  const applyHardwareTorch = async (track, active) => {
     if (!track || track.readyState === 'ended') return;
+    const flag = Boolean(active);
     try {
       await track.applyConstraints({ advanced: [{ torch: flag }] });
       return;
@@ -1153,7 +1150,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
-        if (audioCtxRef.current.state === 'suspended' || audioCtxRef.current.state === 'interrupted') audioCtxRef.current.resume().catch(() => {});
+        if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume().catch(() => {});
       }
     } catch (e) {}
   };
@@ -1221,7 +1218,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
-      if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
 
@@ -1354,7 +1351,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
-      if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
       const duration = 4.55;
@@ -1474,7 +1471,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
-      if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
 
@@ -1564,7 +1561,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
-      if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
       const oscSub = ctx.createOscillator();
@@ -1644,8 +1641,6 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     try {
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
-      } else if (document.documentElement.webkitRequestFullscreen) {
-        document.documentElement.webkitRequestFullscreen();
       }
     } catch (err) {}
 
@@ -1653,13 +1648,12 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       const result = await acquireTorchCapableRearStream(videoRef.current);
       if (result && result.track) {
         trackRef.current = result.track;
-        // Brief hardware prime pulse to wake Samsung/Android LED driver
         if (desiredTorchRef.current && !isRedirectingRef.current) {
           torchControllerRef.current(true);
         }
       }
     } catch (err) {
-      // Fallback: visual screen flash handles the pulse
+      // Fallback
     }
   };
 
@@ -1838,6 +1832,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         const isInitialLoad = initialLoadRef.current;
         if (isInitialLoad) {
           initialLoadRef.current = false;
+          if (parts[0] === 'REDIRECT' || parts[0] === 'PHASE_REVEAL') return; 
         }
         handleCommand(command, isInitialLoad);
       }
