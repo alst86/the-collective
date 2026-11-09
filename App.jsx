@@ -46,12 +46,10 @@ async function acquireTorchCapableRearStream(videoEl) {
   const testTorchDirectly = async (track) => {
     if (!track || track.readyState === 'ended') return false;
     try {
-      // 1. Check getCapabilities if present
       if (track.getCapabilities) {
         const caps = track.getCapabilities();
         if (caps && (caps.torch === true || 'torch' in caps)) return true;
       }
-      // 2. Direct non-destructive test: toggle torch to false
       await track.applyConstraints({ advanced: [{ torch: false }] });
       return true;
     } catch (e) {
@@ -82,12 +80,19 @@ async function acquireTorchCapableRearStream(videoEl) {
   let activeTrack = activeStream.getVideoTracks()[0];
   if (!activeTrack) return null;
 
+  // On iOS (iPhone/iPad): NEVER loop or stop the track!
+  // iOS Safari only allows a single rear camera stream and will kill permissions or crash if looped.
+  const isAppleDevice = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  if (isAppleDevice) {
+    return { stream: activeStream, track: activeTrack };
+  }
+
   if (await testTorchDirectly(activeTrack)) {
     return { stream: activeStream, track: activeTrack };
   }
 
-  // Step 2: Samsung Ultra Multi-Lens Probe
-  // On Samsung S21/S22/S23/S24/S25 Ultra, Camera 0 (the first rear camera) is the primary 1x lens wired to the LED.
+  // Step 2: Samsung Ultra Multi-Lens Probe (Android only)
+  // On Samsung S21/S22/S23/S24/S25 Ultra, Camera 0 (the primary wide lens) is wired to the LED flash.
   if (navigator.mediaDevices.enumerateDevices) {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
