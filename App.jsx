@@ -30,115 +30,117 @@ const REVEAL_THEMES = [
 async function acquireTorchCapableRearStream(videoEl) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
 
-  const attachAndWaitPlay = async (stream) => {
+  const bindVideoAndPlay = async (stream) => {
     if (!videoEl) return;
-    videoEl.srcObject = stream;
-    videoEl.muted = true;
-    videoEl.setAttribute('playsinline', 'true');
-    videoEl.setAttribute('webkit-playsinline', 'true');
     try {
-      await videoEl.play();
+      videoEl.srcObject = stream;
+      videoEl.muted = true;
+      videoEl.setAttribute('playsinline', 'true');
+      videoEl.setAttribute('webkit-playsinline', 'true');
+      await videoEl.play().catch(() => {});
     } catch (e) {}
-    // Wait briefly so Samsung Camera2 HAL populates getCapabilities().torch
-    await new Promise((r) => setTimeout(r, 180));
+    // Allow hardware pipeline to initialize frames
+    await new Promise((r) => setTimeout(r, 200));
   };
 
-  const hasTorchSupport = async (track) => {
+  const testTorchDirectly = async (track) => {
+    if (!track || track.readyState === 'ended') return false;
     try {
+      // 1. Check getCapabilities if present
       if (track.getCapabilities) {
         const caps = track.getCapabilities();
         if (caps && (caps.torch === true || 'torch' in caps)) return true;
       }
-      if (typeof window !== 'undefined' && 'ImageCapture' in window) {
-        const ic = new window.ImageCapture(track);
-        const photoCaps = await ic.getPhotoCapabilities();
-        if (
-          photoCaps &&
-          Array.isArray(photoCaps.fillLightMode) &&
-          (photoCaps.fillLightMode.includes('flash') || photoCaps.fillLightMode.includes('torch'))
-        ) {
-          return true;
-        }
-      }
-    } catch (e) {}
-    return false;
+      // 2. Direct non-destructive test: toggle torch to false
+      await track.applyConstraints({ advanced: [{ torch: false }] });
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
 
-  let initialStream = null;
+  // Step 1: Request standard rear camera first
+  let activeStream = null;
   try {
-    initialStream = await navigator.mediaDevices.getUserMedia({
+    activeStream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: { ideal: 'environment' } }
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
     });
   } catch (e) {
     try {
-      initialStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+      activeStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
     } catch (e2) {
       return null;
     }
   }
 
-  await attachAndWaitPlay(initialStream);
-  let activeTrack = initialStream.getVideoTracks()[0];
+  await bindVideoAndPlay(activeStream);
+  let activeTrack = activeStream.getVideoTracks()[0];
   if (!activeTrack) return null;
 
-  if (await hasTorchSupport(activeTrack)) {
-    return { stream: initialStream, track: activeTrack };
+  if (await testTorchDirectly(activeTrack)) {
+    return { stream: activeStream, track: activeTrack };
   }
 
-  // Samsung S21/S22/S23/S24 Ultra Multi-Lens Fix:
-  // Enumerate rear cameras (testing in reverse order + label priority, as Samsung places main 1x wide camera with LED flash last or as camera2 0)
+  // Step 2: Samsung Ultra Multi-Lens Probe
+  // On Samsung S21/S22/S23/S24/S25 Ultra, Camera 0 (the first rear camera) is the primary 1x lens wired to the LED.
   if (navigator.mediaDevices.enumerateDevices) {
     try {
-      const allDevices = await navigator.mediaDevices.enumerateDevices();
-      const videoInputs = allDevices.filter((d) => d.kind === 'videoinput');
-      const currentDeviceId = activeTrack.getSettings ? activeTrack.getSettings().deviceId : null;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+      const currentId = activeTrack.getSettings ? activeTrack.getSettings().deviceId : null;
 
-      // Sort back/environment cameras first, prioritizing '0' / main wide sensor or reverse order
-      const backCandidates = videoInputs.filter((d) => {
+      // Filter for back cameras, testing camera 0 / primary sensors first
+      const backDevices = videoDevices.filter((d) => {
         const lbl = (d.label || '').toLowerCase();
         return !lbl.includes('front') && !lbl.includes('user') && !lbl.includes('selfie');
       });
-      const orderedCandidates = (backCandidates.length > 0 ? backCandidates : videoInputs).slice().reverse();
 
-      for (const dev of orderedCandidates) {
-        if (!dev.deviceId || dev.deviceId === currentDeviceId) continue;
+      const candidateList = backDevices.length > 0 ? backDevices : videoDevices;
 
-        // Release current camera lock first so Samsung HAL can open the next lens
-        try { activeTrack.stop(); } catch (e) {}
-        try { initialStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+      for (const dev of candidateList) {
+        if (!dev.deviceId || dev.deviceId === currentId) continue;
 
         try {
           const candidateStream = await navigator.mediaDevices.getUserMedia({
             audio: false,
             video: {
               deviceId: { exact: dev.deviceId },
-              facingMode: { ideal: 'environment' }
+              width: { ideal: 640 },
+              height: { ideal: 480 }
             }
           });
-          await attachAndWaitPlay(candidateStream);
+          await bindVideoAndPlay(candidateStream);
           const candidateTrack = candidateStream.getVideoTracks()[0];
-          if (candidateTrack && (await hasTorchSupport(candidateTrack))) {
+
+          if (candidateTrack && (await testTorchDirectly(candidateTrack))) {
+            // Stop old stream only after confirming new track is operational
+            try { activeTrack.stop(); } catch (e) {}
+            try { activeStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
             return { stream: candidateStream, track: candidateTrack };
+          } else {
+            // Lens does not have flash, close and test next
+            try { candidateTrack.stop(); } catch (e) {}
+            try { candidateStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
           }
-          // Keep last valid candidate if none report explicit capability yet
-          initialStream = candidateStream;
-          activeTrack = candidateTrack;
-        } catch (errTry) {}
+        } catch (errDev) {}
       }
-    } catch (e) {}
+    } catch (enumErr) {}
   }
 
-  return { stream: initialStream, track: activeTrack };
+  return { stream: activeStream, track: activeTrack };
 }
 
 function createTorchController(trackRef) {
   let busy = false;
-  let queuedState = null;
+  let pendingState = null;
 
-  const setHardwareTorch = async (track, active) => {
+  const applyHardwareTorch = async (track, flag) => {
     if (!track || track.readyState === 'ended') return;
-    const flag = Boolean(active);
     try {
       await track.applyConstraints({ advanced: [{ torch: flag }] });
       return;
@@ -155,15 +157,16 @@ function createTorchController(trackRef) {
   };
 
   return (desiredActive) => {
-    queuedState = Boolean(desiredActive);
+    pendingState = Boolean(desiredActive);
     if (busy) return;
     busy = true;
+
     (async () => {
-      while (queuedState !== null) {
-        const nextState = queuedState;
-        queuedState = null;
+      while (pendingState !== null) {
+        const stateToApply = pendingState;
+        pendingState = null;
         if (trackRef.current) {
-          await setHardwareTorch(trackRef.current, nextState);
+          await applyHardwareTorch(trackRef.current, stateToApply);
         }
       }
       busy = false;
@@ -2072,7 +2075,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
         className="absolute bottom-0 right-0 w-32 h-32 z-[100] bg-black/0 touch-none" 
       />
 
-      <video ref={videoRef} autoPlay playsInline muted className="fixed top-0 left-0 opacity-[0.01] w-px h-px pointer-events-none -z-10" />
+      <video ref={videoRef} autoPlay playsInline muted width="320" height="240" className="fixed -top-[9999px] -left-[9999px] pointer-events-none -z-50" />
 
       {stagePhase === 'STAGE_1' && (
         <div className={`relative flex items-center justify-center w-full min-h-[100dvh] overflow-hidden bg-black select-none pointer-events-none transition-opacity duration-500 ease-in-out ${emblemVisible ? 'opacity-100' : 'opacity-0'}`}>
@@ -3113,7 +3116,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         }
       `}</style>
 
-      <video ref={localVideoRef} autoPlay playsInline muted className="fixed top-0 left-0 opacity-[0.01] w-px h-px pointer-events-none -z-10" />
+      <video ref={localVideoRef} autoPlay playsInline muted width="320" height="240" className="fixed -top-[9999px] -left-[9999px] pointer-events-none -z-50" />
       <input 
         ref={hiddenInputRef}
         type="text"
@@ -3634,14 +3637,4 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           <span>•</span>
           <span className={
             isRecording ? 'text-red-500 font-bold animate-pulse' : 
-            isPlaying ? 'text-green-400 font-bold animate-pulse' : 
-            'text-zinc-600'
-          }>
-            {isRecording ? '● REC ACTIVE' : isPlaying ? '▶ SEQ PLAYING' : `${recordedSequence.length} Cues`}
-          </span>
-        </div>
-      </div>
-
-    </div>
-  );
-}
+            isPlaying ? 'text-green-4
