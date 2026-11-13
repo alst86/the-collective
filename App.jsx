@@ -1069,7 +1069,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   }, [cameraReady, stagePhase]);
 
   const targetChars = useMemo(() => {
-    const clean = (revealWord || kickerWord || 'JAMES').trim().toUpperCase();
+    const clean = (revealWord || kickerWord || 'JAMES').trim().replace(/\s+/g, ' ').toUpperCase();
     return clean.split('').map((ch, idx) => {
       const angle = (idx * 137.5) * (Math.PI / 180);
       const radius = 90 + (idx % 3) * 45;
@@ -2000,9 +2000,17 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   const revealCharCount = Math.max(targetChars.length, 1);
-  const revealLetterSpacingEm = (revealCharCount <= 5 ? 0.12 : revealCharCount <= 8 ? 0.08 : 0.05).toFixed(2);
-  const revealWidthFactor = revealCharCount * 0.76 + (revealCharCount - 1) * Number(revealLetterSpacingEm);
-  const revealFontSizeVw = Math.min(17.5, 88.0 / Math.max(revealWidthFactor, 1)).toFixed(2);
+  const revealSpaceCount = targetChars.filter((item) => item.ch === ' ').length;
+  const revealNonSpaceCount = revealCharCount - revealSpaceCount;
+  const revealLetterSpacingEm = (
+    revealCharCount <= 5 ? 0.16 : revealCharCount <= 8 ? 0.13 : revealCharCount <= 12 ? 0.10 : 0.09
+  ).toFixed(2);
+  const revealWordSpaceEm = 0.52;
+  const revealWidthFactor =
+    revealNonSpaceCount * 0.78 +
+    revealSpaceCount * revealWordSpaceEm +
+    Math.max(0, revealCharCount - 1) * Number(revealLetterSpacingEm);
+  const revealFontSizeVw = Math.min(17.0, 86.0 / Math.max(revealWidthFactor, 1)).toFixed(2);
 
   const mappedRippleSubStage = shutterStage === 'CLOSED_WHITE'
     ? 'RIPPLE_PURE'
@@ -2115,26 +2123,32 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       )}
 
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
-        <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-6 sm:px-10 overflow-hidden pointer-events-none select-none">
-          <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[92vw]">
-            {targetChars.map((item, idx) => (
-              <span
-                key={idx}
-                style={{
-                  fontSize: `clamp(1.8rem, min(${revealFontSizeVw}vw, 14vh), 7.5rem)`,
-                  letterSpacing: `${revealLetterSpacingEm}em`,
-                  opacity: convergeActive || stagePhase === 'LOCKED' ? 1 : 0,
-                  transform: convergeActive || stagePhase === 'LOCKED'
-                    ? 'translate(0px, 0px) scale(1)'
-                    : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
-                  transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
-                  textShadow: '0 0 18px rgba(255,255,255,0.95), 0 0 38px rgba(0,240,255,0.85), 0 0 65px rgba(0,180,255,0.55)'
-                }}
-                className="text-white font-black uppercase inline-block leading-none"
-              >
-                {item.ch}
-              </span>
-            ))}
+        <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 sm:px-10 overflow-hidden pointer-events-none select-none">
+          <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[94vw]">
+            {targetChars.map((item, idx) => {
+              const isSpace = item.ch === ' ';
+              return (
+                <span
+                  key={idx}
+                  style={{
+                    fontSize: `clamp(1.0rem, min(${revealFontSizeVw}vw, 14vh), 7.5rem)`,
+                    width: isSpace ? `${revealWordSpaceEm}em` : 'auto',
+                    marginRight: idx < targetChars.length - 1 ? `${revealLetterSpacingEm}em` : '0em',
+                    opacity: convergeActive || stagePhase === 'LOCKED' ? 1 : 0,
+                    transform: convergeActive || stagePhase === 'LOCKED'
+                      ? 'translate(0px, 0px) scale(1)'
+                      : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
+                    transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
+                    textShadow: isSpace
+                      ? 'none'
+                      : '0 0 12px rgba(255,255,255,0.92), 0 0 28px rgba(0,240,255,0.82), 0 0 55px rgba(0,180,255,0.5)'
+                  }}
+                  className="text-white font-black uppercase inline-block leading-none shrink-0"
+                >
+                  {isSpace ? '\u00A0' : item.ch}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -2405,7 +2419,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   };
 
   const masterTargetChars = useMemo(() => {
-    const clean = (masterRevealWord || peekedWord || customText || 'JAMES').trim().toUpperCase();
+    const clean = (masterRevealWord || peekedWord || customText || 'JAMES').trim().replace(/\s+/g, ' ').toUpperCase();
     return clean.split('').map((ch, idx) => {
       const angle = (idx * 137.5) * (Math.PI / 180);
       const radius = 90 + (idx % 3) * 45;
@@ -3064,9 +3078,17 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   };
 
   const masterCharCount = Math.max(masterTargetChars.length, 1);
-  const masterLetterSpacingEm = (masterCharCount <= 5 ? 0.12 : masterCharCount <= 8 ? 0.08 : 0.05).toFixed(2);
-  const masterWidthFactor = masterCharCount * 0.76 + (masterCharCount - 1) * Number(masterLetterSpacingEm);
-  const masterFontSizeVw = Math.min(17.5, 88.0 / Math.max(masterWidthFactor, 1)).toFixed(2);
+  const masterSpaceCount = masterTargetChars.filter((item) => item.ch === ' ').length;
+  const masterNonSpaceCount = masterCharCount - masterSpaceCount;
+  const masterLetterSpacingEm = (
+    masterCharCount <= 5 ? 0.16 : masterCharCount <= 8 ? 0.13 : masterCharCount <= 12 ? 0.10 : 0.09
+  ).toFixed(2);
+  const masterWordSpaceEm = 0.52;
+  const masterWidthFactor =
+    masterNonSpaceCount * 0.78 +
+    masterSpaceCount * masterWordSpaceEm +
+    Math.max(0, masterCharCount - 1) * Number(masterLetterSpacingEm);
+  const masterFontSizeVw = Math.min(17.0, 86.0 / Math.max(masterWidthFactor, 1)).toFixed(2);
 
   const mappedMasterRippleSubStage = masterShutterStage === 'CLOSED_WHITE'
     ? 'RIPPLE_PURE'
@@ -3225,26 +3247,32 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           )}
 
           {(masterMonitorPhase === 'CONVERGE' || masterMonitorPhase === 'LOCKED') && (
-            <div className="relative flex items-center justify-center w-full h-full bg-black px-6 sm:px-10 overflow-hidden pointer-events-none select-none">
-              <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[92vw]">
-                {masterTargetChars.map((item, idx) => (
-                  <span
-                    key={idx}
-                    style={{
-                      fontSize: `clamp(1.8rem, min(${masterFontSizeVw}vw, 14vh), 7.5rem)`,
-                      letterSpacing: `${masterLetterSpacingEm}em`,
-                      opacity: masterConvergeActive || masterMonitorPhase === 'LOCKED' ? 1 : 0,
-                      transform: masterConvergeActive || masterMonitorPhase === 'LOCKED'
-                        ? 'translate(0px, 0px) scale(1)'
-                        : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
-                      transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
-                      textShadow: '0 0 18px rgba(255,255,255,0.95), 0 0 38px rgba(0,240,255,0.85), 0 0 65px rgba(0,180,255,0.55)'
-                    }}
-                    className="text-white font-black uppercase inline-block leading-none"
-                  >
-                    {item.ch}
-                  </span>
-                ))}
+            <div className="relative flex items-center justify-center w-full h-full bg-black px-4 sm:px-10 overflow-hidden pointer-events-none select-none">
+              <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[94vw]">
+                {masterTargetChars.map((item, idx) => {
+                  const isSpace = item.ch === ' ';
+                  return (
+                    <span
+                      key={idx}
+                      style={{
+                        fontSize: `clamp(1.0rem, min(${masterFontSizeVw}vw, 14vh), 7.5rem)`,
+                        width: isSpace ? `${masterWordSpaceEm}em` : 'auto',
+                        marginRight: idx < masterTargetChars.length - 1 ? `${masterLetterSpacingEm}em` : '0em',
+                        opacity: masterConvergeActive || masterMonitorPhase === 'LOCKED' ? 1 : 0,
+                        transform: masterConvergeActive || masterMonitorPhase === 'LOCKED'
+                          ? 'translate(0px, 0px) scale(1)'
+                          : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
+                        transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
+                        textShadow: isSpace
+                          ? 'none'
+                          : '0 0 12px rgba(255,255,255,0.92), 0 0 28px rgba(0,240,255,0.82), 0 0 55px rgba(0,180,255,0.5)'
+                      }}
+                      className="text-white font-black uppercase inline-block leading-none shrink-0"
+                    >
+                      {isSpace ? '\u00A0' : item.ch}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}
