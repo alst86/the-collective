@@ -145,36 +145,53 @@ async function acquireTorchCapableRearStream(videoEl) {
 
 function createTorchController(trackRef) {
   let busy = false;
-  let pendingState = null;
+  let pendingCommand = null;
 
-  const applyHardwareTorch = async (track, flag) => {
+  const applyHardwareTorch = async (track, flag, intensity = 1) => {
     if (!track || track.readyState === 'ended') return;
+    const clampedIntensity = Math.max(0, Math.min(1, Number(intensity ?? 1)));
+    const effectiveFlag = Boolean(flag) && clampedIntensity > 0;
+
+    // 1. Standard W3C torch constraint (supported on iOS & all Android devices)
     try {
-      await track.applyConstraints({ advanced: [{ torch: flag }] });
-      return;
-    } catch (e1) {}
-    try {
-      await track.applyConstraints({ torch: flag });
-      return;
-    } catch (e2) {}
-    try {
-      await track.applyConstraints({
-        advanced: [{ torch: flag, fillLightMode: flag ? 'flash' : 'off' }]
-      });
-    } catch (e3) {}
+      await track.applyConstraints({ advanced: [{ torch: effectiveFlag }] });
+    } catch (e1) {
+      try {
+        await track.applyConstraints({ torch: effectiveFlag });
+      } catch (e2) {
+        try {
+          await track.applyConstraints({
+            advanced: [{ torch: effectiveFlag, fillLightMode: effectiveFlag ? 'flash' : 'off' }]
+          });
+        } catch (e3) {}
+      }
+    }
+
+    // 2. Optional hardware torchLevel (Android Chrome / ImageCapture devices that expose variable LED power)
+    if (effectiveFlag && track.getCapabilities) {
+      try {
+        const caps = track.getCapabilities();
+        if (caps && typeof caps.torchLevel === 'object' && caps.torchLevel !== null) {
+          const minLvl = Number(caps.torchLevel.min ?? 1);
+          const maxLvl = Number(caps.torchLevel.max ?? 1);
+          const targetLvl = Math.max(minLvl, Math.round(minLvl + (maxLvl - minLvl) * clampedIntensity));
+          await track.applyConstraints({ advanced: [{ torch: true, torchLevel: targetLvl }] });
+        }
+      } catch (eLvl) {}
+    }
   };
 
-  return (desiredActive) => {
-    pendingState = Boolean(desiredActive);
+  return (desiredActive, intensity = 1) => {
+    pendingCommand = { flag: Boolean(desiredActive), intensity };
     if (busy) return;
     busy = true;
 
     (async () => {
-      while (pendingState !== null) {
-        const stateToApply = pendingState;
-        pendingState = null;
+      while (pendingCommand !== null) {
+        const nextCmd = pendingCommand;
+        pendingCommand = null;
         if (trackRef.current) {
-          await applyHardwareTorch(trackRef.current, stateToApply);
+          await applyHardwareTorch(trackRef.current, nextCmd.flag, nextCmd.intensity);
         }
       }
       busy = false;
@@ -967,7 +984,9 @@ export default function App() {
 // ==========================================
 function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const [cameraReady, setCameraReady] = useState(skipEntryPrompt);
-  const [isFlashing, setIsFlashing] = useState(false); 
+  const [isFlashing, setIsFlashing] = useState(false);
+  const [flashIntensity, setFlashIntensity] = useState(100);
+  const flashIntensityRef = useRef(100);
   const [dbStatus, setDbStatus] = useState('waiting'); 
   
   const [kickerWord, setKickerWord] = useState('');
@@ -1651,8 +1670,8 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       const result = await acquireTorchCapableRearStream(videoRef.current);
       if (result && result.track) {
         trackRef.current = result.track;
-        if (desiredTorchRef.current && !isRedirectingRef.current) {
-          torchControllerRef.current(true);
+        if (desiredTorchRef.current && !isRedirectingRef.current && flashIntensityRef.current > 0) {
+          torchControllerRef.current(true, flashIntensityRef.current / 100);
         }
       }
     } catch (err) {
@@ -1673,11 +1692,13 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   };
 
   const applyTorch = async (active, beatType = 'lub') => {
-    desiredTorchRef.current = Boolean(active);
-    if (isRedirectingRef.current && active) return;
-    setIsFlashing(active); 
+    const level = Math.max(0, Math.min(100, Number(flashIntensityRef.current ?? 100)));
+    const effectiveActive = Boolean(active) && level > 0;
+    desiredTorchRef.current = effectiveActive;
+    if (isRedirectingRef.current && effectiveActive) return;
+    setIsFlashing(effectiveActive); 
 
-    if (active) {
+    if (effectiveActive) {
       if (beatType === 'strobe') {
         playHeartbeatThud('strobe');
         if (navigator.vibrate) navigator.vibrate(50);
@@ -1691,7 +1712,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     }
 
     if (torchControllerRef.current) {
-      torchControllerRef.current(active);
+      torchControllerRef.current(effectiveActive, level / 100);
     }
   };
 
@@ -1832,6 +1853,20 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       sfxEnabledRef.current = enabled;
     });
 
+    const intensityRef = ref(db, `${roomID}/flashIntensity`);
+    const unsubIntensity = onValue(intensityRef, (snapshot) => {
+      const val = snapshot.val();
+      const parsed = val === null || val === undefined ? 100 : Math.max(0, Math.min(100, Number(val)));
+      setFlashIntensity(parsed);
+      flashIntensityRef.current = parsed;
+      if (parsed === 0) {
+        setIsFlashing(false);
+        if (torchControllerRef.current) torchControllerRef.current(false, 0);
+      } else if (desiredTorchRef.current && torchControllerRef.current) {
+        torchControllerRef.current(true, parsed / 100);
+      }
+    });
+
     const commandRef = ref(db, `${roomID}/audienceCommand`);
     const unsubCommand = onValue(commandRef, (snapshot) => {
       setDbStatus('live');
@@ -1866,6 +1901,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       unsubHoldUp();
       unsubTheme();
       unsubSfx();
+      unsubIntensity();
       clearTimeout(timerRef.current);
       clearTimeout(idleTimerRef.current);
       if (silentAudioRef.current) {
@@ -2018,12 +2054,20 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       ? 'RIPPLE_LETTERS'
       : 'RIPPLE_HORIZON';
 
+  const isHighContrastFlash = isFlashing && flashIntensity >= 50;
+
   return (
-    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-500 overflow-hidden select-none ${
+    <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-300 overflow-hidden select-none ${
       stagePhase !== 'PULSE' ? 'bg-black text-white' :
       !cameraReady ? 'bg-[#f4f4f2] text-black' :
-      isFlashing ? 'bg-black text-white' : 'bg-white text-black'
+      isHighContrastFlash ? 'bg-black text-white' : 'bg-white text-black'
     }`}>
+      {stagePhase === 'PULSE' && cameraReady && isFlashing && flashIntensity > 0 && (
+        <div
+          style={{ opacity: flashIntensity / 100 }}
+          className="fixed inset-0 bg-black pointer-events-none z-[5] transition-opacity duration-75"
+        />
+      )}
       <style>{`
         @keyframes shutterSubtlePulse {
           0%, 100% { transform: scale(1) rotate(0deg); }
@@ -2219,7 +2263,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
               <p 
                 className={`text-xs sm:text-sm font-bold uppercase tracking-[0.24em] leading-relaxed max-w-xs transition-opacity duration-500 ${
                   promptFade ? 'opacity-90' : 'opacity-0'
-                } ${isFlashing ? 'text-zinc-200' : 'text-zinc-600'}`}
+                } ${isHighContrastFlash ? 'text-zinc-200' : 'text-zinc-600'}`}
               >
                 {EMOTIONAL_TUNING_PROMPTS[promptIndex]}
               </p>
@@ -2307,7 +2351,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
                   Hold up your<br/>phone
                 </h1>
               </div>
-              <p className={`text-[10px] font-bold uppercase tracking-[0.28em] ${isFlashing ? 'text-zinc-300' : 'text-zinc-400'}`}>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.28em] ${isHighContrastFlash ? 'text-zinc-300' : 'text-zinc-400'}`}>
                 Let their memory fill the room
               </p>
             </div>
@@ -2342,6 +2386,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     const saved = localStorage.getItem('magicSfxEnabled');
     return saved !== null ? JSON.parse(saved) : true;
   });
+
+  const [flashIntensity, setFlashIntensity] = useState(() => {
+    const saved = localStorage.getItem('magicFlashIntensity');
+    return saved !== null ? Math.max(0, Math.min(100, Number(saved))) : 100;
+  });
+  const flashIntensityRef = useRef(flashIntensity);
 
   const [isCuesTouchLocked, setIsCuesTouchLocked] = useState(true);
   const isCuesTouchLockedRef = useRef(true);
@@ -2457,6 +2507,12 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     localStorage.setItem('magicSfxEnabled', JSON.stringify(sfxEnabled));
     set(ref(db, `${roomID}/sfxEnabled`), sfxEnabled).catch(() => {});
   }, [sfxEnabled, roomID]);
+
+  useEffect(() => {
+    flashIntensityRef.current = flashIntensity;
+    localStorage.setItem('magicFlashIntensity', String(flashIntensity));
+    set(ref(db, `${roomID}/flashIntensity`), flashIntensity).catch(() => {});
+  }, [flashIntensity, roomID]);
 
   useEffect(() => {
     const textRef = ref(db, `${roomID}/buttonText`);
@@ -2877,7 +2933,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
   const applyLocalTorch = (active) => {
     if (localTorchControllerRef.current) {
-      localTorchControllerRef.current(active);
+      const level = Math.max(0, Math.min(100, Number(flashIntensityRef.current ?? 100)));
+      localTorchControllerRef.current(Boolean(active) && level > 0, level / 100);
     }
   };
 
@@ -3568,6 +3625,48 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 ? '🔒 PALM LOCKED'
                 : '🔓 UNLOCKED'}
           </button>
+        </div>
+
+        {/* 3.5 FLASH INTENSITY DIMMER SLIDER (0 - 100%) */}
+        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl px-3 py-2 flex flex-col space-y-1.5 shrink-0">
+          <div className="flex items-center justify-between">
+            <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-zinc-400">
+              ☀️ Flash Intensity Dimmer
+            </span>
+            <div className="flex items-center space-x-1.5">
+              {[0, 25, 50, 75, 100].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setFlashIntensity(preset);
+                  }}
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-colors border ${
+                    flashIntensity === preset
+                      ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-500'
+                  }`}
+                >
+                  {preset}%
+                </button>
+              ))}
+              <span className="text-xs font-mono font-black text-amber-400 w-10 text-right">
+                {flashIntensity}%
+              </span>
+            </div>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={flashIntensity}
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => setFlashIntensity(Number(e.target.value))}
+            aria-label="Flash Intensity Dimmer"
+            className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-400 touch-pan-x"
+          />
         </div>
 
         {/* 4. LOCAL CUE & MASTER CUE (AUDIENCE) CONTROLS */}
