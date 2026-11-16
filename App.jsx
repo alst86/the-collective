@@ -2576,6 +2576,22 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const isBaselineCaptureRef = useRef(true);
   const [holdUpPromptSent, setHoldUpPromptSent] = useState(false);
   const [connectedCount, setConnectedCount] = useState(0);
+  const connectedCountRef = useRef(0);
+  const sessionUniqueIdsRef = useRef(new Set());
+  const sessionPeakCountRef = useRef(0);
+  const [sessionHistoryLog, setSessionHistoryLog] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`magicSessionLog_${roomID}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [clearLogConfirmArmed, setClearLogConfirmArmed] = useState(false);
+  const clearLogConfirmTimerRef = useRef(null);
+  const counterPressTimerRef = useRef(null);
+  const isCounterPressingRef = useRef(false);
 
   const [lastKey, setLastKey] = useState('NONE'); 
   const hiddenInputRef = useRef(null);
@@ -2705,6 +2721,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       const data = snapshot.val();
       if (!data || typeof data !== 'object') {
         setConnectedCount(0);
+        connectedCountRef.current = 0;
         return;
       }
       const now = Date.now();
@@ -2714,6 +2731,11 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         // Count active connections seen within the last 45 seconds (auto-purges stale ghosts)
         return lastSeen > 0 && now - lastSeen < 45000;
       });
+      activeIds.forEach((id) => sessionUniqueIdsRef.current.add(id));
+      if (activeIds.length > sessionPeakCountRef.current) {
+        sessionPeakCountRef.current = activeIds.length;
+      }
+      connectedCountRef.current = activeIds.length;
       setConnectedCount(activeIds.length);
     });
 
@@ -2872,6 +2894,46 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     };
   }, [localMode, audienceMode, redirectUrl, feedbackUrl]); 
 
+  const handleCounterDown = (e) => {
+    e.stopPropagation();
+    if (isCounterPressingRef.current) return;
+    isCounterPressingRef.current = true;
+    clearTimeout(counterPressTimerRef.current);
+    counterPressTimerRef.current = setTimeout(() => {
+      counterPressTimerRef.current = null;
+      isCounterPressingRef.current = false;
+      if (navigator.vibrate) navigator.vibrate(45);
+      setClearLogConfirmArmed(false);
+      setIsLogModalOpen(true);
+    }, 550);
+  };
+
+  const handleCounterUp = (e) => {
+    if (e) e.stopPropagation();
+    isCounterPressingRef.current = false;
+    if (counterPressTimerRef.current) {
+      clearTimeout(counterPressTimerRef.current);
+      counterPressTimerRef.current = null;
+    }
+  };
+
+  const handleEraseSessionLog = () => {
+    if (!clearLogConfirmArmed) {
+      setClearLogConfirmArmed(true);
+      clearTimeout(clearLogConfirmTimerRef.current);
+      clearLogConfirmTimerRef.current = setTimeout(() => {
+        setClearLogConfirmArmed(false);
+      }, 2000);
+      return;
+    }
+    clearTimeout(clearLogConfirmTimerRef.current);
+    setClearLogConfirmArmed(false);
+    setSessionHistoryLog([]);
+    try {
+      localStorage.removeItem(`magicSessionLog_${roomID}`);
+    } catch (e) {}
+  };
+
   const handleCueLockButtonTap = () => {
     if (!cueLockConfirmArmed) {
       setCueLockConfirmArmed(true);
@@ -3027,6 +3089,33 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     clearTimeout(localTimerRef.current);
     applyLocalTorch(false);
     setAudienceMode('OFF');
+
+    // Log completed experiment session (total unique & peak devices connected up to redirect)
+    const totalSessionDevices = Math.max(
+      sessionUniqueIdsRef.current.size,
+      sessionPeakCountRef.current,
+      connectedCountRef.current
+    );
+    const revealedSubject = (peekedWordRef.current || customText || '').trim();
+    const nowDate = new Date();
+    const newEntry = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: Date.now(),
+      dateLabel: nowDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
+      timeLabel: nowDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      totalDevices: totalSessionDevices,
+      peakConcurrent: sessionPeakCountRef.current,
+      revealedWord: revealedSubject || '—'
+    };
+    try {
+      const existingRaw = localStorage.getItem(`magicSessionLog_${roomID}`);
+      const existingList = existingRaw ? JSON.parse(existingRaw) : [];
+      const updatedList = [newEntry, ...existingList];
+      localStorage.setItem(`magicSessionLog_${roomID}`, JSON.stringify(updatedList));
+      setSessionHistoryLog(updatedList);
+    } catch (e) {}
+    sessionUniqueIdsRef.current = new Set();
+    sessionPeakCountRef.current = 0;
 
     const finalUrl = getTargetRedirectUrl();
     const targetFeedback = getTargetFeedbackUrl();
@@ -3444,6 +3533,107 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         </div>
       )}
 
+      {isLogModalOpen && (
+        <div
+          onPointerDown={() => {
+            setIsLogModalOpen(false);
+            setClearLogConfirmArmed(false);
+          }}
+          className="fixed inset-0 z-[115] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 select-none"
+        >
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5 max-w-sm w-full max-h-[80dvh] flex flex-col shadow-2xl text-white"
+          >
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-3 shrink-0">
+              <div>
+                <h2 className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
+                  📊 Experiment Session Log
+                </h2>
+                <p className="text-[10px] font-mono text-zinc-400 mt-0.5">
+                  {sessionHistoryLog.length} {sessionHistoryLog.length === 1 ? 'Session' : 'Sessions'} •{' '}
+                  {sessionHistoryLog.reduce((sum, item) => sum + Number(item.totalDevices || 0), 0)} Total Phones
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogModalOpen(false);
+                  setClearLogConfirmArmed(false);
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-[10px] font-bold tracking-widest uppercase text-zinc-400"
+              >
+                ✕ CLOSE
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[140px]">
+              {sessionHistoryLog.length === 0 ? (
+                <div className="h-36 flex flex-col items-center justify-center text-center px-4">
+                  <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                    No Sessions Logged Yet
+                  </span>
+                  <span className="text-[10px] text-zinc-600 mt-1">
+                    Each Instagram redirect records 1 completed session with total connected phones.
+                  </span>
+                </div>
+              ) : (
+                sessionHistoryLog.map((entry, idx) => {
+                  const sessionNum = sessionHistoryLog.length - idx;
+                  return (
+                    <div
+                      key={entry.id || idx}
+                      className="bg-black/70 border border-zinc-800 rounded-xl p-3 flex items-center justify-between"
+                    >
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[10px] font-mono font-black uppercase tracking-wider text-zinc-200">
+                            Session #{sessionNum}
+                          </span>
+                          {entry.revealedWord && entry.revealedWord !== '—' && (
+                            <span className="text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 truncate max-w-[110px]">
+                              {entry.revealedWord}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-mono text-zinc-500 mt-1">
+                          {entry.dateLabel} • {entry.timeLabel}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-end shrink-0">
+                        <span className="text-sm font-mono font-black text-emerald-400">
+                          {entry.totalDevices} {entry.totalDevices === 1 ? 'PHONE' : 'PHONES'}
+                        </span>
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500">
+                          Peak: {entry.peakConcurrent ?? entry.totalDevices}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="pt-3 mt-3 border-t border-zinc-800 flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={sessionHistoryLog.length === 0}
+                onClick={handleEraseSessionLog}
+                className={`w-full py-2.5 px-3 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-colors ${
+                  sessionHistoryLog.length === 0
+                    ? 'bg-zinc-950 border-zinc-900 text-zinc-700 opacity-50'
+                    : clearLogConfirmArmed
+                      ? 'bg-red-600 border-red-400 text-white animate-pulse'
+                      : 'bg-red-950/60 border-red-500/50 text-red-300'
+                }`}
+              >
+                {clearLogConfirmArmed ? '⚠️ TAP AGAIN TO ERASE ALL HISTORY' : '🗑️ ERASE SESSION HISTORY'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {masterMonitorPhase !== 'NONE' && (
         <div 
           onTouchStart={(e) => {
@@ -3590,23 +3780,6 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             />
           </div>
 
-          <div className="flex space-x-3 items-end">
-            <div className="flex-1 flex flex-col">
-              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Audience Reveal Name</label>
-              <input 
-                type="text" 
-                value={customText}
-                onChange={(e) => setCustomText(e.target.value)}
-                className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
-                placeholder="Leave empty for default..."
-              />
-            </div>
-            <div className="flex space-x-1 w-24">
-              <button onClick={handleClearCustomText} className="flex-1 h-10 rounded bg-zinc-950 border border-zinc-800 text-zinc-500 font-bold text-[9px] tracking-widest transition-colors">CLR</button>
-              <button onClick={handleSetCustomText} className="flex-1 h-10 rounded bg-zinc-800 border border-zinc-600 text-white font-bold text-[9px] tracking-widest transition-colors">SET</button>
-            </div>
-          </div>
-
           <div className="flex space-x-2 items-end">
             <div className="flex-1 flex flex-col">
               <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">API Poll URL (Proxy)</label>
@@ -3740,10 +3913,18 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </div>
         </div>
 
-        {/* 2. CONNECTED QR PULSE COUNTER + PALM LOCK SPLIT BAR */}
+        {/* 2. CONNECTED QR PULSE COUNTER (LONG-PRESS FOR LOG) + PALM LOCK SPLIT BAR */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2 grid grid-cols-2 gap-2 shrink-0">
-          <div className="w-full py-2.5 px-3 rounded-lg border bg-black/60 border-zinc-800 flex items-center justify-between min-w-0">
-            <div className="flex items-center space-x-2 min-w-0">
+          <button
+            type="button"
+            onPointerDown={handleCounterDown}
+            onPointerUp={handleCounterUp}
+            onPointerLeave={handleCounterUp}
+            onPointerCancel={handleCounterUp}
+            onContextMenu={(e) => e.preventDefault()}
+            className="w-full py-2.5 px-2.5 rounded-lg border bg-black/60 border-zinc-800 active:border-emerald-500/60 flex items-center justify-between min-w-0 transition-colors select-none"
+          >
+            <div className="flex items-center space-x-1.5 min-w-0">
               <span
                 className={`w-2 h-2 rounded-full shrink-0 ${
                   connectedCount > 0
@@ -3751,18 +3932,18 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                     : 'bg-zinc-700'
                 }`}
               />
-              <span className="text-[9.5px] font-bold tracking-wider uppercase text-zinc-400 truncate">
-                Connected
+              <span className="text-[9px] font-bold tracking-wider uppercase text-zinc-400 truncate">
+                Live
               </span>
             </div>
             <span
-              className={`text-xs font-mono font-black tracking-wider shrink-0 ml-1 ${
-                connectedCount > 0 ? 'text-emerald-400' : 'text-zinc-500'
+              className={`text-[11px] font-mono font-black tracking-wider shrink-0 ml-1 ${
+                connectedCount > 0 ? 'text-emerald-400' : 'text-zinc-400'
               }`}
             >
               {connectedCount} {connectedCount === 1 ? 'PHONE' : 'PHONES'}
             </span>
-          </div>
+          </button>
 
           <button
             type="button"
