@@ -3552,38 +3552,31 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </div>
         </div>
 
-        {/* 2. STAGE PROGRESSION BAR */}
-        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2 grid grid-cols-2 gap-2 shrink-0">
+        {/* 2. PALM LOCK BAR (FULL-WIDTH) */}
+        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2 shrink-0">
           <button
-            onClick={resetToPhase1Pulse}
-            className={`w-full py-2.5 px-2 rounded-lg text-[10px] font-bold tracking-wider uppercase border transition-colors truncate ${
-              activePhase === 'PHASE_1'
-                ? 'bg-zinc-800 border-zinc-500 text-white'
-                : 'bg-zinc-950 border-zinc-800 text-zinc-500'
+            type="button"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              handleCueLockButtonTap();
+            }}
+            className={`w-full py-2.5 px-3 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-colors border whitespace-nowrap ${
+              cueLockConfirmArmed
+                ? 'bg-amber-600 border-amber-400 text-white animate-pulse'
+                : isCuesTouchLocked
+                  ? 'bg-red-950/80 border-red-500 text-red-300 shadow-[0_0_12px_rgba(220,38,38,0.25)]'
+                  : 'bg-zinc-950 border-zinc-800 text-zinc-400'
             }`}
           >
-            🔴 Phase 1 (Pulse)
-          </button>
-
-          <button
-            onClick={triggerPhase2Reveal}
-            className={`w-full py-2.5 px-2 rounded-lg text-[10px] font-black tracking-wider uppercase border transition-colors truncate ${
-              activePhase === 'REVEALING'
-                ? 'bg-cyan-600 border-cyan-300 text-white shadow-[0_0_15px_rgba(0,240,255,0.6)] animate-pulse'
-                : activePhase === 'PHASE_2_DONE'
-                  ? 'bg-cyan-950/70 border-cyan-400 text-cyan-200'
-                  : 'bg-cyan-950/60 border-cyan-500/70 text-cyan-200'
-            }`}
-          >
-            {activePhase === 'REVEALING'
-              ? '🌀 REVEALING...'
-              : activePhase === 'PHASE_2_DONE'
-                ? `✓ ${peekedWord || customText || 'LOCKED'} [R]`
-                : `🌀 REVEAL (${revealTheme === 'APERTURE_VORTEX' ? 'APERTURE' : 'RIPPLE'}) [R]`}
+            {cueLockConfirmArmed
+              ? '⚠️ TAP 2X'
+              : isCuesTouchLocked
+                ? '🔒 PALM LOCKED'
+                : '🔓 UNLOCKED'}
           </button>
         </div>
 
-        {/* 3. FULL-WIDTH LIVE API PEEK + 2X-TAP PALM LOCK TOGGLE SWITCH */}
+        {/* 3. FULL-WIDTH LIVE API PEEK + REVEAL TRIGGER */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center space-x-2.5 min-w-0 flex-1 bg-black/60 border border-zinc-800/90 px-3 py-2 rounded-lg">
             <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -3607,23 +3600,20 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
           <button
             type="button"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              handleCueLockButtonTap();
-            }}
-            className={`px-3 py-2.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-colors border whitespace-nowrap shrink-0 ${
-              cueLockConfirmArmed
-                ? 'bg-amber-600 border-amber-400 text-white animate-pulse'
-                : isCuesTouchLocked
-                  ? 'bg-red-950/80 border-red-500 text-red-300 shadow-[0_0_12px_rgba(220,38,38,0.25)]'
-                  : 'bg-zinc-950 border-zinc-800 text-zinc-400'
+            onClick={triggerPhase2Reveal}
+            className={`px-3 py-2.5 rounded-lg text-[10px] font-black tracking-wider uppercase border transition-colors whitespace-nowrap shrink-0 ${
+              activePhase === 'REVEALING'
+                ? 'bg-cyan-600 border-cyan-300 text-white shadow-[0_0_15px_rgba(0,240,255,0.6)] animate-pulse'
+                : activePhase === 'PHASE_2_DONE'
+                  ? 'bg-cyan-950/70 border-cyan-400 text-cyan-200'
+                  : 'bg-cyan-950/60 border-cyan-500/70 text-cyan-200'
             }`}
           >
-            {cueLockConfirmArmed
-              ? '⚠️ TAP 2X'
-              : isCuesTouchLocked
-                ? '🔒 PALM LOCKED'
-                : '🔓 UNLOCKED'}
+            {activePhase === 'REVEALING'
+              ? '🌀 REVEALING...'
+              : activePhase === 'PHASE_2_DONE'
+                ? `✓ ${peekedWord || customText || 'LOCKED'} [R]`
+                : `🌀 REVEAL (${revealTheme === 'APERTURE_VORTEX' ? 'APERTURE' : 'RIPPLE'}) [R]`}
           </button>
         </div>
 
