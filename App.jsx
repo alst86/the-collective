@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 // FIREBASE SETUP
 // ==========================================
 import { db } from './firebase'; 
-import { ref, onValue, set } from 'firebase/database';
+import { ref, onValue, set, onDisconnect, remove } from 'firebase/database';
 
 const DEFAULT_REDIRECT_URL = 'https://instagram.com/andrewleemagic';
 const DEFAULT_FEEDBACK_URL = 'https://andrewleemagic.com/feedback';
@@ -1720,6 +1720,63 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     };
   }, [cameraReady]);
 
+  // Real-time Spectator Presence Registration (counts connected phones in the QR pulse)
+  useEffect(() => {
+    if (!cameraReady) return;
+
+    let sessionId = '';
+    try {
+      sessionId = sessionStorage.getItem('pulseSpectatorId') || '';
+      if (!sessionId) {
+        sessionId = 'sp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+        sessionStorage.setItem('pulseSpectatorId', sessionId);
+      }
+    } catch (e) {
+      sessionId = 'sp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    }
+
+    const clientPresenceRef = ref(db, `${roomID}/connectedSpectators/${sessionId}`);
+    const connectedInfoRef = ref(db, '.info/connected');
+
+    const registerPresence = () => {
+      try {
+        onDisconnect(clientPresenceRef).remove().catch(() => {});
+        set(clientPresenceRef, {
+          joinedAt: Date.now(),
+          lastSeen: Date.now()
+        }).catch(() => {});
+      } catch (e) {}
+    };
+
+    const unsubConn = onValue(connectedInfoRef, (snap) => {
+      if (snap.val() === true) {
+        registerPresence();
+      }
+    });
+
+    registerPresence();
+    const heartbeatPing = setInterval(() => {
+      set(clientPresenceRef, {
+        joinedAt: Date.now(),
+        lastSeen: Date.now()
+      }).catch(() => {});
+    }, 15000);
+
+    const handlePageHide = () => {
+      remove(clientPresenceRef).catch(() => {});
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handlePageHide);
+
+    return () => {
+      clearInterval(heartbeatPing);
+      unsubConn();
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handlePageHide);
+      remove(clientPresenceRef).catch(() => {});
+    };
+  }, [cameraReady, roomID]);
+
   const startCamera = async () => {
     if (isStartingCameraRef.current) return;
     isStartingCameraRef.current = true;
@@ -2518,6 +2575,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const lastInjectRef = useRef('');
   const isBaselineCaptureRef = useRef(true);
   const [holdUpPromptSent, setHoldUpPromptSent] = useState(false);
+  const [connectedCount, setConnectedCount] = useState(0);
 
   const [lastKey, setLastKey] = useState('NONE'); 
   const hiddenInputRef = useRef(null);
@@ -2642,9 +2700,27 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       setHoldUpPromptSent(Boolean(snapshot.val()));
     });
 
+    const spectatorsRef = ref(db, `${roomID}/connectedSpectators`);
+    const unsubSpectators = onValue(spectatorsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data || typeof data !== 'object') {
+        setConnectedCount(0);
+        return;
+      }
+      const now = Date.now();
+      const activeIds = Object.keys(data).filter((key) => {
+        const entry = data[key];
+        const lastSeen = entry && typeof entry === 'object' ? Number(entry.lastSeen || 0) : 0;
+        // Count active connections seen within the last 45 seconds (auto-purges stale ghosts)
+        return lastSeen > 0 && now - lastSeen < 45000;
+      });
+      setConnectedCount(activeIds.length);
+    });
+
     return () => {
       unsubText();
       unsubHoldUp();
+      unsubSpectators();
     };
   }, [roomID]);
 
@@ -3664,18 +3740,29 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </div>
         </div>
 
-        {/* 2. STAGE DECK LINK + PALM LOCK SPLIT BAR */}
+        {/* 2. CONNECTED QR PULSE COUNTER + PALM LOCK SPLIT BAR */}
         <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2 grid grid-cols-2 gap-2 shrink-0">
-          <button
-            type="button"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              window.location.href = 'https://alst.app/1';
-            }}
-            className="w-full py-2.5 px-2 rounded-lg text-[10px] font-bold tracking-wider uppercase border transition-colors truncate bg-zinc-950 border-zinc-700 text-zinc-200 hover:border-zinc-500 active:scale-[0.98]"
-          >
-            🃏 STAGE DECK
-          </button>
+          <div className="w-full py-2.5 px-3 rounded-lg border bg-black/60 border-zinc-800 flex items-center justify-between min-w-0">
+            <div className="flex items-center space-x-2 min-w-0">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  connectedCount > 0
+                    ? 'bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse'
+                    : 'bg-zinc-700'
+                }`}
+              />
+              <span className="text-[9.5px] font-bold tracking-wider uppercase text-zinc-400 truncate">
+                Connected
+              </span>
+            </div>
+            <span
+              className={`text-xs font-mono font-black tracking-wider shrink-0 ml-1 ${
+                connectedCount > 0 ? 'text-emerald-400' : 'text-zinc-500'
+              }`}
+            >
+              {connectedCount} {connectedCount === 1 ? 'PHONE' : 'PHONES'}
+            </span>
+          </div>
 
           <button
             type="button"
