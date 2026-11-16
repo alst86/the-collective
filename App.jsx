@@ -3664,15 +3664,26 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           </div>
         </div>
 
-        {/* 2. PALM LOCK BAR (FULL-WIDTH) */}
-        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2 shrink-0">
+        {/* 2. STAGE DECK LINK + PALM LOCK SPLIT BAR */}
+        <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl p-2 grid grid-cols-2 gap-2 shrink-0">
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              window.location.href = 'https://alst.app/1';
+            }}
+            className="w-full py-2.5 px-2 rounded-lg text-[10px] font-bold tracking-wider uppercase border transition-colors truncate bg-zinc-950 border-zinc-700 text-zinc-200 hover:border-zinc-500 active:scale-[0.98]"
+          >
+            🃏 STAGE DECK
+          </button>
+
           <button
             type="button"
             onPointerDown={(e) => {
               e.stopPropagation();
               handleCueLockButtonTap();
             }}
-            className={`w-full py-2.5 px-3 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-colors border whitespace-nowrap ${
+            className={`w-full py-2.5 px-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-colors border truncate ${
               cueLockConfirmArmed
                 ? 'bg-amber-600 border-amber-400 text-white animate-pulse'
                 : isCuesTouchLocked
