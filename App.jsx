@@ -146,13 +146,21 @@ async function acquireTorchCapableRearStream(videoEl) {
 function createTorchController(trackRef) {
   let busy = false;
   let pendingCommand = null;
+  let pwmTimer = null;
+  let pwmRunning = false;
 
-  const applyHardwareTorch = async (track, flag, intensity = 1) => {
-    if (!track || track.readyState === 'ended') return;
-    const clampedIntensity = Math.max(0, Math.min(1, Number(intensity ?? 1)));
+  const stopPwmLoop = () => {
+    pwmRunning = false;
+    if (pwmTimer) {
+      clearTimeout(pwmTimer);
+      pwmTimer = null;
+    }
+  };
+
+  const applyRawHardwareTorch = async (track, flag, clampedIntensity = 1) => {
+    if (!track || track.readyState === 'ended') return false;
     const effectiveFlag = Boolean(flag) && clampedIntensity > 0;
 
-    // 1. Standard W3C torch constraint (supported on iOS & all Android devices)
     try {
       await track.applyConstraints({ advanced: [{ torch: effectiveFlag }] });
     } catch (e1) {
@@ -167,22 +175,26 @@ function createTorchController(trackRef) {
       }
     }
 
-    // 2. Optional hardware torchLevel (Android Chrome / ImageCapture devices that expose variable LED power)
+    // Check if device supports native hardware variable torchLevel
     if (effectiveFlag && track.getCapabilities) {
       try {
         const caps = track.getCapabilities();
         if (caps && typeof caps.torchLevel === 'object' && caps.torchLevel !== null) {
           const minLvl = Number(caps.torchLevel.min ?? 1);
           const maxLvl = Number(caps.torchLevel.max ?? 1);
-          const targetLvl = Math.max(minLvl, Math.round(minLvl + (maxLvl - minLvl) * clampedIntensity));
-          await track.applyConstraints({ advanced: [{ torch: true, torchLevel: targetLvl }] });
+          if (maxLvl > minLvl) {
+            const targetLvl = Math.max(minLvl, Math.round(minLvl + (maxLvl - minLvl) * clampedIntensity));
+            await track.applyConstraints({ advanced: [{ torch: true, torchLevel: targetLvl }] });
+            return true; // Native variable brightness supported
+          }
         }
       } catch (eLvl) {}
     }
+    return false;
   };
 
-  return (desiredActive, intensity = 1) => {
-    pendingCommand = { flag: Boolean(desiredActive), intensity };
+  const enqueueSingle = (flag, clampedIntensity) => {
+    pendingCommand = { flag: Boolean(flag), intensity: clampedIntensity };
     if (busy) return;
     busy = true;
 
@@ -191,11 +203,63 @@ function createTorchController(trackRef) {
         const nextCmd = pendingCommand;
         pendingCommand = null;
         if (trackRef.current) {
-          await applyHardwareTorch(trackRef.current, nextCmd.flag, nextCmd.intensity);
+          await applyRawHardwareTorch(trackRef.current, nextCmd.flag, nextCmd.intensity);
         }
       }
       busy = false;
     })();
+  };
+
+  return (desiredActive, intensity = 1, enableSteadyPwm = false) => {
+    const clampedIntensity = Math.max(0, Math.min(1, Number(intensity ?? 1)));
+    const effectiveActive = Boolean(desiredActive) && clampedIntensity > 0;
+
+    // Always clear any existing PWM loop first
+    stopPwmLoop();
+
+    if (!effectiveActive) {
+      enqueueSingle(false, 0);
+      return;
+    }
+
+    // At 100% or when not in steady-ON mode (heartbeat/strobe handle pulse width directly), fire clean ON
+    if (!enableSteadyPwm || clampedIntensity >= 0.98) {
+      enqueueSingle(true, clampedIntensity);
+      return;
+    }
+
+    // Check if native torchLevel is supported; if not, run 28Hz High-Speed PWM duty cycle for visible LED fade!
+    const track = trackRef.current;
+    let hasNativeLevel = false;
+    if (track && track.getCapabilities) {
+      try {
+        const caps = track.getCapabilities();
+        if (caps && typeof caps.torchLevel === 'object' && caps.torchLevel !== null && Number(caps.torchLevel.max ?? 1) > Number(caps.torchLevel.min ?? 1)) {
+          hasNativeLevel = true;
+        }
+      } catch (e) {}
+    }
+
+    if (hasNativeLevel) {
+      enqueueSingle(true, clampedIntensity);
+      return;
+    }
+
+    // Software PWM Duty Cycle (36ms period ~ 28Hz): duty ratio scales visibly with slider (1% -> 100%)
+    pwmRunning = true;
+    const cycleMs = 36;
+    const onMs = Math.max(4, Math.round(cycleMs * clampedIntensity));
+    const offMs = Math.max(4, cycleMs - onMs);
+    let phaseOn = true;
+
+    const runPwmStep = () => {
+      if (!pwmRunning) return;
+      enqueueSingle(phaseOn, 1);
+      const wait = phaseOn ? onMs : offMs;
+      phaseOn = !phaseOn;
+      pwmTimer = setTimeout(runPwmStep, wait);
+    };
+    runPwmStep();
   };
 }
 
@@ -1016,6 +1080,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const trackRef = useRef(null);
   const videoRef = useRef(null);
   const desiredTorchRef = useRef(false);
+  const activeModeRef = useRef('OFF');
   const isStartingCameraRef = useRef(false);
   const torchControllerRef = useRef(null);
   if (!torchControllerRef.current) {
@@ -1671,7 +1736,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       if (result && result.track) {
         trackRef.current = result.track;
         if (desiredTorchRef.current && !isRedirectingRef.current && flashIntensityRef.current > 0) {
-          torchControllerRef.current(true, flashIntensityRef.current / 100);
+          torchControllerRef.current(true, flashIntensityRef.current / 100, activeModeRef.current === 'ON');
         }
       }
     } catch (err) {
@@ -1712,7 +1777,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     }
 
     if (torchControllerRef.current) {
-      torchControllerRef.current(effectiveActive, level / 100);
+      torchControllerRef.current(effectiveActive, level / 100, beatType === 'steady');
     }
   };
 
@@ -1861,9 +1926,12 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       flashIntensityRef.current = parsed;
       if (parsed === 0) {
         setIsFlashing(false);
-        if (torchControllerRef.current) torchControllerRef.current(false, 0);
-      } else if (desiredTorchRef.current && torchControllerRef.current) {
-        torchControllerRef.current(true, parsed / 100);
+        if (torchControllerRef.current) torchControllerRef.current(false, 0, false);
+      } else if (desiredTorchRef.current) {
+        setIsFlashing(true);
+        if (torchControllerRef.current) {
+          torchControllerRef.current(true, parsed / 100, activeModeRef.current === 'ON');
+        }
       }
     });
 
@@ -1941,48 +2009,70 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       runRevealSequence(passedWord, passedTheme);
     } else if (baseCmd === 'ON') {
       isRedirectingRef.current = false;
+      activeModeRef.current = 'ON';
       setStagePhase('PULSE');
-      applyTorch(true, 'lub');
+      applyTorch(true, 'steady');
     } else if (baseCmd === 'OFF') {
+      activeModeRef.current = 'OFF';
       applyTorch(false);
       if (!isInitialLoad) resetIdleTimer();
     } else if (baseCmd === 'STRIKE_LUB') {
       isRedirectingRef.current = false;
+      activeModeRef.current = 'STRIKE';
       setStagePhase('PULSE');
+      const scale = Math.max(0.15, (flashIntensityRef.current ?? 100) / 100);
       applyTorch(true, 'lub');
-      timerRef.current = setTimeout(() => applyTorch(false), 140);
+      timerRef.current = setTimeout(() => applyTorch(false), Math.round(140 * scale));
     } else if (baseCmd === 'STRIKE_DUB') {
       isRedirectingRef.current = false;
+      activeModeRef.current = 'STRIKE';
       setStagePhase('PULSE');
+      const scale = Math.max(0.15, (flashIntensityRef.current ?? 100) / 100);
       applyTorch(true, 'dub');
-      timerRef.current = setTimeout(() => applyTorch(false), 110);
+      timerRef.current = setTimeout(() => applyTorch(false), Math.round(110 * scale));
     } else if (baseCmd === 'BLINK') {
       isRedirectingRef.current = false;
+      activeModeRef.current = 'BLINK';
       setStagePhase('PULSE');
-      const pattern = [100, 150, 100, 650]; 
+      const basePattern = [100, 150, 100, 650]; 
       let step = 0;
       const playHeartbeat = () => {
         if (isRedirectingRef.current) return;
-        const duration = pattern[step];
-        const isOn = (step === 0 || step === 2); 
+        const isOn = (step === 0 || step === 2);
+        const rawDur = basePattern[step];
+        const intensityRatio = Math.max(0, Math.min(1, Number(flashIntensityRef.current ?? 100) / 100));
+        // Scale ON pulse width by slider intensity (15ms..100ms) while preserving exact 1000ms heartbeat tempo
+        let duration = rawDur;
+        if (step === 0 || step === 2) {
+          duration = intensityRatio <= 0 ? 15 : Math.max(15, Math.round(rawDur * intensityRatio));
+        } else if (step === 1) {
+          const prevOn = intensityRatio <= 0 ? 15 : Math.max(15, Math.round(basePattern[0] * intensityRatio));
+          duration = (basePattern[0] + basePattern[1]) - prevOn;
+        } else if (step === 3) {
+          const prevOn = intensityRatio <= 0 ? 15 : Math.max(15, Math.round(basePattern[2] * intensityRatio));
+          duration = (basePattern[2] + basePattern[3]) - prevOn;
+        }
         const beatType = step === 2 ? 'dub' : 'lub';
         applyTorch(isOn, beatType);
-        step = (step + 1) % pattern.length;
+        step = (step + 1) % basePattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
       playHeartbeat();
     } else if (baseCmd === 'STROBE') {
       isRedirectingRef.current = false;
+      activeModeRef.current = 'STROBE';
       setStagePhase('PULSE');
       let strobeOn = true;
       const playStrobe = () => {
         if (isRedirectingRef.current) return;
         applyTorch(strobeOn, 'strobe');
-        const randomDelay = strobeOn
+        const intensityRatio = Math.max(0.12, Math.min(1, Number(flashIntensityRef.current ?? 100) / 100));
+        const baseDelay = strobeOn
           ? Math.floor(Math.random() * 45) + 55
           : Math.floor(Math.random() * 65) + 60;
+        const scaledDelay = strobeOn ? Math.max(12, Math.round(baseDelay * intensityRatio)) : baseDelay;
         strobeOn = !strobeOn;
-        timerRef.current = setTimeout(playStrobe, randomDelay);
+        timerRef.current = setTimeout(playStrobe, scaledDelay);
       };
       playStrobe();
     } else if (baseCmd === 'REDIRECT') {
@@ -2054,18 +2144,21 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       ? 'RIPPLE_LETTERS'
       : 'RIPPLE_HORIZON';
 
-  const isHighContrastFlash = isFlashing && flashIntensity >= 50;
+  const activeScreenFadeOpacity = stagePhase === 'PULSE' && cameraReady && isFlashing
+    ? Math.max(0, Math.min(1, flashIntensity / 100))
+    : 0;
+  const isHighContrastFlash = activeScreenFadeOpacity >= 0.48;
 
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-300 overflow-hidden select-none ${
       stagePhase !== 'PULSE' ? 'bg-black text-white' :
       !cameraReady ? 'bg-[#f4f4f2] text-black' :
-      isHighContrastFlash ? 'bg-black text-white' : 'bg-white text-black'
+      'bg-white text-black'
     }`}>
-      {stagePhase === 'PULSE' && cameraReady && isFlashing && flashIntensity > 0 && (
+      {stagePhase === 'PULSE' && cameraReady && (
         <div
-          style={{ opacity: flashIntensity / 100 }}
-          className="fixed inset-0 bg-black pointer-events-none z-[5] transition-opacity duration-75"
+          style={{ opacity: activeScreenFadeOpacity }}
+          className="fixed inset-0 bg-black pointer-events-none z-[5] transition-opacity duration-150 ease-out"
         />
       )}
       <style>{`
@@ -2508,10 +2601,29 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     set(ref(db, `${roomID}/sfxEnabled`), sfxEnabled).catch(() => {});
   }, [sfxEnabled, roomID]);
 
+  const lastIntensitySyncRef = useRef(0);
+  const intensitySyncTimerRef = useRef(null);
+
   useEffect(() => {
     flashIntensityRef.current = flashIntensity;
     localStorage.setItem('magicFlashIntensity', String(flashIntensity));
-    set(ref(db, `${roomID}/flashIntensity`), flashIntensity).catch(() => {});
+    if (localMode === 'ON' && localTorchControllerRef.current) {
+      localTorchControllerRef.current(flashIntensity > 0, flashIntensity / 100, true);
+    }
+
+    const now = Date.now();
+    const elapsed = now - lastIntensitySyncRef.current;
+    clearTimeout(intensitySyncTimerRef.current);
+
+    if (elapsed >= 45 || flashIntensity === 0 || flashIntensity === 100) {
+      lastIntensitySyncRef.current = now;
+      set(ref(db, `${roomID}/flashIntensity`), flashIntensity).catch(() => {});
+    } else {
+      intensitySyncTimerRef.current = setTimeout(() => {
+        lastIntensitySyncRef.current = Date.now();
+        set(ref(db, `${roomID}/flashIntensity`), flashIntensity).catch(() => {});
+      }, 45 - elapsed);
+    }
   }, [flashIntensity, roomID]);
 
   useEffect(() => {
@@ -2931,10 +3043,10 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     turnLocalOff(true); 
   };
 
-  const applyLocalTorch = (active) => {
+  const applyLocalTorch = (active, isSteady = false) => {
     if (localTorchControllerRef.current) {
       const level = Math.max(0, Math.min(100, Number(flashIntensityRef.current ?? 100)));
-      localTorchControllerRef.current(Boolean(active) && level > 0, level / 100);
+      localTorchControllerRef.current(Boolean(active) && level > 0, level / 100, isSteady);
     }
   };
 
@@ -2942,7 +3054,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     if (!isPlayback) recordCue('LOCAL', 'ON');
     clearTimeout(localTimerRef.current);
     setLocalMode('ON');
-    applyLocalTorch(true);
+    applyLocalTorch(true, true);
   };
 
   const turnLocalOff = (isPlayback = false) => {
