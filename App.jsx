@@ -3489,7 +3489,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-3 shrink-0">
               <div>
                 <h2 className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
-                  📊 Experiment Session Log
+                  📊 Session Log
                 </h2>
                 <p className="text-[10px] font-mono text-zinc-400 mt-0.5">
                   {sessionHistoryLog.length} {sessionHistoryLog.length === 1 ? 'Session' : 'Sessions'} •{' '}
