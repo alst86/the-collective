@@ -146,16 +146,6 @@ async function acquireTorchCapableRearStream(videoEl) {
 function createTorchController(trackRef) {
   let busy = false;
   let pendingCommand = null;
-  let pwmTimer = null;
-  let pwmRunning = false;
-
-  const stopPwmLoop = () => {
-    pwmRunning = false;
-    if (pwmTimer) {
-      clearTimeout(pwmTimer);
-      pwmTimer = null;
-    }
-  };
 
   const applyRawHardwareTorch = async (track, flag, clampedIntensity = 1) => {
     if (!track || track.readyState === 'ended') return false;
@@ -175,7 +165,7 @@ function createTorchController(trackRef) {
       }
     }
 
-    // Check if device supports native hardware variable torchLevel
+    // Smooth hardware LED dimming on devices whose camera driver exposes variable torchLevel
     if (effectiveFlag && track.getCapabilities) {
       try {
         const caps = track.getCapabilities();
@@ -185,7 +175,7 @@ function createTorchController(trackRef) {
           if (maxLvl > minLvl) {
             const targetLvl = Math.max(minLvl, Math.round(minLvl + (maxLvl - minLvl) * clampedIntensity));
             await track.applyConstraints({ advanced: [{ torch: true, torchLevel: targetLvl }] });
-            return true; // Native variable brightness supported
+            return true;
           }
         }
       } catch (eLvl) {}
@@ -193,8 +183,11 @@ function createTorchController(trackRef) {
     return false;
   };
 
-  const enqueueSingle = (flag, clampedIntensity) => {
-    pendingCommand = { flag: Boolean(flag), intensity: clampedIntensity };
+  return (desiredActive, intensity = 1) => {
+    const clampedIntensity = Math.max(0, Math.min(1, Number(intensity ?? 1)));
+    const effectiveActive = Boolean(desiredActive) && clampedIntensity > 0;
+
+    pendingCommand = { flag: effectiveActive, intensity: clampedIntensity };
     if (busy) return;
     busy = true;
 
@@ -208,58 +201,6 @@ function createTorchController(trackRef) {
       }
       busy = false;
     })();
-  };
-
-  return (desiredActive, intensity = 1, enableSteadyPwm = false) => {
-    const clampedIntensity = Math.max(0, Math.min(1, Number(intensity ?? 1)));
-    const effectiveActive = Boolean(desiredActive) && clampedIntensity > 0;
-
-    // Always clear any existing PWM loop first
-    stopPwmLoop();
-
-    if (!effectiveActive) {
-      enqueueSingle(false, 0);
-      return;
-    }
-
-    // At 100% or when not in steady-ON mode (heartbeat/strobe handle pulse width directly), fire clean ON
-    if (!enableSteadyPwm || clampedIntensity >= 0.98) {
-      enqueueSingle(true, clampedIntensity);
-      return;
-    }
-
-    // Check if native torchLevel is supported; if not, run 28Hz High-Speed PWM duty cycle for visible LED fade!
-    const track = trackRef.current;
-    let hasNativeLevel = false;
-    if (track && track.getCapabilities) {
-      try {
-        const caps = track.getCapabilities();
-        if (caps && typeof caps.torchLevel === 'object' && caps.torchLevel !== null && Number(caps.torchLevel.max ?? 1) > Number(caps.torchLevel.min ?? 1)) {
-          hasNativeLevel = true;
-        }
-      } catch (e) {}
-    }
-
-    if (hasNativeLevel) {
-      enqueueSingle(true, clampedIntensity);
-      return;
-    }
-
-    // Software PWM Duty Cycle (36ms period ~ 28Hz): duty ratio scales visibly with slider (1% -> 100%)
-    pwmRunning = true;
-    const cycleMs = 36;
-    const onMs = Math.max(4, Math.round(cycleMs * clampedIntensity));
-    const offMs = Math.max(4, cycleMs - onMs);
-    let phaseOn = true;
-
-    const runPwmStep = () => {
-      if (!pwmRunning) return;
-      enqueueSingle(phaseOn, 1);
-      const wait = phaseOn ? onMs : offMs;
-      phaseOn = !phaseOn;
-      pwmTimer = setTimeout(runPwmStep, wait);
-    };
-    runPwmStep();
   };
 }
 
@@ -2091,27 +2032,15 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       isRedirectingRef.current = false;
       activeModeRef.current = 'BLINK';
       setStagePhase('PULSE');
-      const basePattern = [100, 150, 100, 650]; 
+      const pattern = [100, 150, 100, 650]; 
       let step = 0;
       const playHeartbeat = () => {
         if (isRedirectingRef.current) return;
-        const isOn = (step === 0 || step === 2);
-        const rawDur = basePattern[step];
-        const intensityRatio = Math.max(0, Math.min(1, Number(flashIntensityRef.current ?? 100) / 100));
-        // Scale ON pulse width by slider intensity (15ms..100ms) while preserving exact 1000ms heartbeat tempo
-        let duration = rawDur;
-        if (step === 0 || step === 2) {
-          duration = intensityRatio <= 0 ? 15 : Math.max(15, Math.round(rawDur * intensityRatio));
-        } else if (step === 1) {
-          const prevOn = intensityRatio <= 0 ? 15 : Math.max(15, Math.round(basePattern[0] * intensityRatio));
-          duration = (basePattern[0] + basePattern[1]) - prevOn;
-        } else if (step === 3) {
-          const prevOn = intensityRatio <= 0 ? 15 : Math.max(15, Math.round(basePattern[2] * intensityRatio));
-          duration = (basePattern[2] + basePattern[3]) - prevOn;
-        }
+        const duration = pattern[step];
+        const isOn = (step === 0 || step === 2); 
         const beatType = step === 2 ? 'dub' : 'lub';
         applyTorch(isOn, beatType);
-        step = (step + 1) % basePattern.length;
+        step = (step + 1) % pattern.length;
         timerRef.current = setTimeout(playHeartbeat, duration);
       };
       playHeartbeat();
@@ -2123,13 +2052,11 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       const playStrobe = () => {
         if (isRedirectingRef.current) return;
         applyTorch(strobeOn, 'strobe');
-        const intensityRatio = Math.max(0.12, Math.min(1, Number(flashIntensityRef.current ?? 100) / 100));
-        const baseDelay = strobeOn
+        const randomDelay = strobeOn
           ? Math.floor(Math.random() * 45) + 55
           : Math.floor(Math.random() * 65) + 60;
-        const scaledDelay = strobeOn ? Math.max(12, Math.round(baseDelay * intensityRatio)) : baseDelay;
         strobeOn = !strobeOn;
-        timerRef.current = setTimeout(playStrobe, scaledDelay);
+        timerRef.current = setTimeout(playStrobe, randomDelay);
       };
       playStrobe();
     } else if (baseCmd === 'REDIRECT') {
@@ -2201,10 +2128,17 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       ? 'RIPPLE_LETTERS'
       : 'RIPPLE_HORIZON';
 
-  const activeScreenFadeOpacity = stagePhase === 'PULSE' && cameraReady && isFlashing
+  // Continuous live dimmer veil: 100% slider = 0.0 veil (full bright), 0% slider = 1.0 veil (full blackout)
+  const continuousDimmerVeilOpacity = stagePhase === 'PULSE' && cameraReady
+    ? Math.max(0, Math.min(1, 1 - (flashIntensity / 100)))
+    : 0;
+  // Beat contrast flash during Heartbeat / Strobe (scaled by slider brightness, never overriding steady ON)
+  const isSteadyOn = activeModeRef.current === 'ON';
+  const beatFlashOverlayOpacity = stagePhase === 'PULSE' && cameraReady && isFlashing && !isSteadyOn
     ? Math.max(0, Math.min(1, flashIntensity / 100))
     : 0;
-  const isHighContrastFlash = activeScreenFadeOpacity >= 0.48;
+  const effectiveDarkness = Math.max(continuousDimmerVeilOpacity, beatFlashOverlayOpacity);
+  const isHighContrastFlash = effectiveDarkness >= 0.5;
 
   return (
     <div className={`min-h-[100dvh] relative flex flex-col items-center justify-center transition-colors duration-300 overflow-hidden select-none ${
@@ -2214,8 +2148,8 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     }`}>
       {stagePhase === 'PULSE' && cameraReady && (
         <div
-          style={{ opacity: activeScreenFadeOpacity }}
-          className="fixed inset-0 bg-black pointer-events-none z-[5] transition-opacity duration-150 ease-out"
+          style={{ opacity: effectiveDarkness }}
+          className="fixed inset-0 bg-black pointer-events-none z-[25] transition-opacity duration-75 linear"
         />
       )}
       <style>{`
