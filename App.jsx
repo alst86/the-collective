@@ -3024,12 +3024,15 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     applyLocalTorch(false);
     setAudienceMode('OFF');
 
-    // Log completed experiment session (total unique & peak devices connected up to redirect)
-    const totalSessionDevices = Math.max(
+    // Log completed experiment session: Joined (Pulsing) vs. Stayed (Redirect) vs. Dropped Out
+    const stayedAtRedirect = Math.max(0, Number(connectedCountRef.current || 0));
+    const totalJoined = Math.max(
       sessionUniqueIdsRef.current.size,
       sessionPeakCountRef.current,
-      connectedCountRef.current
+      stayedAtRedirect
     );
+    const droppedOut = Math.max(0, totalJoined - stayedAtRedirect);
+    const retentionRate = totalJoined > 0 ? Math.round((stayedAtRedirect / totalJoined) * 100) : 0;
     const revealedSubject = (peekedWordRef.current || customText || '').trim();
     const nowDate = new Date();
     const newEntry = {
@@ -3037,7 +3040,11 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       timestamp: Date.now(),
       dateLabel: nowDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
       timeLabel: nowDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      totalDevices: totalSessionDevices,
+      totalJoined,
+      stayedAtRedirect,
+      droppedOut,
+      retentionRate,
+      totalDevices: totalJoined,
       peakConcurrent: sessionPeakCountRef.current,
       revealedWord: revealedSubject || '—'
     };
@@ -3477,7 +3484,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
         >
           <div
             onPointerDown={(e) => e.stopPropagation()}
-            className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5 max-w-sm w-full max-h-[80dvh] flex flex-col shadow-2xl text-white"
+            className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5 max-w-sm w-full max-h-[82dvh] flex flex-col shadow-2xl text-white"
           >
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-3 shrink-0">
               <div>
@@ -3486,7 +3493,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 </h2>
                 <p className="text-[10px] font-mono text-zinc-400 mt-0.5">
                   {sessionHistoryLog.length} {sessionHistoryLog.length === 1 ? 'Session' : 'Sessions'} •{' '}
-                  {sessionHistoryLog.reduce((sum, item) => sum + Number(item.totalDevices || 0), 0)} Total Phones
+                  {sessionHistoryLog.reduce((sum, item) => sum + Number(item.totalJoined ?? item.totalDevices ?? 0), 0)} Joined •{' '}
+                  {sessionHistoryLog.reduce((sum, item) => sum + Number(item.stayedAtRedirect ?? item.totalDevices ?? 0), 0)} Stayed
                 </p>
               </div>
               <button
@@ -3501,26 +3509,33 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[140px]">
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-[150px]">
               {sessionHistoryLog.length === 0 ? (
                 <div className="h-36 flex flex-col items-center justify-center text-center px-4">
                   <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">
                     No Sessions Logged Yet
                   </span>
                   <span className="text-[10px] text-zinc-600 mt-1">
-                    Each Instagram redirect records 1 completed session with total connected phones.
+                    Each Instagram redirect records 1 session showing how many joined, stayed, and dropped out.
                   </span>
                 </div>
               ) : (
                 sessionHistoryLog.map((entry, idx) => {
                   const sessionNum = sessionHistoryLog.length - idx;
+                  const joined = Number(entry.totalJoined ?? entry.totalDevices ?? 0);
+                  const stayed = Number(entry.stayedAtRedirect ?? entry.totalDevices ?? 0);
+                  const dropped = Number(entry.droppedOut ?? Math.max(0, joined - stayed));
+                  const retention = entry.retentionRate !== undefined
+                    ? Number(entry.retentionRate)
+                    : joined > 0 ? Math.round((stayed / joined) * 100) : 0;
+
                   return (
                     <div
                       key={entry.id || idx}
-                      className="bg-black/70 border border-zinc-800 rounded-xl p-3 flex items-center justify-between"
+                      className="bg-black/75 border border-zinc-800 rounded-xl p-3 flex flex-col space-y-2.5"
                     >
-                      <div className="flex flex-col min-w-0 pr-2">
-                        <div className="flex items-center space-x-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2 min-w-0">
                           <span className="text-[10px] font-mono font-black uppercase tracking-wider text-zinc-200">
                             Session #{sessionNum}
                           </span>
@@ -3530,17 +3545,55 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] font-mono text-zinc-500 mt-1">
+                        <span className="text-[9.5px] font-mono text-zinc-500 shrink-0">
                           {entry.dateLabel} • {entry.timeLabel}
                         </span>
                       </div>
-                      <div className="flex flex-col items-end shrink-0">
-                        <span className="text-sm font-mono font-black text-emerald-400">
-                          {entry.totalDevices} {entry.totalDevices === 1 ? 'PHONE' : 'PHONES'}
-                        </span>
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500">
-                          Peak: {entry.peakConcurrent ?? entry.totalDevices}
-                        </span>
+
+                      <div className="grid grid-cols-3 gap-1.5 text-center">
+                        <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-lg py-1.5 px-1 flex flex-col">
+                          <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-500">
+                            Joined
+                          </span>
+                          <span className="text-sm font-mono font-black text-cyan-300 mt-0.5">
+                            {joined}
+                          </span>
+                          <span className="text-[7.5px] font-mono uppercase text-zinc-600">
+                            Pulsing
+                          </span>
+                        </div>
+
+                        <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-lg py-1.5 px-1 flex flex-col">
+                          <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-400/80">
+                            Stayed
+                          </span>
+                          <span className="text-sm font-mono font-black text-emerald-400 mt-0.5">
+                            {stayed}
+                          </span>
+                          <span className="text-[7.5px] font-mono uppercase text-emerald-500/70">
+                            {retention}% Kept
+                          </span>
+                        </div>
+
+                        <div className={`rounded-lg py-1.5 px-1 flex flex-col border ${
+                          dropped > 0
+                            ? 'bg-red-950/25 border-red-500/35'
+                            : 'bg-zinc-950/90 border-zinc-800/90'
+                        }`}>
+                          <span className={`text-[8px] font-bold uppercase tracking-wider ${
+                            dropped > 0 ? 'text-red-400/80' : 'text-zinc-500'
+                          }`}>
+                            Dropped
+                          </span>
+                          <span className={`text-sm font-mono font-black mt-0.5 ${
+                            dropped > 0 ? 'text-red-400' : 'text-zinc-500'
+                          }`}>
+                            {dropped}
+                          </span>
+                          <span className="text-[7.5px] font-mono uppercase text-zinc-600">
+                            Left Early
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
