@@ -4233,4 +4233,88 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                   {isCuesTouchLocked ? '🔒 LOCKED' : localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : localMode === 'STROBE' ? 'STROBING' : 'PULSING'}
                 </span>
               </button>
-              <div classNam
+              <div className="mt-3 flex">
+                <button 
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    if (isCuesTouchLockedRef.current) return;
+                    toggleLocalStrobe();
+                  }}
+                  className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+                >
+                  ⚡ STROBE (s)
+                </button>
+              </div>
+            </div>
+
+            {/* MASTER CUE (AUDIENCE) */}
+            <div className="flex flex-col items-center w-full">
+              <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-1 text-center">MASTER CUE (AUDIENCE)</div>
+              <div className="text-xs mb-2.5">
+                <span className="text-zinc-400">State: </span>
+                <span className={
+                  audienceMode === 'OFF' ? 'text-red-500 font-bold' : 
+                  audienceMode === 'ON' ? 'text-white font-bold' : 
+                  audienceMode === 'STROBE' ? 'text-yellow-400 font-bold animate-pulse' : 
+                  'text-red-500 font-bold animate-pulse'
+                }>
+                  {audienceMode === 'OFF' ? 'BLACKOUT' : audienceMode === 'ON' ? 'ILLUMINATED' : audienceMode === 'STROBE' ? 'STROBING' : 'HEARTBEAT'}
+                </span>
+              </div>
+              <button
+                onPointerDown={() => handleAudienceDown(false)}
+                onPointerUp={() => handleAudienceUp(false)}
+                onPointerLeave={() => handleAudienceUp(false)}
+                onPointerCancel={() => handleAudienceUp(false)}
+                onContextMenu={(e) => e.preventDefault()}
+                className={`w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
+                  audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
+                  audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_25px_rgba(255,255,255,0.2)]' :
+                  audienceMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_25px_rgba(250,204,21,0.3)]' :
+                  'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_25px_rgba(220,38,38,0.3)]'
+                }`}
+              >
+                <span className="font-bold tracking-widest text-xs uppercase">
+                  {isCuesTouchLocked ? '🔒 LOCKED' : audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : audienceMode === 'STROBE' ? 'STROBING' : 'PULSING'}
+                </span>
+              </button>
+              <div className="mt-3 flex">
+                <button 
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    if (isCuesTouchLockedRef.current) return;
+                    toggleAudienceStrobe();
+                  }}
+                  className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+                >
+                  ⚡ STROBE (e)
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      {/* --- STATUS FOOTER --- */}
+      <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col items-center px-4 pt-3 pb-8 z-20 space-y-1">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-green-500">
+          🟢 FLIC REMOTE LOCKED (ALWAYS ON)
+        </div>
+        <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest flex items-center space-x-2">
+          <span>Last Flic Key: [{lastKey}]</span>
+          <span>•</span>
+          <span className={
+            isRecording ? 'text-red-500 font-bold animate-pulse' : 
+            isPlaying ? 'text-green-400 font-bold animate-pulse' : 
+            'text-zinc-600'
+          }>
+            {isRecording ? '● REC ACTIVE' : isPlaying ? '▶ SEQ PLAYING' : `${recordedSequence.length} Cues`}
+          </span>
+        </div>
+      </div>
+
+    </div>
+  );
+}
