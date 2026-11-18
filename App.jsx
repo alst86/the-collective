@@ -1030,6 +1030,7 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
   const timerRef = useRef(null);
   const initialLoadRef = useRef(true); 
   const isRedirectingRef = useRef(false);
+  const clientPresenceRefHolder = useRef(null);
   const feedbackUrlRef = useRef(DEFAULT_FEEDBACK_URL);
 
   const audioCtxRef = useRef(null);
@@ -1677,9 +1678,11 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     }
 
     const clientPresenceRef = ref(db, `${roomID}/connectedSpectators/${sessionId}`);
+    clientPresenceRefHolder.current = clientPresenceRef;
     const connectedInfoRef = ref(db, '.info/connected');
 
     const registerPresence = () => {
+      if (isRedirectingRef.current || document.visibilityState === 'hidden') return;
       try {
         onDisconnect(clientPresenceRef).remove().catch(() => {});
         set(clientPresenceRef, {
@@ -1697,21 +1700,36 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
 
     registerPresence();
     const heartbeatPing = setInterval(() => {
+      if (isRedirectingRef.current || document.visibilityState === 'hidden') {
+        remove(clientPresenceRef).catch(() => {});
+        return;
+      }
       set(clientPresenceRef, {
         joinedAt: Date.now(),
         lastSeen: Date.now()
       }).catch(() => {});
-    }, 15000);
+    }, 10000);
+
+    const handleVisibilityOrHide = () => {
+      if (document.visibilityState === 'hidden' || isRedirectingRef.current) {
+        remove(clientPresenceRef).catch(() => {});
+      } else {
+        registerPresence();
+      }
+    };
 
     const handlePageHide = () => {
       remove(clientPresenceRef).catch(() => {});
     };
+
+    document.addEventListener('visibilitychange', handleVisibilityOrHide);
     window.addEventListener('pagehide', handlePageHide);
     window.addEventListener('beforeunload', handlePageHide);
 
     return () => {
       clearInterval(heartbeatPing);
       unsubConn();
+      document.removeEventListener('visibilitychange', handleVisibilityOrHide);
       window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('beforeunload', handlePageHide);
       remove(clientPresenceRef).catch(() => {});
@@ -2061,6 +2079,9 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       playStrobe();
     } else if (baseCmd === 'REDIRECT') {
       isRedirectingRef.current = true;
+      if (clientPresenceRefHolder.current) {
+        remove(clientPresenceRefHolder.current).catch(() => {});
+      }
       clearPhaseTimeouts();
       stopActiveSynthNodes();
       clearTimeout(timerRef.current);
@@ -2651,19 +2672,25 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     });
 
     const spectatorsRef = ref(db, `${roomID}/connectedSpectators`);
-    const unsubSpectators = onValue(spectatorsRef, (snapshot) => {
-      const data = snapshot.val();
+    let latestData = null;
+
+    const evaluateSpectators = (data) => {
       if (!data || typeof data !== 'object') {
         setConnectedCount(0);
         connectedCountRef.current = 0;
         return;
       }
       const now = Date.now();
-      const activeIds = Object.keys(data).filter((key) => {
+      const activeIds = [];
+      Object.keys(data).forEach((key) => {
         const entry = data[key];
         const lastSeen = entry && typeof entry === 'object' ? Number(entry.lastSeen || 0) : 0;
-        // Count active connections seen within the last 45 seconds (auto-purges stale ghosts)
-        return lastSeen > 0 && now - lastSeen < 45000;
+        if (lastSeen > 0 && now - lastSeen < 30000) {
+          activeIds.push(key);
+        } else if (lastSeen > 0 && now - lastSeen >= 35000) {
+          // Auto-purge stale ghost entry from Firebase
+          remove(ref(db, `${roomID}/connectedSpectators/${key}`)).catch(() => {});
+        }
       });
       activeIds.forEach((id) => sessionUniqueIdsRef.current.add(id));
       if (activeIds.length > sessionPeakCountRef.current) {
@@ -2671,9 +2698,19 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
       }
       connectedCountRef.current = activeIds.length;
       setConnectedCount(activeIds.length);
+    };
+
+    const unsubSpectators = onValue(spectatorsRef, (snapshot) => {
+      latestData = snapshot.val();
+      evaluateSpectators(latestData);
     });
 
+    const pruneInterval = setInterval(() => {
+      evaluateSpectators(latestData);
+    }, 4000);
+
     return () => {
+      clearInterval(pruneInterval);
       unsubText();
       unsubHoldUp();
       unsubSpectators();
@@ -3057,6 +3094,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     } catch (e) {}
     sessionUniqueIdsRef.current = new Set();
     sessionPeakCountRef.current = 0;
+    connectedCountRef.current = 0;
+    setConnectedCount(0);
 
     const finalUrl = getTargetRedirectUrl();
     const targetFeedback = getTargetFeedbackUrl();
@@ -3064,7 +3103,10 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
 
     try {
       await Promise.race([
-        fireAudienceCommand('REDIRECT'),
+        Promise.all([
+          fireAudienceCommand('REDIRECT'),
+          remove(ref(db, `${roomID}/connectedSpectators`)).catch(() => {})
+        ]),
         new Promise((resolve) => setTimeout(resolve, 1000))
       ]);
       await new Promise((resolve) => setTimeout(resolve, 300));
