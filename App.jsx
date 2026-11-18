@@ -967,6 +967,24 @@ export default function App() {
   const [skipEntryPrompt, setSkipEntryPrompt] = useState(false);
   const roomID = searchParams.get('room') || 'v2-stage';
 
+  // Enforce strict 1.0 viewport scale so iOS Safari cannot stay magnified/pinch-zoomed during reveals
+  useEffect(() => {
+    try {
+      let meta = document.querySelector('meta[name="viewport"]');
+      const lockedContent = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+      if (meta) {
+        meta.setAttribute('content', lockedContent);
+      } else {
+        meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = lockedContent;
+        document.head.appendChild(meta);
+      }
+      document.documentElement.style.touchAction = 'manipulation';
+      document.body.style.overflowX = 'hidden';
+    } catch (e) {}
+  }, []);
+
   return isMasterView ? (
     <ControlView 
       roomID={roomID} 
@@ -2141,7 +2159,8 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
     revealNonSpaceCount * 0.78 +
     revealSpaceCount * revealWordSpaceEm +
     Math.max(0, revealCharCount - 1) * Number(revealLetterSpacingEm);
-  const revealFontSizeVw = Math.min(17.0, 86.0 / Math.max(revealWidthFactor, 1)).toFixed(2);
+  const rawRevealVw = 86.0 / Math.max(revealWidthFactor, 1);
+  const revealFontSizeVw = (Number.isFinite(rawRevealVw) ? Math.max(4.5, Math.min(17.0, rawRevealVw)) : 12.0).toFixed(2);
 
   const mappedRippleSubStage = shutterStage === 'CLOSED_WHITE'
     ? 'RIPPLE_PURE'
@@ -2545,6 +2564,9 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [clearLogConfirmArmed, setClearLogConfirmArmed] = useState(false);
   const clearLogConfirmTimerRef = useRef(null);
+  const [swipedSessionId, setSwipedSessionId] = useState(null);
+  const [swipeDragState, setSwipeDragState] = useState({ id: null, offsetX: 0 });
+  const sessionRowSwipeRef = useRef({ id: null, startX: 0, startY: 0, active: false });
   const counterPressTimerRef = useRef(null);
   const isCounterPressingRef = useRef(false);
 
@@ -2888,6 +2910,66 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
   };
 
+  const handleDeleteSingleSession = (targetId, targetIdx) => {
+    setSessionHistoryLog((prev) => {
+      const updated = prev.filter((item, i) => (item.id ? item.id !== targetId : i !== targetIdx));
+      try {
+        if (updated.length === 0) {
+          localStorage.removeItem(`magicSessionLog_${roomID}`);
+        } else {
+          localStorage.setItem(`magicSessionLog_${roomID}`, JSON.stringify(updated));
+        }
+      } catch (e) {}
+      return updated;
+    });
+    if (swipedSessionId === targetId) setSwipedSessionId(null);
+    if (navigator.vibrate) navigator.vibrate(35);
+  };
+
+  const handleSessionRowTouchStart = (e, rowKey) => {
+    const t = e.touches && e.touches[0];
+    if (!t) return;
+    sessionRowSwipeRef.current = {
+      id: rowKey,
+      startX: t.clientX,
+      startY: t.clientY,
+      active: true
+    };
+  };
+
+  const handleSessionRowTouchMove = (e, rowKey) => {
+    const st = sessionRowSwipeRef.current;
+    if (!st.active || st.id !== rowKey) return;
+    const t = e.touches && e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - st.startX;
+    const dy = t.clientY - st.startY;
+    if (Math.abs(dy) > 28 && Math.abs(dx) < 20) {
+      st.active = false;
+      setSwipeDragState({ id: null, offsetX: 0 });
+      return;
+    }
+    if (dx < 0) {
+      const clamped = Math.max(-110, dx);
+      setSwipeDragState({ id: rowKey, offsetX: clamped });
+    } else if (swipedSessionId === rowKey && dx > 15) {
+      setSwipeDragState({ id: rowKey, offsetX: Math.min(0, -84 + dx) });
+    }
+  };
+
+  const handleSessionRowTouchEnd = (rowKey) => {
+    const st = sessionRowSwipeRef.current;
+    if (!st.active || st.id !== rowKey) return;
+    st.active = false;
+    const currentOffset = swipeDragState.id === rowKey ? swipeDragState.offsetX : 0;
+    if (currentOffset <= -48) {
+      setSwipedSessionId(rowKey);
+    } else {
+      if (swipedSessionId === rowKey) setSwipedSessionId(null);
+    }
+    setSwipeDragState({ id: null, offsetX: 0 });
+  };
+
   const handleEraseSessionLog = () => {
     if (!clearLogConfirmArmed) {
       setClearLogConfirmArmed(true);
@@ -2899,6 +2981,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     }
     clearTimeout(clearLogConfirmTimerRef.current);
     setClearLogConfirmArmed(false);
+    setSwipedSessionId(null);
     setSessionHistoryLog([]);
     try {
       localStorage.removeItem(`magicSessionLog_${roomID}`);
@@ -3405,7 +3488,8 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
     masterNonSpaceCount * 0.78 +
     masterSpaceCount * masterWordSpaceEm +
     Math.max(0, masterCharCount - 1) * Number(masterLetterSpacingEm);
-  const masterFontSizeVw = Math.min(17.0, 86.0 / Math.max(masterWidthFactor, 1)).toFixed(2);
+  const rawMasterVw = 86.0 / Math.max(masterWidthFactor, 1);
+  const masterFontSizeVw = (Number.isFinite(rawMasterVw) ? Math.max(4.5, Math.min(17.0, rawMasterVw)) : 12.0).toFixed(2);
 
   const mappedMasterRippleSubStage = masterShutterStage === 'CLOSED_WHITE'
     ? 'RIPPLE_PURE'
@@ -3521,6 +3605,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           onPointerDown={() => {
             setIsLogModalOpen(false);
             setClearLogConfirmArmed(false);
+            setSwipedSessionId(null);
           }}
           className="fixed inset-0 z-[115] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 select-none"
         >
@@ -3544,6 +3629,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 onClick={() => {
                   setIsLogModalOpen(false);
                   setClearLogConfirmArmed(false);
+                  setSwipedSessionId(null);
                 }}
                 className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-[10px] font-bold tracking-widest uppercase text-zinc-400"
               >
@@ -3563,6 +3649,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                 </div>
               ) : (
                 sessionHistoryLog.map((entry, idx) => {
+                  const rowKey = entry.id || `row_${idx}`;
                   const sessionNum = sessionHistoryLog.length - idx;
                   const joined = Number(entry.totalJoined ?? entry.totalDevices ?? 0);
                   const stayed = Number(entry.stayedAtRedirect ?? entry.totalDevices ?? 0);
@@ -3571,70 +3658,100 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                     ? Number(entry.retentionRate)
                     : joined > 0 ? Math.round((stayed / joined) * 100) : 0;
 
+                  const isDraggingThis = swipeDragState.id === rowKey;
+                  const isOpenThis = swipedSessionId === rowKey;
+                  const translateX = isDraggingThis ? swipeDragState.offsetX : isOpenThis ? -84 : 0;
+
                   return (
                     <div
-                      key={entry.id || idx}
-                      className="bg-black/75 border border-zinc-800 rounded-xl p-3 flex flex-col space-y-2.5"
+                      key={rowKey}
+                      className="relative overflow-hidden rounded-xl border border-zinc-800 bg-red-950/80 select-none"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2 min-w-0">
-                          <span className="text-[10px] font-mono font-black uppercase tracking-wider text-zinc-200">
-                            Session #{sessionNum}
-                          </span>
-                          {entry.revealedWord && entry.revealedWord !== '—' && (
-                            <span className="text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 truncate max-w-[110px]">
-                              {entry.revealedWord}
+                      {/* Revealed Delete Action Behind Card */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSingleSession(entry.id, idx)}
+                        className="absolute inset-y-0 right-0 w-[84px] bg-red-600 active:bg-red-500 text-white flex flex-col items-center justify-center space-y-1 font-bold text-[9.5px] uppercase tracking-widest"
+                      >
+                        <span className="text-sm">🗑️</span>
+                        <span>Delete</span>
+                      </button>
+
+                      {/* Foreground Swipeable Session Card */}
+                      <div
+                        onTouchStart={(e) => handleSessionRowTouchStart(e, rowKey)}
+                        onTouchMove={(e) => handleSessionRowTouchMove(e, rowKey)}
+                        onTouchEnd={() => handleSessionRowTouchEnd(rowKey)}
+                        onTouchCancel={() => handleSessionRowTouchEnd(rowKey)}
+                        onClick={() => {
+                          if (isOpenThis) setSwipedSessionId(null);
+                        }}
+                        style={{
+                          transform: `translateX(${translateX}px)`,
+                          transition: isDraggingThis ? 'none' : 'transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)'
+                        }}
+                        className="relative bg-[#09090b] p-3 flex flex-col space-y-2.5 touch-pan-y"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <span className="text-[10px] font-mono font-black uppercase tracking-wider text-zinc-200">
+                              Session #{sessionNum}
                             </span>
-                          )}
-                        </div>
-                        <span className="text-[9.5px] font-mono text-zinc-500 shrink-0">
-                          {entry.dateLabel} • {entry.timeLabel}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-1.5 text-center">
-                        <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-lg py-1.5 px-1 flex flex-col">
-                          <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-500">
-                            Joined
-                          </span>
-                          <span className="text-sm font-mono font-black text-cyan-300 mt-0.5">
-                            {joined}
-                          </span>
-                          <span className="text-[7.5px] font-mono uppercase text-zinc-600">
-                            Pulsing
+                            {entry.revealedWord && entry.revealedWord !== '—' && (
+                              <span className="text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 truncate max-w-[110px]">
+                                {entry.revealedWord}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[9.5px] font-mono text-zinc-500 shrink-0">
+                            {entry.dateLabel} • {entry.timeLabel}
                           </span>
                         </div>
 
-                        <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-lg py-1.5 px-1 flex flex-col">
-                          <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-400/80">
-                            Stayed
-                          </span>
-                          <span className="text-sm font-mono font-black text-emerald-400 mt-0.5">
-                            {stayed}
-                          </span>
-                          <span className="text-[7.5px] font-mono uppercase text-emerald-500/70">
-                            {retention}% Kept
-                          </span>
-                        </div>
+                        <div className="grid grid-cols-3 gap-1.5 text-center">
+                          <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-lg py-1.5 px-1 flex flex-col">
+                            <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-500">
+                              Joined
+                            </span>
+                            <span className="text-sm font-mono font-black text-cyan-300 mt-0.5">
+                              {joined}
+                            </span>
+                            <span className="text-[7.5px] font-mono uppercase text-zinc-600">
+                              Pulsing
+                            </span>
+                          </div>
 
-                        <div className={`rounded-lg py-1.5 px-1 flex flex-col border ${
-                          dropped > 0
-                            ? 'bg-red-950/25 border-red-500/35'
-                            : 'bg-zinc-950/90 border-zinc-800/90'
-                        }`}>
-                          <span className={`text-[8px] font-bold uppercase tracking-wider ${
-                            dropped > 0 ? 'text-red-400/80' : 'text-zinc-500'
+                          <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-lg py-1.5 px-1 flex flex-col">
+                            <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-400/80">
+                              Stayed
+                            </span>
+                            <span className="text-sm font-mono font-black text-emerald-400 mt-0.5">
+                              {stayed}
+                            </span>
+                            <span className="text-[7.5px] font-mono uppercase text-emerald-500/70">
+                              {retention}% Kept
+                            </span>
+                          </div>
+
+                          <div className={`rounded-lg py-1.5 px-1 flex flex-col border ${
+                            dropped > 0
+                              ? 'bg-red-950/25 border-red-500/35'
+                              : 'bg-zinc-950/90 border-zinc-800/90'
                           }`}>
-                            Dropped
-                          </span>
-                          <span className={`text-sm font-mono font-black mt-0.5 ${
-                            dropped > 0 ? 'text-red-400' : 'text-zinc-500'
-                          }`}>
-                            {dropped}
-                          </span>
-                          <span className="text-[7.5px] font-mono uppercase text-zinc-600">
-                            Left Early
-                          </span>
+                            <span className={`text-[8px] font-bold uppercase tracking-wider ${
+                              dropped > 0 ? 'text-red-400/80' : 'text-zinc-500'
+                            }`}>
+                              Dropped
+                            </span>
+                            <span className={`text-sm font-mono font-black mt-0.5 ${
+                              dropped > 0 ? 'text-red-400' : 'text-zinc-500'
+                            }`}>
+                              {dropped}
+                            </span>
+                            <span className="text-[7.5px] font-mono uppercase text-zinc-600">
+                              Left Early
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -3793,7 +3910,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               type="text" 
               value={redirectUrl}
               onChange={(e) => setRedirectUrl(e.target.value)}
-              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-base sm:text-xs outline-none focus:border-zinc-500 transition-colors"
               placeholder="https://instagram.com/andrewleemagic"
             />
           </div>
@@ -3804,7 +3921,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               type="text" 
               value={feedbackUrl}
               onChange={(e) => setFeedbackUrl(e.target.value)}
-              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-xs outline-none focus:border-zinc-500 transition-colors"
+              className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-3 py-2 text-base sm:text-xs outline-none focus:border-zinc-500 transition-colors"
               placeholder="https://andrewleemagic.com/feedback"
             />
           </div>
@@ -3812,11 +3929,11 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           <div className="flex space-x-2 items-end">
             <div className="flex-1 flex flex-col">
               <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">API Poll URL (Proxy)</label>
-              <input type="text" value={injectUrl} onChange={(e) => setInjectUrl(e.target.value)} className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors" placeholder="https://..." />
+              <input type="text" value={injectUrl} onChange={(e) => setInjectUrl(e.target.value)} className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-base sm:text-xs outline-none focus:border-zinc-500 transition-colors" placeholder="https://..." />
             </div>
             <div className="w-16 flex flex-col">
               <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Key</label>
-              <input type="text" value={injectKey} onChange={(e) => setInjectKey(e.target.value)} className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-xs outline-none focus:border-zinc-500 transition-colors" placeholder="peek" />
+              <input type="text" value={injectKey} onChange={(e) => setInjectKey(e.target.value)} className="w-full bg-black border border-zinc-800 text-zinc-300 rounded px-2 py-2 text-base sm:text-xs outline-none focus:border-zinc-500 transition-colors" placeholder="peek" />
             </div>
             <button 
               onClick={() => setIsInjectSyncing(!isInjectSyncing)}
@@ -4116,88 +4233,4 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
                   {isCuesTouchLocked ? '🔒 LOCKED' : localMode === 'OFF' ? 'STANDBY' : localMode === 'ON' ? 'ACTIVE' : localMode === 'STROBE' ? 'STROBING' : 'PULSING'}
                 </span>
               </button>
-              <div className="mt-3 flex">
-                <button 
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    if (isCuesTouchLockedRef.current) return;
-                    toggleLocalStrobe();
-                  }}
-                  className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${localMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
-                >
-                  ⚡ STROBE (s)
-                </button>
-              </div>
-            </div>
-
-            {/* MASTER CUE (AUDIENCE) */}
-            <div className="flex flex-col items-center w-full">
-              <div className="text-zinc-500 font-bold tracking-widest text-[10px] uppercase mb-1 text-center">MASTER CUE (AUDIENCE)</div>
-              <div className="text-xs mb-2.5">
-                <span className="text-zinc-400">State: </span>
-                <span className={
-                  audienceMode === 'OFF' ? 'text-red-500 font-bold' : 
-                  audienceMode === 'ON' ? 'text-white font-bold' : 
-                  audienceMode === 'STROBE' ? 'text-yellow-400 font-bold animate-pulse' : 
-                  'text-red-500 font-bold animate-pulse'
-                }>
-                  {audienceMode === 'OFF' ? 'BLACKOUT' : audienceMode === 'ON' ? 'ILLUMINATED' : audienceMode === 'STROBE' ? 'STROBING' : 'HEARTBEAT'}
-                </span>
-              </div>
-              <button
-                onPointerDown={() => handleAudienceDown(false)}
-                onPointerUp={() => handleAudienceUp(false)}
-                onPointerLeave={() => handleAudienceUp(false)}
-                onPointerCancel={() => handleAudienceUp(false)}
-                onContextMenu={(e) => e.preventDefault()}
-                className={`w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-200 outline-none select-none ${
-                  audienceMode === 'OFF' ? 'border-zinc-800 text-zinc-600 bg-black' :
-                  audienceMode === 'ON' ? 'border-white text-white bg-white/10 shadow-[0_0_25px_rgba(255,255,255,0.2)]' :
-                  audienceMode === 'STROBE' ? 'border-yellow-400 text-yellow-400 bg-yellow-900/20 shadow-[0_0_25px_rgba(250,204,21,0.3)]' :
-                  'border-red-600 text-red-500 bg-red-900/20 shadow-[0_0_25px_rgba(220,38,38,0.3)]'
-                }`}
-              >
-                <span className="font-bold tracking-widest text-xs uppercase">
-                  {isCuesTouchLocked ? '🔒 LOCKED' : audienceMode === 'OFF' ? 'STANDBY' : audienceMode === 'ON' ? 'ACTIVE' : audienceMode === 'STROBE' ? 'STROBING' : 'PULSING'}
-                </span>
-              </button>
-              <div className="mt-3 flex">
-                <button 
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    if (isCuesTouchLockedRef.current) return;
-                    toggleAudienceStrobe();
-                  }}
-                  className={`px-4 py-2 rounded-full border text-[10px] font-bold tracking-widest transition-colors ${audienceMode === 'STROBE' ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
-                >
-                  ⚡ STROBE (e)
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-      </div>
-
-      {/* --- STATUS FOOTER --- */}
-      <div className="w-full shrink-0 bg-zinc-950 border-t border-zinc-800 flex flex-col items-center px-4 pt-3 pb-8 z-20 space-y-1">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-green-500">
-          🟢 FLIC REMOTE LOCKED (ALWAYS ON)
-        </div>
-        <div className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest flex items-center space-x-2">
-          <span>Last Flic Key: [{lastKey}]</span>
-          <span>•</span>
-          <span className={
-            isRecording ? 'text-red-500 font-bold animate-pulse' : 
-            isPlaying ? 'text-green-400 font-bold animate-pulse' : 
-            'text-zinc-600'
-          }>
-            {isRecording ? '● REC ACTIVE' : isPlaying ? '▶ SEQ PLAYING' : `${recordedSequence.length} Cues`}
-          </span>
-        </div>
-      </div>
-
-    </div>
-  );
-}
+              <div classNam
