@@ -20,7 +20,7 @@ const EMOTIONAL_TUNING_PROMPTS = [
 
 // Curated 2 Neon-Blue Holographic Themes
 const REVEAL_THEMES = [
-  { id: 'RIPPLE_WAVE', label: '〰️ Option 1: Resonance Ripple', short: 'RIPPLE' },
+  { id: 'RIPPLE_WAVE', label: '🧠 Option 1: Neural Matrix', short: 'NEURAL' },
   { id: 'APERTURE_VORTEX', label: '◎ Option 2: Focus Aperture', short: 'APERTURE' }
 ];
 
@@ -244,306 +244,327 @@ function BrandLogoSVG({ className = "w-14 h-14", variant = "darkOnLight" }) {
 }
 
 // ==========================================
-// OPTION 1 (STAGE 1): THE EXPANDED RESONANCE RIPPLE (0.0s - 4.4s)
+// OPTION 1 (STAGE 1): THE COLLECTIVE SIGNAL — NEURAL SONAR RIPPLES (0:00 - 0:04.4)
 // ==========================================
 const ExpandedResonanceRippleStage1 = React.memo(function ExpandedResonanceRippleStage1({ subStage }) {
-  const showEmergingLetters = subStage === 'RIPPLE_LETTERS' || subStage === 'RIPPLE_HORIZON';
-  const showHorizonBeam = subStage === 'RIPPLE_HORIZON';
+  const isDiving = subStage === 'RIPPLE_LETTERS' || subStage === 'RIPPLE_HORIZON';
+  const isPortalSurge = subStage === 'RIPPLE_HORIZON';
 
-  const concentricRidges = useMemo(() => Array.from({ length: 14 }).map((_, i) => ({
+  const sonarRings = useMemo(() => Array.from({ length: 12 }).map((_, i) => ({
     id: i,
-    delay: `${(i * 0.24).toFixed(2)}s`,
-    isBright: i % 2 === 0
+    delay: `${(i * 0.28).toFixed(2)}s`,
+    isHeartbeatPeak: i % 3 === 0
   })), []);
 
-  const emergingGlyphs = useMemo(() => {
-    const chars = ['A', 'R', 'E', 'S', 'O', 'N', 'M', 'K', 'L', 'T', 'V', 'H', 'C', 'I'];
-    return chars.map((ch, idx) => {
-      const angle = (idx / chars.length) * 2 * Math.PI + 0.3;
-      const dist = 19 + (idx % 3) * 11;
+  const peripheralNodes = useMemo(() => {
+    return Array.from({ length: 28 }).map((_, i) => {
+      const angle = (i / 28) * Math.PI * 2 + (i % 3) * 0.18;
+      const radiusVmin = 18 + (i % 4) * 8.5;
       return {
-        id: idx,
-        ch,
-        x: (Math.cos(angle) * dist).toFixed(1),
-        y: (Math.sin(angle) * dist).toFixed(1),
-        size: `${0.85 + (idx % 3) * 0.35}rem`,
-        delay: `${(idx * 0.11).toFixed(2)}s`
+        id: i,
+        x: (Math.cos(angle) * radiusVmin).toFixed(1),
+        y: (Math.sin(angle) * radiusVmin).toFixed(1),
+        size: 2.5 + (i % 3) * 1.4,
+        delay: `${(i % 7) * 0.16}s`
       };
     });
   }, []);
 
-  const stardust = useMemo(() => Array.from({ length: 42 }).map((_, i) => ({
-    id: i,
-    left: `${8 + ((i * 19) % 84)}%`,
-    top: `${12 + ((i * 29) % 76)}%`,
-    size: 1.5 + (i % 3) * 1.2,
-    delay: `${(i % 8) * 0.2}s`
-  })), []);
-
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden bg-black select-none">
+      {/* Ambient Deep Cyan Neural Core Aura */}
       <div
-        className="absolute w-[125vmin] h-[125vmin] rounded-full pointer-events-none"
+        className="absolute w-[115vmin] h-[115vmin] rounded-full pointer-events-none transition-all duration-1000"
         style={{
-          background: `repeating-radial-gradient(
-            circle at center,
-            rgba(0, 240, 255, 0.22) 0px,
-            rgba(180, 248, 255, 0.38) 12px,
-            rgba(4, 18, 32, 0.92) 26px,
-            rgba(0, 0, 0, 0.98) 40px
-          )`,
-          maskImage: 'radial-gradient(circle, black 18%, rgba(0,0,0,0.75) 48%, transparent 72%)',
-          WebkitMaskImage: 'radial-gradient(circle, black 18%, rgba(0,0,0,0.75) 48%, transparent 72%)',
-          animation: 'acousticConePulse 1.8s ease-in-out infinite'
+          background: isPortalSurge
+            ? 'radial-gradient(circle at center, rgba(224,250,255,0.55) 0%, rgba(0,240,255,0.34) 28%, rgba(0,110,220,0.14) 55%, transparent 76%)'
+            : 'radial-gradient(circle at center, rgba(0,240,255,0.26) 0%, rgba(0,140,255,0.12) 40%, transparent 72%)',
+          transform: isPortalSurge ? 'scale(1.28)' : isDiving ? 'scale(1.1)' : 'scale(0.96)'
         }}
       />
 
-      {concentricRidges.map((r) => (
+      {/* Outward Heartbeat / Sonar Pulse Rings */}
+      {sonarRings.map((r) => (
         <div
           key={r.id}
-          className="absolute w-28 h-28 rounded-full pointer-events-none will-change-transform"
+          className="absolute w-24 h-24 rounded-full pointer-events-none will-change-transform"
           style={{
-            border: r.isBright
-              ? '3px solid rgba(190, 250, 255, 0.78)'
-              : '2px solid rgba(0, 210, 255, 0.48)',
-            boxShadow: r.isBright
-              ? '0 0 22px rgba(0, 240, 255, 0.65), inset 0 0 18px rgba(0, 240, 255, 0.45)'
-              : '0 0 14px rgba(0, 170, 255, 0.35)',
-            animation: 'moldedRippleExpand 3.36s linear infinite',
+            border: r.isHeartbeatPeak
+              ? '2.5px solid rgba(210, 252, 255, 0.88)'
+              : '1.5px solid rgba(0, 235, 255, 0.52)',
+            boxShadow: r.isHeartbeatPeak
+              ? '0 0 24px rgba(0, 240, 255, 0.8), inset 0 0 16px rgba(0, 240, 255, 0.45)'
+              : '0 0 12px rgba(0, 190, 255, 0.4)',
+            animation: `moldedRippleExpand ${isDiving ? '2.6s' : '3.36s'} cubic-bezier(0.16, 0.85, 0.35, 1) infinite`,
             animationDelay: r.delay,
             opacity: 0
           }}
         />
       ))}
 
-      <div className={`absolute inset-0 transition-opacity duration-700 ${showEmergingLetters ? 'opacity-100' : 'opacity-0'}`}>
-        {stardust.map((s) => (
+      {/* Awakening Audience Nodes Lighting Up Around the Room */}
+      <div
+        className={`absolute inset-0 flex items-center justify-center transition-all duration-1000 ${
+          isDiving ? 'opacity-100 scale-110' : 'opacity-45 scale-95'
+        }`}
+      >
+        {peripheralNodes.map((n) => (
           <span
-            key={s.id}
+            key={n.id}
             style={{
-              left: s.left,
-              top: s.top,
-              width: `${s.size}px`,
-              height: `${s.size}px`,
-              boxShadow: '0 0 8px #00f0ff, 0 0 15px #ffffff',
-              animation: `stardustTwinkle 1.4s ease-in-out infinite alternate`,
-              animationDelay: s.delay
+              transform: `translate(${n.x}vmin, ${n.y}vmin)`,
+              width: `${n.size}px`,
+              height: `${n.size}px`,
+              boxShadow: '0 0 10px #00f0ff, 0 0 20px #ffffff',
+              animation: 'stardustTwinkle 1.1s ease-in-out infinite alternate',
+              animationDelay: n.delay
             }}
             className="absolute rounded-full bg-cyan-100 pointer-events-none"
           />
         ))}
-
-        {emergingGlyphs.map((g) => (
-          <span
-            key={g.id}
-            style={{
-              transform: `translate(${g.x}vmin, ${g.y}vmin)`,
-              fontSize: g.size,
-              textShadow: '0 0 12px rgba(0,240,255,0.9), 0 0 24px rgba(0,180,255,0.5)',
-              animation: 'glyphRippleFloat 2.2s ease-in-out infinite alternate',
-              animationDelay: g.delay
-            }}
-            className="absolute left-1/2 top-1/2 -ml-2 -mt-2 font-sans font-extrabold text-cyan-100/80 pointer-events-none"
-          >
-            {g.ch}
-          </span>
-        ))}
       </div>
 
+      {/* Central Glowing Blue Logo — Scales Forward at 3.1s to Dive Into the Mind */}
       <div
-        className={`absolute inset-x-0 flex items-center justify-center transition-all duration-700 ${
-          showHorizonBeam ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-50'
-        }`}
-      >
-        <div
-          className="w-full h-36 pointer-events-none"
-          style={{
-            background: 'radial-gradient(ellipse 65% 50% at 50% 50%, rgba(224,250,255,0.75) 0%, rgba(0,240,255,0.38) 38%, rgba(0,140,255,0.1) 68%, transparent 100%)'
-          }}
-        />
-        <div className="absolute inset-x-0 h-[3px] bg-cyan-100 shadow-[0_0_25px_#00f0ff,0_0_50px_#00f0ff]" />
-      </div>
-
-      <div
-        className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white flex items-center justify-center transition-transform duration-500"
+        className="relative z-10 rounded-full flex items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={{
-          boxShadow: showHorizonBeam
-            ? '0 0 45px #ffffff, 0 0 85px #00f0ff, 0 0 130px #00a8ff'
-            : '0 0 28px rgba(255,255,255,0.9), 0 0 55px rgba(0,240,255,0.65)'
+          width: 'clamp(92px, 22vmin, 120px)',
+          height: 'clamp(92px, 22vmin, 120px)',
+          backgroundColor: isPortalSurge ? '#ffffff' : 'rgba(2, 12, 24, 0.92)',
+          border: '2px solid rgba(165, 248, 255, 0.9)',
+          transform: isPortalSurge ? 'scale(2.4)' : isDiving ? 'scale(1.12)' : 'scale(1)',
+          opacity: isPortalSurge ? 0.95 : 1,
+          boxShadow: isPortalSurge
+            ? '0 0 60px #ffffff, 0 0 120px #00f0ff, 0 0 180px #0088ff'
+            : '0 0 32px rgba(0, 240, 255, 0.85), inset 0 0 20px rgba(0, 240, 255, 0.45)'
         }}
       >
-        <BrandLogoSVG className="w-11 h-11 sm:w-12 sm:h-12" variant="darkOnLight" />
+        <BrandLogoSVG
+          className="w-11 h-11 sm:w-12 sm:h-12"
+          variant={isPortalSurge ? 'darkOnLight' : 'lightOnDark'}
+        />
       </div>
     </div>
   );
 });
 
 // ==========================================
-// OPTION 1 (STAGE 2): SEISMOGRAPH SOUNDWAVE (4.4s - 9.6s)
+// OPTION 1 (STAGE 2): ENTERING THE MIND — 3D NEURAL MATRIX & BREATH FLASH (0:04.4 - 0:09.6)
 // ==========================================
 const ExpandedResonanceSoundwaveStage2 = React.memo(function ExpandedResonanceSoundwaveStage2({ waveStage }) {
-  const isSpikeBurst = waveStage === 'SPIKE_BURST';
-  const isCompressing = waveStage === 'LETTER_COMPRESS';
+  const isHighSynapse = waveStage === 'SPIKE_BURST' || waveStage === 'LETTER_COMPRESS';
+  const isCoreBreathFlash = waveStage === 'LETTER_COMPRESS';
 
-  const spikes = useMemo(() => {
-    return Array.from({ length: 96 }).map((_, i) => {
-      const norm = i / 95;
-      const bell = Math.sin(norm * Math.PI);
-      const harmonic = 0.45 + 0.55 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.65));
-      const heightPx = Math.round(14 + bell * harmonic * 250);
+  // 3D depth layers of neural nodes & electric blue synapses flying toward the viewer
+  const neuralLayers = useMemo(() => {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return [0, 1, 2].map((layerIdx) => {
+      const nodeCount = 18;
+      const nodes = Array.from({ length: nodeCount }).map((_, i) => {
+        const angle = (i / nodeCount) * Math.PI * 2 + layerIdx * 0.72;
+        const ringRadius = 110 + ((i * 53 + layerIdx * 37) % 295);
+        const cx = +(500 + Math.cos(angle) * ringRadius).toFixed(1);
+        const cy = +(500 + Math.sin(angle) * ringRadius).toFixed(1);
+        const r = +(2.6 + (i % 4) * 1.15).toFixed(1);
+        const hasGlyph = i % 3 === 0;
+        const glyph = alphabet[(layerIdx * 11 + i * 5) % alphabet.length];
+        return { id: i, cx, cy, r, hasGlyph, glyph };
+      });
+
+      const edges = [];
+      for (let i = 0; i < nodeCount; i++) {
+        const next1 = (i + 1) % nodeCount;
+        const next2 = (i + 4) % nodeCount;
+        const next3 = (i + 7) % nodeCount;
+        edges.push({ id: `${i}-${next1}`, x1: nodes[i].cx, y1: nodes[i].cy, x2: nodes[next1].cx, y2: nodes[next1].cy, bright: i % 2 === 0 });
+        if (i % 2 === 0) {
+          edges.push({ id: `${i}-${next2}`, x1: nodes[i].cx, y1: nodes[i].cy, x2: nodes[next2].cx, y2: nodes[next2].cy, bright: false });
+        }
+        if (i % 3 === 0) {
+          edges.push({ id: `${i}-${next3}`, x1: nodes[i].cx, y1: nodes[i].cy, x2: nodes[next3].cx, y2: nodes[next3].cy, bright: true });
+        }
+      }
+
       return {
-        id: i,
-        heightPx,
-        duration: `${0.32 + (i % 7) * 0.08}s`,
-        delay: `${(i % 11) * 0.04}s`,
-        isCore: Math.abs(norm - 0.5) < 0.16
+        layerIdx,
+        delay: `${(layerIdx * 1.15).toFixed(2)}s`,
+        duration: '3.45s',
+        nodes,
+        edges
       };
     });
   }, []);
 
-  const sparks = useMemo(() => {
-    return Array.from({ length: 76 }).map((_, i) => ({
-      id: i,
-      left: `${3 + ((i * 13) % 94)}%`,
-      top: `${14 + ((i * 23) % 72)}%`,
-      size: 1.5 + (i % 4) * 1.1,
-      dx: `${(i % 2 === 0 ? 1 : -1) * (10 + (i % 5) * 8)}px`,
-      dy: `${(i % 3 === 0 ? -1 : 1) * (16 + (i % 6) * 12)}px`,
-      dur: `${0.9 + (i % 5) * 0.35}s`
-    }));
-  }, []);
-
-  const tumblingLetters = useMemo(() => {
-    const pool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    return Array.from({ length: 34 }).map((_, i) => {
-      const fromTop = i % 2 === 0;
-      const spreadY = (fromTop ? -1 : 1) * (12 + ((i * 17) % 34));
-      const compressY = (fromTop ? -1 : 1) * (2 + (i % 5) * 1.8);
-      const rot = (i % 2 === 0 ? 1 : -1) * (18 + (i * 13) % 45);
-      const isHero = i % 6 === 0;
+  // Hundreds of fine ambient constellation sparks representing every person in the room
+  const constellationStars = useMemo(() => {
+    return Array.from({ length: 110 }).map((_, i) => {
+      const angle = (i * 137.508) * (Math.PI / 180);
+      const dist = 6 + ((i * 19) % 44);
       return {
         id: i,
-        char: pool[(i * 5 + 2) % pool.length],
-        left: `${6 + ((i * 11) % 88)}%`,
-        spreadY,
-        compressY,
-        rot,
-        size: isHero ? '2.5rem' : `${1.05 + (i % 4) * 0.42}rem`,
-        opacity: isHero ? 0.92 : 0.45 + (i % 4) * 0.14,
-        blur: isHero ? '0.4px' : '0px',
-        dur: `${1.2 + (i % 5) * 0.3}s`
+        left: `${(50 + Math.cos(angle) * dist).toFixed(1)}%`,
+        top: `${(50 + Math.sin(angle) * dist * 1.35).toFixed(1)}%`,
+        size: 1.4 + (i % 3) * 0.9,
+        delay: `${(i % 9) * 0.15}s`,
+        dur: `${0.75 + (i % 5) * 0.25}s`
       };
     });
   }, []);
 
   return (
     <div className="relative w-full h-full min-h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none pointer-events-none">
+      <style>{`
+        @keyframes neuralFlyThrough {
+          0% {
+            transform: scale(0.32) rotate(-6deg);
+            opacity: 0;
+          }
+          18% {
+            opacity: 0.95;
+          }
+          78% {
+            opacity: 0.9;
+          }
+          100% {
+            transform: scale(2.35) rotate(8deg);
+            opacity: 0;
+          }
+        }
+        @keyframes synapsePulseGlow {
+          0%, 100% { opacity: 0.28; }
+          50% { opacity: 0.98; }
+        }
+        @keyframes organicGlyphFlicker {
+          0%, 100% { opacity: 0.08; }
+          35% { opacity: 0.85; }
+          55% { opacity: 0.22; }
+          80% { opacity: 0.95; }
+        }
+      `}</style>
+
+      {/* Deep Neural Nebula Backdrop */}
       <div
-        className="absolute inset-x-0 h-80 pointer-events-none transition-all duration-700"
+        className="absolute inset-0 pointer-events-none transition-opacity duration-700"
         style={{
-          background: isCompressing
-            ? 'radial-gradient(ellipse 80% 24% at 50% 50%, rgba(224,250,255,0.65) 0%, rgba(0,240,255,0.32) 45%, transparent 85%)'
-            : 'radial-gradient(ellipse 65% 48% at 50% 50%, rgba(224,250,255,0.45) 0%, rgba(0,240,255,0.22) 48%, transparent 85%)'
+          background: isHighSynapse
+            ? 'radial-gradient(circle at center, rgba(0,240,255,0.28) 0%, rgba(0,95,200,0.16) 45%, #000000 82%)'
+            : 'radial-gradient(circle at center, rgba(0,210,255,0.18) 0%, rgba(0,60,140,0.1) 45%, #000000 80%)'
         }}
       />
 
-      {sparks.map((s) => (
+      {/* Hundreds of Tiny Glowing Cyan Constellation Nodes */}
+      {constellationStars.map((st) => (
         <span
-          key={s.id}
+          key={st.id}
           style={{
-            left: s.left,
-            top: s.top,
-            width: `${s.size}px`,
-            height: `${s.size}px`,
-            '--dx': s.dx,
-            '--dy': s.dy,
-            boxShadow: '0 0 8px #00f0ff, 0 0 15px #ffffff',
-            animation: `floatSpark ${s.dur} ease-in-out infinite alternate`
+            left: st.left,
+            top: st.top,
+            width: `${st.size}px`,
+            height: `${st.size}px`,
+            boxShadow: '0 0 8px #00f0ff, 0 0 14px rgba(224,250,255,0.85)',
+            animation: `stardustTwinkle ${st.dur} ease-in-out infinite alternate`,
+            animationDelay: st.delay
           }}
-          className="absolute rounded-full bg-white pointer-events-none"
+          className="absolute rounded-full bg-cyan-100 pointer-events-none"
         />
       ))}
 
-      <svg
-        viewBox="0 0 1000 300"
-        preserveAspectRatio="none"
-        className={`absolute inset-x-0 w-full h-64 transition-opacity duration-500 ${
-          waveStage === 'RIBBON_BEAM' ? 'opacity-95' : 'opacity-45'
-        }`}
-      >
-        <defs>
-          <filter id="neonBeamGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <path
-          d="M 0 150 C 180 150, 240 45, 320 150 C 400 255, 460 25, 540 150 C 620 275, 680 55, 760 150 C 840 245, 900 150, 1000 150"
-          fill="none"
-          stroke="#e0faff"
-          strokeWidth="4"
-          filter="url(#neonBeamGlow)"
-          style={{ animation: 'soundwaveMorph 0.75s ease-in-out infinite alternate' }}
-        />
-        <path
-          d="M 0 150 C 180 150, 240 245, 320 150 C 400 55, 460 275, 540 150 C 620 25, 680 245, 760 150 C 840 55, 900 150, 1000 150"
-          fill="none"
-          stroke="#00f0ff"
-          strokeWidth="2.5"
-          strokeOpacity="0.8"
-          filter="url(#neonBeamGlow)"
-          style={{ animation: 'soundwaveMorph 0.6s ease-in-out infinite alternate-reverse' }}
-        />
-      </svg>
+      {/* 3D Camera Fly-Through Neural Web Layers */}
+      {neuralLayers.map((layer) => (
+        <svg
+          key={layer.layerIdx}
+          viewBox="0 0 1000 1000"
+          className="absolute w-[135vmin] h-[135vmin] will-change-transform pointer-events-none"
+          style={{
+            animation: `neuralFlyThrough ${layer.duration} cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite`,
+            animationDelay: layer.delay,
+            opacity: 0
+          }}
+        >
+          <defs>
+            <filter id={`neuralGlow_${layer.layerIdx}`} x="-25%" y="-25%" width="150%" height="150%">
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
 
+          {/* Electric Blue Synaptic Connections */}
+          <g filter={`url(#neuralGlow_${layer.layerIdx})`}>
+            {layer.edges.map((e, eIdx) => (
+              <line
+                key={e.id}
+                x1={e.x1}
+                y1={e.y1}
+                x2={e.x2}
+                y2={e.y2}
+                stroke={e.bright ? '#bdf8ff' : '#00d8ff'}
+                strokeWidth={isHighSynapse ? (e.bright ? '2.2' : '1.3') : '1.1'}
+                strokeOpacity={e.bright ? '0.82' : '0.45'}
+                style={{
+                  animation: `synapsePulseGlow ${0.9 + (eIdx % 5) * 0.25}s ease-in-out infinite`,
+                  animationDelay: `${(eIdx % 7) * 0.12}s`
+                }}
+              />
+            ))}
+          </g>
+
+          {/* Glowing Cyan Soma Nodes + Organic Flickering Thought Letters */}
+          {layer.nodes.map((n) => (
+            <g key={n.id}>
+              <circle
+                cx={n.cx}
+                cy={n.cy}
+                r={n.r * 2.4}
+                fill="#00f0ff"
+                fillOpacity="0.22"
+              />
+              <circle
+                cx={n.cx}
+                cy={n.cy}
+                r={n.r}
+                fill="#ffffff"
+                filter={`url(#neuralGlow_${layer.layerIdx})`}
+              />
+              {n.hasGlyph && (
+                <text
+                  x={n.cx + 8}
+                  y={n.cy - 6}
+                  fill="#cffafe"
+                  fontSize="16"
+                  fontWeight="800"
+                  fontFamily="sans-serif"
+                  filter={`url(#neuralGlow_${layer.layerIdx})`}
+                  style={{
+                    animation: `organicGlyphFlicker ${0.85 + (n.id % 4) * 0.3}s ease-in-out infinite`,
+                    animationDelay: `${(n.id % 6) * 0.18}s`
+                  }}
+                >
+                  {n.glyph}
+                </text>
+              )}
+            </g>
+          ))}
+        </svg>
+      ))}
+
+      {/* 0:08 - 0:09 THE BREATH: Bright Synaptic Core Flash Before Sudden 1-Second Drop to Pure Black */}
       <div
-        className={`absolute inset-x-0 flex items-center justify-between px-1 transition-all duration-500 ${
-          isSpikeBurst ? 'opacity-100 scale-y-100' : isCompressing ? 'opacity-55 scale-y-[0.22]' : 'opacity-25 scale-y-[0.15]'
-        }`}
+        className="absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-700 ease-out"
+        style={{
+          opacity: isCoreBreathFlash ? 1 : 0,
+          transform: isCoreBreathFlash ? 'scale(1.15)' : 'scale(0.35)'
+        }}
       >
-        {spikes.map((sp) => (
-          <div
-            key={sp.id}
-            className="w-[1.5px] sm:w-[2px] rounded-full will-change-transform"
-            style={{
-              height: `${sp.heightPx}px`,
-              background: sp.isCore
-                ? 'linear-gradient(180deg, rgba(0,240,255,0) 0%, #00f0ff 25%, #ffffff 50%, #00f0ff 75%, rgba(0,240,255,0) 100%)'
-                : 'linear-gradient(180deg, rgba(0,240,255,0) 0%, rgba(0,240,255,0.85) 30%, #e0faff 50%, rgba(0,240,255,0.85) 70%, rgba(0,240,255,0) 100%)',
-              boxShadow: sp.isCore ? '0 0 16px #ffffff, 0 0 28px #00f0ff' : '0 0 8px #00f0ff',
-              animation: `seismographSpike ${sp.duration} ease-in-out infinite alternate`,
-              animationDelay: sp.delay
-            }}
-          />
-        ))}
+        <div
+          className="w-[95vmin] h-[95vmin] rounded-full"
+          style={{
+            background: 'radial-gradient(circle at center, #ffffff 0%, rgba(210,252,255,0.92) 22%, rgba(0,240,255,0.55) 48%, transparent 74%)'
+          }}
+        />
       </div>
-
-      <div className="absolute inset-x-0 h-[3px] bg-white shadow-[0_0_18px_#ffffff,0_0_35px_#00f0ff,0_0_65px_#00f0ff]" />
-
-      {tumblingLetters.map((item) => {
-        const yOffset = isCompressing ? item.compressY : item.spreadY;
-        return (
-          <span
-            key={item.id}
-            style={{
-              left: item.left,
-              top: '50%',
-              fontSize: item.size,
-              opacity: item.opacity,
-              filter: `blur(${item.blur})`,
-              transform: `translateY(${yOffset}vh) rotate(${isCompressing ? item.rot * 0.25 : item.rot}deg)`,
-              transition: 'transform 0.95s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease',
-              textShadow: '0 0 12px rgba(255,255,255,0.95), 0 0 24px rgba(0,240,255,0.85)'
-            }}
-            className="absolute -mt-4 font-sans font-black text-cyan-50 select-none pointer-events-none"
-          >
-            {item.char}
-          </span>
-        );
-      })}
     </div>
   );
 });
@@ -4150,7 +4171,7 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
               ? '🌀 REVEALING...'
               : activePhase === 'PHASE_2_DONE'
                 ? `✓ ${peekedWord || customText || 'LOCKED'} [R]`
-                : `🌀 REVEAL (${revealTheme === 'APERTURE_VORTEX' ? 'APERTURE' : 'RIPPLE'}) [R]`}
+                : `🌀 REVEAL (${revealTheme === 'APERTURE_VORTEX' ? 'APERTURE' : 'NEURAL'}) [R]`}
           </button>
         </div>
 
