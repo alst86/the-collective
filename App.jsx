@@ -922,6 +922,90 @@ const MagneticVortexStage2 = React.memo(function MagneticVortexStage2({ coreFlar
 });
 
 // ==========================================
+// NEON BLUE RANDOM LETTER SCRAMBLE REVEAL (STAGE 3)
+// ==========================================
+const NeonScrambleReveal = React.memo(function NeonScrambleReveal({
+  chars,
+  isLocked,
+  fontSizeVw,
+  wordSpaceEm,
+  letterSpacingEm
+}) {
+  const glyphPool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789?=#><;_/\\[]';
+  const [frameTick, setFrameTick] = useState(0);
+  const startTimeRef = useRef(Date.now());
+
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+    setFrameTick(0);
+    if (isLocked) return;
+
+    const interval = setInterval(() => {
+      setFrameTick((t) => t + 1);
+    }, 45);
+    return () => clearInterval(interval);
+  }, [isLocked, chars]);
+
+  const elapsed = isLocked ? 9999 : Date.now() - startTimeRef.current;
+  const totalNonSpace = Math.max(1, chars.filter((c) => c.ch !== ' ').length);
+
+  let nonSpaceIndex = -1;
+  return (
+    <div className="relative flex items-center justify-center w-full h-full min-h-[100dvh] bg-black px-4 sm:px-10 overflow-hidden pointer-events-none select-none">
+      {/* Subtle Neon Blue Ambient Core Backglow */}
+      <div
+        className="absolute w-[82vmin] h-[36vmin] rounded-full pointer-events-none transition-opacity duration-700"
+        style={{
+          background: 'radial-gradient(ellipse at center, rgba(0,240,255,0.22) 0%, rgba(0,140,255,0.08) 52%, transparent 78%)',
+          opacity: isLocked ? 0.95 : 0.65
+        }}
+      />
+
+      <div className="relative z-10 flex items-center justify-center whitespace-nowrap select-none max-w-[94vw]">
+        {chars.map((item, idx) => {
+          const isSpace = item.ch === ' ';
+          if (!isSpace) nonSpaceIndex += 1;
+
+          // Progressive left-to-right lock-in across the 1.3s CONVERGE window (finished before 1300ms)
+          const lockThresholdMs = isSpace
+            ? 0
+            : Math.round(280 + (nonSpaceIndex / totalNonSpace) * 860);
+          const charIsLocked = isSpace || isLocked || elapsed >= lockThresholdMs;
+
+          let displayChar = item.ch;
+          if (!charIsLocked) {
+            const randIdx = Math.abs((frameTick * 7 + idx * 13 + ((elapsed >> 4) * 3)) % glyphPool.length);
+            displayChar = glyphPool[randIdx];
+          }
+
+          return (
+            <span
+              key={idx}
+              style={{
+                fontSize: `clamp(1.0rem, min(${fontSizeVw}vw, 14vh), 7.5rem)`,
+                width: isSpace ? `${wordSpaceEm}em` : 'auto',
+                marginRight: idx < chars.length - 1 ? `${letterSpacingEm}em` : '0em',
+                color: charIsLocked ? '#ecfeff' : '#38bdf8',
+                opacity: charIsLocked ? 1 : 0.9,
+                transition: 'color 0.18s ease, text-shadow 0.25s ease',
+                textShadow: isSpace
+                  ? 'none'
+                  : charIsLocked
+                    ? '0 0 10px #ffffff, 0 0 22px #00f0ff, 0 0 42px #00b8ff, 0 0 70px rgba(0,160,255,0.65)'
+                    : '0 0 10px rgba(0,240,255,0.85), 0 0 24px rgba(0,150,255,0.55)'
+              }}
+              className="font-mono font-black uppercase inline-block leading-none shrink-0 text-center"
+            >
+              {isSpace ? '\u00A0' : displayChar}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// ==========================================
 // REDIRECT LOGIC
 // ==========================================
 const formatValidUrl = (rawUrl, fallbackUrl) => {
@@ -2312,34 +2396,13 @@ function AudienceView({ roomID, skipEntryPrompt = false, onEnterMaster }) {
       )}
 
       {(stagePhase === 'CONVERGE' || stagePhase === 'LOCKED') && (
-        <div className="relative flex items-center justify-center w-full min-h-[100dvh] bg-black px-4 sm:px-10 overflow-hidden pointer-events-none select-none">
-          <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[94vw]">
-            {targetChars.map((item, idx) => {
-              const isSpace = item.ch === ' ';
-              return (
-                <span
-                  key={idx}
-                  style={{
-                    fontSize: `clamp(1.0rem, min(${revealFontSizeVw}vw, 14vh), 7.5rem)`,
-                    width: isSpace ? `${revealWordSpaceEm}em` : 'auto',
-                    marginRight: idx < targetChars.length - 1 ? `${revealLetterSpacingEm}em` : '0em',
-                    opacity: convergeActive || stagePhase === 'LOCKED' ? 1 : 0,
-                    transform: convergeActive || stagePhase === 'LOCKED'
-                      ? 'translate(0px, 0px) scale(1)'
-                      : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
-                    transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
-                    textShadow: isSpace
-                      ? 'none'
-                      : '0 0 12px rgba(255,255,255,0.92), 0 0 28px rgba(0,240,255,0.82), 0 0 55px rgba(0,180,255,0.5)'
-                  }}
-                  className="text-white font-black uppercase inline-block leading-none shrink-0"
-                >
-                  {isSpace ? '\u00A0' : item.ch}
-                </span>
-              );
-            })}
-          </div>
-        </div>
+        <NeonScrambleReveal
+          chars={targetChars}
+          isLocked={stagePhase === 'LOCKED'}
+          fontSizeVw={revealFontSizeVw}
+          wordSpaceEm={revealWordSpaceEm}
+          letterSpacingEm={revealLetterSpacingEm}
+        />
       )}
 
       {stagePhase === 'PULSE' && (
@@ -3849,34 +3912,13 @@ function ControlView({ roomID, onSwitchToHeartbeatView }) {
           )}
 
           {(masterMonitorPhase === 'CONVERGE' || masterMonitorPhase === 'LOCKED') && (
-            <div className="relative flex items-center justify-center w-full h-full bg-black px-4 sm:px-10 overflow-hidden pointer-events-none select-none">
-              <div className="flex items-center justify-center whitespace-nowrap select-none max-w-[94vw]">
-                {masterTargetChars.map((item, idx) => {
-                  const isSpace = item.ch === ' ';
-                  return (
-                    <span
-                      key={idx}
-                      style={{
-                        fontSize: `clamp(1.0rem, min(${masterFontSizeVw}vw, 14vh), 7.5rem)`,
-                        width: isSpace ? `${masterWordSpaceEm}em` : 'auto',
-                        marginRight: idx < masterTargetChars.length - 1 ? `${masterLetterSpacingEm}em` : '0em',
-                        opacity: masterConvergeActive || masterMonitorPhase === 'LOCKED' ? 1 : 0,
-                        transform: masterConvergeActive || masterMonitorPhase === 'LOCKED'
-                          ? 'translate(0px, 0px) scale(1)'
-                          : `translate(${item.startX}px, ${item.startY}px) scale(0.82)`,
-                        transition: 'transform 1.15s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease',
-                        textShadow: isSpace
-                          ? 'none'
-                          : '0 0 12px rgba(255,255,255,0.92), 0 0 28px rgba(0,240,255,0.82), 0 0 55px rgba(0,180,255,0.5)'
-                      }}
-                      className="text-white font-black uppercase inline-block leading-none shrink-0"
-                    >
-                      {isSpace ? '\u00A0' : item.ch}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
+            <NeonScrambleReveal
+              chars={masterTargetChars}
+              isLocked={masterMonitorPhase === 'LOCKED'}
+              fontSizeVw={masterFontSizeVw}
+              wordSpaceEm={masterWordSpaceEm}
+              letterSpacingEm={masterLetterSpacingEm}
+            />
           )}
         </div>
       )}
